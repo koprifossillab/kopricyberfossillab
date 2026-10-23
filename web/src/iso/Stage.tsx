@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office } from '../types.ts';
 import { bodyKey, headKey, dinoKey, fishKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { FishTank } from './fish.ts';
+import { daylight, hourNow } from './daylight.ts';
 import { DinoPen } from './dinos.ts';
 import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
@@ -90,6 +91,14 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let order: number[] = [];
       let pen: DinoPen | null = null;
       let tank: FishTank | null = null;
+      let day = 1, lastSky = -1;
+      let lamps: [number, number][] = [];
+      // 바탕 하늘 — 밤 남색 ↔ 낮 하늘색 (5c 의 배경이 붙기 전까지의 바탕)
+      const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+      const paintSky = (d: number) => {
+        const top = mix([10, 16, 36], [120, 170, 220], d), bot = mix([30, 36, 72], [200, 225, 245], d);
+        box.current.style.background = `linear-gradient(180deg, rgb(${top}) 0%, rgb(${bot}) 100%)`;
+      };
       let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
       // 건물 전체가 들어가는 구운 픽셀 범위
@@ -187,6 +196,15 @@ export function Stage({ agents, offices, selected, onSelect }: {
         ctx.setTransform(k, 0, 0, k, offX, offY);
         ctx.imageSmoothingQuality = 'high';
         // 바닥 층 전부, 그다음 물건 층 (등각 차례)
+        if (orderFor !== w) {
+          // 천장 조명 자리 — 바닥이 있는 모듈마다 3.5 간격 (테라스는 빼고)
+          lamps = [];
+          for (const m of w.modules) {
+            const [mw, md] = MODULES[m.type].size;
+            if (!MODULES[m.type].floors.length || m.type === 'terrace') continue;
+            for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.at[1] + lz]);
+          }
+        }
         if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; tank = w.aqua ? new FishTank(w.aqua.tanks) : null; }
         w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
         for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } }
@@ -299,6 +317,44 @@ export function Stage({ agents, offices, selected, onSelect }: {
           })),
         ];
         seq.sort((a, b) => a.at - b.at || a.r - b.r).forEach((s) => s.fn());
+
+        // 낮밤 — 밤이면 그린 것 위에만(source-atop) 남색을 덮고, 그 위에 천장 조명 웅덩이와 켜진 모니터 빛을 더한다(lighter).
+        // 낮에는 아주 조금 밝게. 바탕(하늘)은 .view 의 배경이 시각에 맞춰 바뀐다
+        if (Math.floor(T * 2) !== lastSky) { lastSky = Math.floor(T * 2); day = daylight(hourNow()); paintSky(day); }
+        const night = 1 - day;
+        if (night > 0.02) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = `rgba(8, 14, 38, ${0.55 * night})`;
+          ctx.fillRect(bounds.x0 - 50, bounds.y0 - 50, bounds.x1 - bounds.x0 + 100, bounds.y1 - bounds.y0 + 100);
+          ctx.globalCompositeOperation = 'lighter';
+          for (const [lx, lz] of lamps) {
+            const [u, v] = proj([lx, 0, lz]);
+            const r = 2.4 * S;
+            const g = ctx.createRadialGradient(u, v, 0, u, v, r);
+            g.addColorStop(0, `rgba(255, 214, 150, ${0.22 * night})`);
+            g.addColorStop(1, 'rgba(255, 214, 150, 0)');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.ellipse(u, v, r, r * 0.58, 0, 0, Math.PI * 2); ctx.fill();
+          }
+          seated.forEach((act, d) => {   // 켜진 모니터 앞에 푸른 빛
+            const [dx, dz] = w.desks[d].at;
+            const [u, v] = proj([dx, 0.9, dz + 0.3]);
+            const g = ctx.createRadialGradient(u, v, 0, u, v, 0.9 * S);
+            g.addColorStop(0, `rgba(120, 180, 255, ${0.22 * night})`);
+            g.addColorStop(1, 'rgba(120, 180, 255, 0)');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(u, v, 0.9 * S, 0, Math.PI * 2); ctx.fill();
+            void act;
+          });
+          ctx.restore();
+        } else if (day > 0.6) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = `rgba(255, 250, 235, ${0.05 * (day - 0.6) / 0.4})`;
+          ctx.fillRect(bounds.x0 - 50, bounds.y0 - 50, bounds.x1 - bounds.x0 + 100, bounds.y1 - bounds.y0 + 100);
+          ctx.restore();
+        }
 
         // 이름표 (HTML) — 하위 에이전트는 이름표 없이
         const live = new Set<string>();
