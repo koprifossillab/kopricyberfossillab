@@ -15,7 +15,7 @@ const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ?
 const FACE_DIR = 1;   // 머리 조각의 방향 — 카메라 쪽(+x+z)을 본다
 
 // 목록의 얼굴 — 그 캐릭터의 머리·몸 조각을 그대로 (둥근 바탕은 몸 색)
-function Avatar({ a, color, small }: { a: Agent; color: number; small: boolean }) {
+export function Avatar({ a, color, small }: { a: Agent; color: number; small: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const L = appearanceOf(a);
   const key = `${color}-${L.look}-${L.skin}-${L.shape}-${L.cap}`;
