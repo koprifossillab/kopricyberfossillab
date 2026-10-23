@@ -6,6 +6,7 @@ import {
 } from './layout.ts';
 import { MODULES, DOOR_TOP, type Item, type ModuleType } from './modules.ts';
 import { PROPS } from './props.ts';
+import { buildAquaItem } from './aquarium.ts';
 
 const mats = new Map<number, THREE.MeshLambertMaterial>();
 function mat(c: number): THREE.MeshLambertMaterial {
@@ -406,6 +407,8 @@ function ladder(x: number, z: number): THREE.Group {
 export function buildItem(it: Item): THREE.Group {
   const [x, z] = it.at;
   const len = Math.max(it.box[2] - it.box[0], it.box[3] - it.box[1]);
+  const aqua = buildAquaItem(it);   // 수족관의 새 가구 (aquarium.ts)
+  if (aqua) return aqua;
   switch (it.kind) {
     case 'desk': return desk(x, z);
     case 'call': return desk(x, z, true);
@@ -445,6 +448,7 @@ export function buildItem(it: Item): THREE.Group {
     case 'bucket': return bucket(x, z);
     case 'ladder': return ladder(x, z);
   }
+  return new THREE.Group();   // 수족관 가구는 위에서 그렸다
 }
 
 // 모듈의 바닥 층 — 바닥 판, 격자, 깔개. 그림자는 굽기가 가구를 보이지 않게 두고 받는다

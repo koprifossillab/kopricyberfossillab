@@ -2,6 +2,7 @@
 // 사무실은 프로젝트마다 하나(office / office-rash), 앞쪽에 공용 블록(front: 공용실·고객센터·휴게실), 사이에 복도·통로, 바깥 벽.
 import type { Rect } from './layout.ts';
 import { PROPS } from './props.ts';
+import { aquariumModule, AQUA_VIEW, TANKS, type AquaKind } from './aquarium.ts';
 
 export type ItemKind =
   | 'desk' | 'call' | 'rashdesk' | 'chair' | 'rashchair' | 'partition' | 'rashwall'
@@ -11,6 +12,7 @@ export type ItemKind =
   | 'mapboard' | 'maptable'
   | 'door'   // 출입구 문틀 — 기둥 둘과 가로대. 명판은 가로대에 건다 (h = 출입구 폭, rot 0 이면 x 로 뻗는다)
   | 'fence' | 'feeder' | 'fern' | 'rock' | 'nest' | 'dinosign'
+  | AquaKind   // 수족관 (aquarium.ts, wetherilli 011)
   | 'prop';   // props.ts 의 소품 (prop 에 이름)
 
 export interface Item { id: string; kind: ItemKind; at: [number, number]; box: Rect; h?: number; rot?: number; prop?: string }
@@ -34,6 +36,7 @@ export interface ModuleDef {
   stand?: [number, number][];                       // 갈 곳이 없을 때 서는 곳
   restroom?: { male: [number, number][]; female: [number, number][] };   // 휴게실에서 가끔 들르는 곳
   search?: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];   // 자료 검색할 때 가는 곳
+  aqua?: { view: typeof AQUA_VIEW; tanks: typeof TANKS };   // 수족관 관람 자리와 수조(물고기가 다니는 곳)
   pen?: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] };   // 공룡 울타리
   // 방 이름 명판 — 벽에 붙인다. at 은 벽 위의 바닥 자리, y 는 높이, axis 는 벽이 뻗은 방향(x: +z 를 보는 벽, z: +x 를 보는 벽)
   labels?: Plaque[];
@@ -395,7 +398,27 @@ function service(): ModuleDef {
   };
 }
 
+// 수족관 — 5c 세션이 만든 모듈(wetherilli 011)에 문틀을 달고 관람 자리·수조를 붙인다. 입구가 왼쪽이라 그 앞에 정원 길
+function aquarium(): ModuleDef {
+  const def = aquariumModule();
+  def.items.push(door('door', 0, 2.7, 1.4, 'z'));
+  def.labels = (def.labels ?? []).map((l) => ({ ...l, y: DOOR_TOP + 0.12 }));
+  def.aqua = { view: AQUA_VIEW, tanks: TANKS };
+  return def;
+}
+// 공용실 앞 정원 길 (7×6) — 공용실에서 수족관 입구로. 화분과 벤치 하나
+function garden(): ModuleDef {
+  const items: Item[] = [], blocks: Rect[] = [];
+  addProps(items, blocks, [
+    prop('tall0', 'plant_tall', 0.5, 5.5), prop('bush0', 'plant_bush', 3.0, 5.5), prop('bush1', 'plant_bush', 6.3, 0.6),
+    prop('succ0', 'plant_succulent', 0.5, 0.6), prop('lamp', 'floor_lamp', 5.0, 5.5),
+  ]);
+  return { size: [7, 6], floors: [{ rect: [0, 0, 7, 6], color: 0xd2d6c4 }], items, blocks, desks: [] };
+}
+
 export const MODULES = {
+  aquarium: aquarium(),
+  garden: garden(),
   dino: dinoRoom(),
   library: library(),
   'backwall-library': { size: [LIBRARY_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,

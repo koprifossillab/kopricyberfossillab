@@ -46,6 +46,7 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
       ...w.restroom.female.map((p, i) => [`여${i}`, p] as [string, [number, number]]),
       ...w.stand.map((p, i) => [`서기${i}`, p] as [string, [number, number]]),
       ...(w.pen?.feed ?? []).map((f, i) => [`먹이${i}`, f.at] as [string, [number, number]]),
+      ...(w.aqua?.view ?? []).map((v, i) => [`수족관${i}`, v.at] as [string, [number, number]]),
     ];
     const bad: string[] = [];
     // 문에서 모든 자리로, 모든 자리에서 문으로, 그리고 휴게실 첫 자리와 서로

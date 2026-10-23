@@ -11,7 +11,8 @@ import { buildBody, buildHead, buildItem, buildFloor, buildTall } from '../src/s
 import { PALETTE, FOREIGN_COLOR, DIRS, LOOKS, SKINS, HEAD_Y, type BodyShape } from '../src/scene/layout.ts';
 import { MODULES, type ModuleType } from '../src/scene/modules.ts';
 import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
-import { bodyKey, headKey, dinoKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
+import { buildFish, FISH_KINDS } from '../src/scene/aquarium.ts';
+import { bodyKey, headKey, dinoKey, fishKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
 
 const SCALE = 96;                                      // 세계 1 = 96 구운 픽셀 (화면 2배 밀도에서 또렷하게)
 const VIEW = new THREE.Vector3(18, 16.5, 18);          // 시제품 카메라 방향 (CX+18, 17, CZ+18) → (CX, 0.5, CZ)
@@ -157,6 +158,11 @@ async function bake() {
       if (s) dinos.set(dinoKey(color, pose, f, d), s);
     }
   }
+  // 물고기 — 6종 × 꼬리 둘 × 방향 (기준점은 몸 가운데라 원점)
+  for (let kind = 0; kind < FISH_KINDS; kind++) for (const frame of [0, 1] as const) for (let d = 0; d < DIRS; d++) {
+    const s = shoot(buildFish({ kind, rot: (d * 2 * Math.PI) / DIRS, frame }), foot);
+    if (s) dinos.set('fish:' + fishKey(kind, frame, d), s);
+  }
   const dinoSheet = pack(dinos, 'dinos.webp', 1024);
   files['dinos.webp'] = dinoSheet.data;
 
@@ -175,7 +181,8 @@ async function bake() {
     up: up.toArray() as Atlas['up'],
     modules,
     bodies: Object.fromEntries(Object.entries(charSheet.rects).filter(([k]) => k.startsWith('b:')).map(([k, v]) => [k.slice(2), v])),
-    dinos: dinoSheet.rects,
+    dinos: Object.fromEntries(Object.entries(dinoSheet.rects).filter(([k]) => !k.startsWith('fish:'))),
+    fish: Object.fromEntries(Object.entries(dinoSheet.rects).filter(([k]) => k.startsWith('fish:')).map(([k, v]) => [k.slice(5), v])),
     heads: Object.fromEntries(Object.entries(charSheet.rects).filter(([k]) => k.startsWith('h:')).map(([k, v]) => [k.slice(2), v])),
   };
   return { atlas, files, lost: renderer.getContext().isContextLost() };

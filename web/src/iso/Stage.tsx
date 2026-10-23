@@ -3,7 +3,8 @@
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office } from '../types.ts';
-import { bodyKey, headKey, dinoKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { bodyKey, headKey, dinoKey, fishKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { FishTank } from './fish.ts';
 import { DinoPen } from './dinos.ts';
 import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
@@ -88,6 +89,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let orderFor: World | null = null;
       let order: number[] = [];
       let pen: DinoPen | null = null;
+      let tank: FishTank | null = null;
       let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
       // 건물 전체가 들어가는 구운 픽셀 범위
@@ -185,7 +187,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
         ctx.setTransform(k, 0, 0, k, offX, offY);
         ctx.imageSmoothingQuality = 'high';
         // 바닥 층 전부, 그다음 물건 층 (등각 차례)
-        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; }
+        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; tank = w.aqua ? new FishTank(w.aqua.tanks) : null; }
         w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
         for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } }
 
@@ -249,6 +251,14 @@ export function Stage({ agents, offices, selected, onSelect }: {
               blit(r, ax, ay);
             },
           });
+        }
+        // 물고기 — 수조 안을 헤엄 (fish.ts). 수조 유리가 앞에서 옅게 덮는다
+        tank?.step(Math.min(0.05, dt));
+        for (const f of tank?.fish ?? []) {
+          const r = atlas.fish?.[fishKey(f.kind, f.frame, dirOf(f.rot))];
+          if (!r) continue;
+          const [ax, ay] = proj([f.x, f.y, f.z]);
+          figs.push({ x: f.x, z: f.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h, draw: () => blit(r, ax, ay) });
         }
         figs.sort((p, q) => (p.x + p.z) - (q.x + q.z));
         // 가구가 그림 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다

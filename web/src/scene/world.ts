@@ -44,6 +44,7 @@ export interface World {
   stand: [number, number][];
   restroom: { male: [number, number][]; female: [number, number][] };
   search: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];
+  aqua: { view: { at: [number, number]; face: number; pose: 'sit' | 'stand'; on?: string; lift?: number }[]; tanks: { box: Rect; y0: number; y1: number }[] } | null;
   pen: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] } | null;
   labels: Plaque[];
   door: [number, number];
@@ -92,19 +93,22 @@ export function buildWorld(offices: Office[]): World {
   modules.push({ type: 'service', at: [BUILDING_W, frontZ] });
   modules.push({ type: 'library', at: [BUILDING_W, 0] });
   const DINO_X = 17;                                     // 휴게실(앞 블록 x 17..31) 앞
+  modules.push({ type: 'garden', at: [0, frontZ + FRONT_D] });   // 공용실 앞 정원 길 → 수족관 입구
+  modules.push({ type: 'aquarium', at: [7, frontZ + FRONT_D] }); // 고객센터 앞
   modules.push({ type: 'dino', at: [DINO_X, frontZ + FRONT_D] });
 
   const w: World = {
     w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D + DINO_D, modules, rooms,
     desks: [], items: [], blocks: [], lounge: [], core: [], bench: [], stand: [], labels: [],
-    restroom: { male: [], female: [] }, search: [], pen: null,
+    restroom: { male: [], female: [] }, search: [], pen: null, aqua: null,
     door: [BUILDING_W + ENTRANCE_W - 0.4, entZ + CORRIDOR / 2],
   };
   // 건물 밖은 입구 길만 걷는다
   if (entZ > OFFICE_D) w.blocks.push([BUILDING_W, OFFICE_D, w.w, entZ]);   // 자료실 아래 빈 곳
   // 공룡 방 양옆의 빈 곳 (앞 블록의 앞은 공룡 방 말고는 바닥이 없다) — 앞 블록 앞 가장자리에 걸음 막기
   const fz = frontZ + FRONT_D;
-  w.blocks.push([0, fz - 0.06, DINO_X, w.d], [DINO_X + 14, fz - 0.06, w.w, w.d], [DINO_X, fz - 0.06, DINO_X + 1.0, fz + 0.06], [DINO_X + 2.4, fz - 0.06, DINO_X + 14, fz + 0.06]);
+  // 공용실 앞(x 0..7)은 정원 길로 열어 두고, 고객센터 앞(7..17)은 수족관 뒤 벽, 그 너머는 공룡 방 벽과 문
+  w.blocks.push([7, fz - 0.06, 17, fz + 0.06], [DINO_X + 14, fz - 0.06, w.w, w.d], [DINO_X, fz - 0.06, DINO_X + 1.0, fz + 0.06], [DINO_X + 2.4, fz - 0.06, DINO_X + 14, fz + 0.06]);
   const mv = (p: [number, number], o: [number, number]): [number, number] => [p[0] + o[0], p[1] + o[1]];
   const mr = (r: Rect, o: [number, number]): Rect => [r[0] + o[0], r[1] + o[1], r[2] + o[0], r[3] + o[1]];
   modules.forEach((m, i) => {
@@ -120,6 +124,12 @@ export function buildWorld(offices: Office[]): World {
     w.core.push(...(def.core ?? []).map((p) => mv(p, o)));
     w.bench.push(...(def.bench ?? []).map((p) => mv(p, o)));
     if (m.type === 'front') w.stand.push(...(def.stand ?? []).map((p) => mv(p, o)));
+    if (def.aqua) {
+      w.aqua = {
+        view: def.aqua.view.map((v) => ({ ...v, at: mv(v.at, o), on: v.on ? `${i}:${v.on}` : undefined })),
+        tanks: def.aqua.tanks.map((t) => ({ ...t, box: mr(t.box, o) })),
+      };
+    }
     if (def.pen) {
       const pn = def.pen;
       w.pen = {

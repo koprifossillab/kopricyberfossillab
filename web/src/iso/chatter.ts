@@ -50,6 +50,13 @@ export const FEED: string[] = [
   '옜다!', '냠냠 먹어', '귀엽다…', '손은 물지 마', '너 이름이 뭐니', '오늘 많이 먹네', '천천히 먹어', '꼬리 봐 ㅋㅋ',
   '얘가 제일 빨라', '쟤는 맨날 둥지 옆에 있더라', '삼엽충은 안 먹니?', '쥐라기에서 왔니', '하나 더?', '배부르구나',
 ];
+export const AQUA: string[] = ['물고기 예쁘다', '저 노란 애 봐', '니모다!', '멍때리기 좋다', '산호 색 좋네', '쟤는 맨날 숨어 있어', '물소리 좋다', '눈이 편해진다'];
+export const AQUA_DIALOGS: string[][] = [
+  ['저 줄무늬 이름이 뭐예요?', '안내판에 있던데', '나중에 봐야지'],
+  ['여기 오면 마음이 편해요', '그쵸, 빌드 기다릴 때 딱'],
+  ['먹이는 누가 줘요?', '아침에 누가 주더라고요', '공룡 먹이랑 헷갈리면 안 되는데 ㅋㅋ'],
+  ['남극 바다에도 이런 애들 있어요?', '훨씬 칙칙하대요', '그래도 보고 싶다'],
+];
 export const COFFEE: string[] = ['☕', '커피 향 좋다', '샷 추가할까', '아 뜨거', '디카페인은 없나', '한 잔 더?', '설탕 어디 있지'];
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -84,7 +91,7 @@ export class Chatter {
     if (t.solo) {
       // 혼자면 드문드문
       const feeding = group.startsWith('feed');
-      t.text = feeding ? pick(FEED) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
+      t.text = feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
       t.who = members[0];
       t.until = now + lineTime(t.text);
       t.next = t.until + (feeding ? rand(3, 8) : rand(12, 35));
@@ -92,7 +99,7 @@ export class Chatter {
     }
     if (t.i >= t.lines.length) {
       // 새 대화 — 말을 꺼내는 사람도 고른다
-      t.lines = pick(DIALOGS);
+      t.lines = group === 'aqua' && Math.random() < 0.7 ? pick(AQUA_DIALOGS) : pick(DIALOGS);
       t.i = 0;
       const start = Math.floor(Math.random() * members.length);
       t.speakers = [...members.slice(start), ...members.slice(0, start)];

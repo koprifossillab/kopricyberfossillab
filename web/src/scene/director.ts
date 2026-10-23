@@ -27,6 +27,7 @@ function trip(id: string, now: number, window: number, odds: number, stay: [numb
   return t >= start && t < start + len;
 }
 const FEED_WINDOW = 120, FEED_ODDS = 6;   // 2분 창마다 6분의 1, 25~40초 — 공룡 먹이 주기
+const AQUA_WINDOW = 150, AQUA_ODDS = 5;   // 2분 반 창마다 5분의 1, 30~50초 — 수족관 구경
 function restroomTrip(id: string, now: number): boolean {
   const slot = Math.floor(now / 1000 / TRIP_WINDOW);
   let h = slot;
@@ -137,7 +138,7 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
   assignSeats(w, agents);
 
   const out = new Map<string, Placement>();
-  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0, feed: 0 };
+  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0, feed: 0, aqua: 0 };
   const CORE_SPOTS = w.core, BENCH_SPOTS = w.bench, BOARD_SPOTS = w.stand;
   const children = new Map<string, number>();
   const spot = (list: [number, number][], key: keyof typeof queue): [number, number] => {
@@ -177,6 +178,11 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
         const i = queue.feed++;
         const f = w.pen.feed[i];
         out.set(a.id, { target: f.at, pose: 'stand', face: f.face, desk: null, group: `feed${i}` });
+        continue;
+      }
+      if (w.aqua && queue.aqua < w.aqua.view.length && trip(a.id, now, AQUA_WINDOW, AQUA_ODDS, [30, 50], 303)) {
+        const v = w.aqua.view[queue.aqua++];
+        out.set(a.id, { target: v.at, pose: v.pose, face: v.face, desk: null, on: v.on, lift: v.lift, group: 'aqua' });
         continue;
       }
       out.set(a.id, lounge(a));
