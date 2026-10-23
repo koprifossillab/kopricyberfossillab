@@ -61,4 +61,17 @@ export interface Snapshot {
   agents: Agent[];
   terminals: Terminal[];
   offices: Office[];        // 사무실을 둘 프로젝트 (세션·job 의 room 가운데 center·general 이 아닌 것, 이름 차례)
+  limits?: Limits;          // Claude 사용 한도 — statusLine 이 남긴 파일에서. 없으면 모른다
+}
+
+// 한도 창 하나 (5시간·주간)
+export interface LimitWindow {
+  usedPct: number;          // 0–100
+  resetsAt: number;         // ms
+}
+
+export interface Limits {
+  fiveHour?: LimitWindow;
+  sevenDay?: LimitWindow;
+  seenAt: number;           // 값을 받은 때 (파일 mtime, ms) — 세션이 응답할 때만 새로 쓰인다
 }

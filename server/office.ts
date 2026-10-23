@@ -8,6 +8,7 @@ import { Transcript } from './transcript.ts';
 import { resolve, type Busy } from './latches.ts';
 import { alive, tmuxSessions, foreignClaudes } from './system.ts';
 import { execFileSync } from 'node:child_process';
+import { readLimits } from './limits.ts';
 import type { Agent, Office as OfficeRoom, Snapshot, Terminal } from './model.ts';
 
 // 사무실 크기 — 커밋 수로 (2026-10-23: ForGIA 13 · Cropobite 19 · rash-company 333 · DiaRUGA 736 · GSM 1561)
@@ -226,6 +227,6 @@ export class Office {
         const n = commitCount(name, now);
         return { name, size: n < SMALL_COMMITS ? 's' as const : n >= LARGE_COMMITS ? 'l' as const : 'm' as const };
       });
-    return { version: this.version, host: os.hostname(), at: now, agents, terminals, offices };
+    return { version: this.version, host: os.hostname(), at: now, agents, terminals, offices, limits: readLimits(now) };
   }
 }

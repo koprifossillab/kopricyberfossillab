@@ -48,7 +48,8 @@ function demo(set: (s: Snapshot) => void): () => void {
     agents.push({ id: 'tmux/build', kind: 'terminal', name: 'build', project: 'tmux', activity: buildBusy ? 'run' : 'idle',
       label: buildBusy ? '$ npm' : '프롬프트 대기', room: 'general', tmux: 'build', slot: 1, startedAt: t0 - 2, changedAt: Date.now() });
     set({ version: 'demo', host: 'demo', at: Date.now(), agents, offices: [{ name: 'DiaRUGA', size: 'm' }, { name: 'ForGIA', size: 's' }, { name: 'GSM', size: 'l' }, { name: 'rash-company', size: 'm' }],
-      terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true, command: 'claude' }, { name: 'build', attached: 1, windows: 2, claude: false, command: buildBusy ? 'npm' : 'bash' }] });
+      terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true, command: 'claude' }, { name: 'build', attached: 1, windows: 2, claude: false, command: buildBusy ? 'npm' : 'bash' }],
+      limits: { fiveHour: { usedPct: 73, resetsAt: t0 + 2 * 3600_000 + 14 * 60_000 }, sevenDay: { usedPct: 41, resetsAt: t0 + 3 * 86400_000 + 5 * 3600_000 }, seenAt: Date.now() - 30_000 } });
   };
   tick();
   const h = setInterval(tick, 4000);
