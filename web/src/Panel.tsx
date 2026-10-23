@@ -68,7 +68,12 @@ function Row({ a, all, selected, onSelect }: { a: Agent; all: Agent[]; selected:
   );
 }
 
-export function Panel({ snap, link, selected, onSelect }: {
+function clock(ms: number): string {
+  return new Date(ms).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// 왼쪽 칸 — 에이전트 목록 (하위 에이전트는 부모 아래로)
+export function AgentList({ snap, link, selected, onSelect }: {
   snap: Snapshot | null; link: Link; selected: string | null; onSelect: (id: string) => void;
 }) {
   const agents = snap?.agents ?? [];
@@ -76,7 +81,7 @@ export function Panel({ snap, link, selected, onSelect }: {
   const kids = (id: string) => agents.filter((a) => a.parentId === id);
   const waiting = agents.filter((a) => a.activity === 'wait').length;
   return (
-    <aside>
+    <aside className="side left">
       <h2>에이전트 {agents.length}<span className={link === 'lost' ? 'bad' : ''}>{LINK[link]}</span></h2>
       {waiting > 0 && <p className="alert">확인을 기다리는 세션 {waiting}</p>}
       <div className="list">
@@ -88,18 +93,59 @@ export function Panel({ snap, link, selected, onSelect }: {
         ))}
         {!agents.length && <p className="note">돌고 있는 세션이 없다.</p>}
       </div>
+    </aside>
+  );
+}
+
+// 오른쪽 칸 — 고른 에이전트, 터미널, 범례
+export function SidePanel({ snap, selected, onSelect }: {
+  snap: Snapshot | null; selected: string | null; onSelect: (id: string | null) => void;
+}) {
+  const agents = snap?.agents ?? [];
+  const a = agents.find((x) => x.id === selected);
+  const kids = a ? agents.filter((x) => x.parentId === a.id) : [];
+  return (
+    <aside className="side right">
+      <h2>고른 에이전트{a && <button className="x" onClick={() => onSelect(null)} aria-label="고르기 풀기">×</button>}</h2>
+      {a ? (
+        <div className="detail">
+          <div className="dhead">
+            <Avatar a={a} color={colorOf(a, agents)} small={false} />
+            <div><b>{a.name}</b><span className={a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill'}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span></div>
+          </div>
+          <dl>
+            <dt>지금</dt><dd className="mono">{a.label}</dd>
+            <dt>종류</dt><dd>{KIND[a.kind]}{a.user ? ` · ${a.user}` : ''}</dd>
+            {a.kind !== 'foreign' && <><dt>방</dt><dd>{ROOM(a.room)}</dd></>}
+            {a.project && <><dt>{a.parentId ? '맡은 일' : '프로젝트'}</dt><dd>{a.project}</dd></>}
+            {a.tmux && <><dt>tmux</dt><dd className="mono">{a.tmux}</dd></>}
+            <dt>시작</dt><dd>{clock(a.startedAt)} · {since(a.startedAt)} 전</dd>
+            <dt>이 활동</dt><dd>{since(a.changedAt)}째</dd>
+            {kids.length > 0 && <><dt>하위</dt><dd>{kids.map((k) => k.name).join(', ')}</dd></>}
+          </dl>
+        </div>
+      ) : <p className="note">화면의 캐릭터나 왼쪽 목록을 누르면 여기에 자세히 보인다.</p>}
       <h2>터미널 {snap?.terminals.length ?? 0}<span>tmux</span></h2>
       <div className="terms">
         {(snap?.terminals ?? []).map((t) => (
           <div key={t.name} className="term">
             <i className={t.attached ? 'on' : ''} />
             <b>{t.name}</b>
-            <span>창 {t.windows}{t.attached ? ` · 붙음 ${t.attached}` : ''}{t.claude ? ' · claude' : ''}</span>
+            <span>{t.command && t.command !== 'bash' ? `$ ${t.command} · ` : ''}창 {t.windows}{t.attached ? ` · 붙음 ${t.attached}` : ''}{t.claude ? ' · claude' : ''}</span>
           </div>
         ))}
         {snap && !snap.terminals.length && <p className="note">tmux 세션이 없다.</p>}
       </div>
-      <p className="note">사무실 = 프로젝트마다 · 고객센터 = 다른 세션이 보낸 지령(최근 말 8개 중 절반 이상) · 공용실 = 프로젝트를 모를 때 · 자료실 = 웹 검색 · 휴게실 = 쉬는 세션(가끔 화장실). 책상 옆 빨간 링 = 확인 필요 · 코어 보관대 = git·gh · 현미경 = 시험 · 주황 모자 = tmux</p>
+      <h2>보는 법</h2>
+      <ul className="legend">
+        <li><b>사무실</b> 프로젝트마다 — 크기는 커밋 수</li>
+        <li><b>고객센터</b> 다른 세션이 보낸 지령(최근 말 8개 중 절반 이상)</li>
+        <li><b>공용실</b> 프로젝트를 모를 때 · 코어 보관대 = git · 현미경 = 시험</li>
+        <li><b>자료실</b> 웹 검색</li>
+        <li><b>휴게실</b> 쉬는 세션 — 잡담, 가끔 화장실·공룡 먹이</li>
+        <li><b>빨간 링</b> 확인을 기다린다 · <b>주황 모자</b> tmux</li>
+      </ul>
+      <p className="hint2">휠 확대 · 끌어 옮기기 · 두 번 눌러 처음대로</p>
     </aside>
   );
 }
