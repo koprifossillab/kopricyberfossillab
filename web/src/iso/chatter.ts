@@ -46,11 +46,16 @@ export const SOLO: string[] = [
   '음~', '…', '흠', '오늘도 힘내자', '조금만 쉬자', '다음 할 일이 뭐더라', '하암', '눈이 침침하다',
   '컨텍스트 정리 좀 할까', '메일 확인해야지', '아 맞다 그거', '좋아 좋아', '이따 커밋해야지',
 ];
+export const FEED: string[] = [
+  '옜다!', '냠냠 먹어', '귀엽다…', '손은 물지 마', '너 이름이 뭐니', '오늘 많이 먹네', '천천히 먹어', '꼬리 봐 ㅋㅋ',
+  '얘가 제일 빨라', '쟤는 맨날 둥지 옆에 있더라', '삼엽충은 안 먹니?', '쥐라기에서 왔니', '하나 더?', '배부르구나',
+];
 export const COFFEE: string[] = ['☕', '커피 향 좋다', '샷 추가할까', '아 뜨거', '디카페인은 없나', '한 잔 더?', '설탕 어디 있지'];
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
-const lineTime = (s: string) => Math.min(5, 1.4 + s.length * 0.11);   // 글이 길면 오래 보인다
+// 글이 길면 오래 보인다 — 짧은 말도 2초는 남겨 읽을 틈을 준다 (사용자: 「1초씩은 메시지가 유지되도록」)
+const lineTime = (s: string) => Math.min(5.5, Math.max(2, 1.6 + s.length * 0.12));
 
 interface Talk { lines: string[]; i: number; speakers: string[]; text: string; who: string | null; until: number; next: number; solo: boolean }
 
@@ -61,7 +66,13 @@ export class Chatter {
   // members: 그 무리에 앉아(서) 있는 사람 id. 돌려주는 것: 지금 말하는 사람과 말 (없으면 null)
   step(group: string, members: string[], now: number): { who: string; text: string } | null {
     let t = this.talks.get(group);
-    if (t && t.speakers.join(',') !== members.join(',')) t = undefined;   // 사람이 바뀌었다
+    if (t && t.speakers.slice().sort().join(',') !== members.slice().sort().join(',')) {
+      // 사람이 바뀌었다 — 대화는 새로 하되, 하던 말은 끝까지 보인다 (끊기면 읽을 틈이 없다)
+      const keep = t.who && members.includes(t.who) && now < t.until ? { who: t.who, text: t.text, until: t.until } : null;
+      t = { lines: [], i: 0, speakers: members, text: keep?.text ?? '', who: keep?.who ?? null, until: keep?.until ?? 0,
+        next: (keep?.until ?? now) + rand(1.5, 5), solo: members.length < 2 };
+      this.talks.set(group, t);
+    }
     if (!t) {
       // 처음엔 조금 뜸을 들인다 — 앉자마자 말하지 않게
       t = { lines: [], i: 0, speakers: members, text: '', who: null, until: 0, next: now + rand(2, 8), solo: members.length < 2 };
@@ -72,10 +83,11 @@ export class Chatter {
     if (now < t.next) return null;
     if (t.solo) {
       // 혼자면 드문드문
-      t.text = group === 'coffee' ? pick(COFFEE) : pick(SOLO);
+      const feeding = group.startsWith('feed');
+      t.text = feeding ? pick(FEED) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
       t.who = members[0];
       t.until = now + lineTime(t.text);
-      t.next = t.until + rand(12, 35);
+      t.next = t.until + (feeding ? rand(3, 8) : rand(12, 35));
       return { who: t.who, text: t.text };
     }
     if (t.i >= t.lines.length) {
@@ -90,7 +102,7 @@ export class Chatter {
     t.i++;
     t.until = now + lineTime(t.text);
     // 줄 사이는 짧게, 대화가 끝나면 한참 조용히
-    t.next = t.until + (t.i < t.lines.length ? rand(0.3, 1.6) : rand(7, 22));
+    t.next = t.until + (t.i < t.lines.length ? rand(1.0, 2.2) : rand(8, 22));
     return { who: t.who, text: t.text };
   }
 

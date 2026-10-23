@@ -9,12 +9,15 @@ export type ItemKind =
   | 'cabinet' | 'boxes' | 'deadplant' | 'doorframe'
   | 'stall' | 'sink' | 'sign-m' | 'sign-f' | 'rack' | 'bucket' | 'ladder'
   | 'mapboard' | 'maptable'
+  | 'fence' | 'feeder' | 'fern' | 'rock' | 'nest' | 'dinosign'
   | 'prop';   // props.ts 의 소품 (prop 에 이름)
 
 export interface Item { id: string; kind: ItemKind; at: [number, number]; box: Rect; h?: number; rot?: number; prop?: string }
 
 export type DeskKind = 'desk' | 'call' | 'rashdesk';
 export type Slot = 'project' | 'center' | 'general';   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
+
+export interface Plaque { name: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' }
 
 export interface Seat { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; group: string; lift: number }
 
@@ -32,7 +35,9 @@ export interface ModuleDef {
   stand?: [number, number][];                       // 갈 곳이 없을 때 서는 곳
   restroom?: { male: [number, number][]; female: [number, number][] };   // 휴게실에서 가끔 들르는 곳
   search?: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];   // 자료 검색할 때 가는 곳
-  labels?: { name: string; at: [number, number] }[];
+  pen?: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] };   // 공룡 울타리
+  // 방 이름 명판 — 벽에 붙인다. at 은 벽 위의 바닥 자리, y 는 높이, axis 는 벽이 뻗은 방향(x: +z 를 보는 벽, z: +x 를 보는 벽)
+  labels?: Plaque[];
   flats?: string[];                                 // 바닥 층에 굽는 납작한 것(깔개 등) — models.ts 가 그린다
   tall?: string[];                                  // 그 밖에 굽는 것(벽 등) — models.ts 가 그린다
 }
@@ -229,7 +234,11 @@ function front(): ModuleDef {
     terminals: [0, 1, 2, 3].map((i) => ({ z: 0.8 + i * 0.9, y: 1.85 })),
     term: [0, 1, 2, 3].map((i) => [0.75, 0.8 + i * 0.9] as [number, number]),
     stand: [[3.6, 7.0], [4.4, 7.0], [5.2, 7.0], [3.6, 6.4]],
-    labels: [{ name: '공용실', at: [0.5, 7.7] }, { name: '고객센터', at: [8.5, 7.7] }, { name: '휴게실', at: [17.5, 7.7] }],
+    // 복도 쪽 칸막이의 문 위에
+    labels: [
+      { name: '공용실', at: [6.3, 0], y: 1.45, axis: 'x' }, { name: '고객센터', at: [12.45, 0], y: 1.45, axis: 'x' },
+      { name: '휴게실', at: [22.9, 0], y: 1.45, axis: 'x' },
+    ],
     flats: ['rug'],
     tall: ['leftwall'],
   };
@@ -264,7 +273,62 @@ function library(): ModuleDef {
       { at: [2.8, 5.6], pose: 'stand', face: Math.PI / 2 },
       { at: [1.4, 5.6], pose: 'stand', face: Math.PI / 2 },
     ],
-    labels: [{ name: '자료실', at: [0.3, D - 0.3] }],
+    labels: [{ name: '자료실', at: [0, 5.0], y: 1.45, axis: 'z' }],   // 통로 쪽 문 위
+  };
+}
+
+// 공룡 방 (14×6) — 휴게실 앞에 붙은 장식용 방. 울타리 안 잔디에 콤프소그나투스가 걸어 다니고,
+// 쉬는 사람이 가끔 울타리 앞에 와서 먹이를 준다(feed: 사람이 서는 곳과 공룡이 다가오는 곳). 휴게실 쪽 벽에 문
+export const DINO_W = 14;
+export const DINO_D = 6;
+function dinoRoom(): ModuleDef {
+  const W = DINO_W, D = DINO_D;
+  const pen: Rect = [4, 0.8, 13.4, 5.3];
+  const walls: Rect[] = [[0, -T / 2, 1.0, T / 2], [2.4, -T / 2, W, T / 2], [W - T / 2, T / 2, W + T / 2, D]];
+  const F = 0.06;
+  const fences: Rect[] = [
+    [pen[0], pen[1] - F, pen[2], pen[1] + F],              // 뒤
+    [pen[0] - F, pen[1], pen[0] + F, pen[3]],              // 왼쪽 (사람 쪽)
+    [pen[2] - F, pen[1], pen[2] + F, pen[3]],              // 오른쪽
+    [pen[0], pen[3] - F, pen[2], pen[3] + F],              // 앞
+  ];
+  const items: Item[] = [
+    ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
+    ...fences.map((r, i) => ({ id: `fence${i}`, kind: 'fence' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
+    { id: 'feeder', kind: 'feeder', at: [11.6, 1.5], box: box(11.6, 1.5, 0.35, 0.2) },
+    { id: 'fern0', kind: 'fern', at: [5.0, 1.5], box: box(5.0, 1.5, 0.3, 0.3) },
+    { id: 'fern1', kind: 'fern', at: [12.6, 4.5], box: box(12.6, 4.5, 0.3, 0.3) },
+    { id: 'fern2', kind: 'fern', at: [8.4, 1.3], box: box(8.4, 1.3, 0.3, 0.3) },
+    { id: 'rock0', kind: 'rock', at: [6.9, 3.9], box: box(6.9, 3.9, 0.3, 0.25) },
+    { id: 'rock1', kind: 'rock', at: [10.2, 2.6], box: box(10.2, 2.6, 0.3, 0.25) },
+    { id: 'nest', kind: 'nest', at: [12.5, 1.4], box: box(12.5, 1.4, 0.3, 0.3) },
+    { id: 'sign', kind: 'dinosign', at: [2.6, 0.45], box: box(2.6, 0.45, 0.3, 0.1) },
+  ];
+  addProps(items, [], [prop('bench0', 'plant_bush', 0.5, 5.4), prop('bin', 'trash_bin', 0.4, 0.5)]);
+  return {
+    size: [W, D],
+    floors: [
+      { rect: [0, 0, W, D], color: 0xd8d2c4 },
+      { rect: pen, color: 0x9cbf6e },                      // 잔디 (울타리 안)
+    ],
+    items,
+    blocks: [
+      ...walls.map((r) => pad(r)), [pen[0] - 0.15, pen[1] - 0.15, pen[2] + 0.15, pen[3] + 0.15],   // 울타리 안에는 사람이 못 들어간다
+      box(2.6, 0.45, 0.35, 0.15), box(0.5, 5.4, 0.35, 0.35), box(0.4, 0.5, 0.25, 0.25),
+    ],
+    desks: [],
+    pen: {
+      rect: pen,
+      feeder: [11.6, 1.95],
+      feed: [
+        { at: [3.55, 2.0], face: Math.PI / 2, dino: [4.45, 2.0] },
+        { at: [3.55, 3.6], face: Math.PI / 2, dino: [4.45, 3.6] },
+        { at: [6.5, 5.75], face: Math.PI, dino: [6.5, 4.85] },
+        { at: [9.4, 5.75], face: Math.PI, dino: [9.4, 4.85] },
+        { at: [12.0, 5.75], face: Math.PI, dino: [12.0, 4.85] },
+      ],
+    },
+    labels: [{ name: '공룡 방', at: [1.7, 0], y: 1.45, axis: 'x' }],   // 휴게실 쪽 문 위
   };
 }
 
@@ -277,7 +341,7 @@ function entrance(): ModuleDef {
     items: [{ id: 'door', kind: 'doorframe', at: [0, CORRIDOR / 2], box: [-0.15, -0.1, 0.15, CORRIDOR + 0.1] }],
     blocks: [],
     desks: [],
-    labels: [{ name: '입구', at: [1.6, CORRIDOR - 0.25] }],
+    labels: [{ name: '입구', at: [0.1, CORRIDOR / 2], y: 2.75, axis: 'z' }],   // 문틀 간판
     flats: ['mat'],
   };
 }
@@ -319,11 +383,15 @@ function service(): ModuleDef {
     ],
     desks: [],
     restroom: { male: [[1.4, 1.2], [2.2, 1.6]], female: [[1.4, 3.9], [2.2, 4.3]] },
-    labels: [{ name: '화장실 남', at: [0.3, 2.45] }, { name: '화장실 여', at: [0.3, 5.15] }, { name: '창고', at: [0.3, 7.75] }],
+    labels: [
+      { name: '화장실 남', at: [0, 1.5], y: 1.45, axis: 'z', style: 'small' }, { name: '화장실 여', at: [0, 4.1], y: 1.45, axis: 'z', style: 'small' },
+      { name: '창고', at: [0, 6.6], y: 1.45, axis: 'z', style: 'small' },
+    ],
   };
 }
 
 export const MODULES = {
+  dino: dinoRoom(),
   library: library(),
   'backwall-library': { size: [LIBRARY_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
   service: service(),

@@ -270,6 +270,65 @@ function mapTable(x: number, z: number): THREE.Group {
   return g;
 }
 
+// ---- 공룡 방
+// 나무 울타리 — 기둥을 0.9 마다, 가로대 둘
+function fence([x0, z0, x1, z1]: Item['box']): THREE.Group {
+  const g = new THREE.Group();
+  const along = x1 - x0 > z1 - z0, len = along ? x1 - x0 : z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const n = Math.max(1, Math.round(len / 0.9));
+  for (let i = 0; i <= n; i++) {
+    const t = -len / 2 + (len * i) / n;
+    bx(g, 0.07, 0.62, 0.07, 0x8a6a4a, along ? cx + t : cx, 0.31, along ? cz : cz + t);
+  }
+  for (const y of [0.25, 0.5]) bx(g, along ? len : 0.04, 0.05, along ? 0.04 : len, 0xb07a48, cx, y, cz);
+  return g;
+}
+
+function feeder(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  bx(g, 0.7, 0.18, 0.36, 0x8a6a4a, x, 0.09, z);
+  bx(g, 0.62, 0.04, 0.28, 0x9c3f2c, x, 0.19, z);   // 고깃덩이들
+  return g;
+}
+
+function fern(x: number, z: number, seed: number): THREE.Group {
+  const g = new THREE.Group();
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + seed;
+    const leaf = mesh(g, new THREE.ConeGeometry(0.06, 0.55, 4), k % 2 ? 0x3b6d11 : 0x639922, x + Math.sin(a) * 0.12, 0.2, z + Math.cos(a) * 0.12);
+    leaf.rotation.set(Math.cos(a) * 0.7, 0, -Math.sin(a) * 0.7);
+  }
+  return g;
+}
+
+function rock(x: number, z: number, seed: number): THREE.Group {
+  const g = new THREE.Group();
+  const r = mesh(g, new THREE.DodecahedronGeometry(0.28, 0), seed ? 0x8f8a80 : 0x7d786e, x, 0.14, z);
+  r.scale.set(1.1, 0.6, 0.9);
+  r.rotation.y = seed;
+  return g;
+}
+
+function nest(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  const n = mesh(g, new THREE.TorusGeometry(0.2, 0.07, 5, 10), 0xa98b62, x, 0.06, z);
+  n.rotation.x = Math.PI / 2;
+  for (const [dx, dz] of [[-0.06, 0], [0.06, 0.03], [0, -0.07]]) {
+    const e = mesh(g, new THREE.SphereGeometry(0.055, 8, 6), 0xf4efe6, x + dx, 0.08, z + dz);
+    e.scale.y = 1.3;
+  }
+  return g;
+}
+
+function dinoSign(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  bx(g, 0.05, 0.9, 0.05, 0x8a6a4a, x, 0.45, z);
+  bx(g, 0.56, 0.32, 0.04, 0xf4efe6, x, 0.95, z + 0.03);
+  bx(g, 0.44, 0.05, 0.01, 0x6f8a3a, x, 1.0, z + 0.055, false);   // 글씨 자리
+  bx(g, 0.3, 0.04, 0.01, 0x8a6a3a, x, 0.9, z + 0.055, false);
+  return g;
+}
+
 // ---- 화장실·창고
 // 칸막이 한 칸 — 옆판·앞판(문)과 안의 변기
 function stall([x0, z0, x1, z1]: Item['box']): THREE.Group {
@@ -356,6 +415,12 @@ export function buildItem(it: Item): THREE.Group {
     case 'doorframe': return doorFrame(x, z, it.box[3] - it.box[1] - 0.2);
     case 'prop': return PROPS[it.prop as keyof typeof PROPS].build(x, z, it.rot ?? 0);
     case 'mapboard': return mapBoard(x, z, Number(it.id.slice(3)));
+    case 'fence': return fence(it.box);
+    case 'feeder': return feeder(x, z);
+    case 'fern': return fern(x, z, Number(it.id.slice(4)));
+    case 'rock': return rock(x, z, Number(it.id.slice(4)));
+    case 'nest': return nest(x, z);
+    case 'dinosign': return dinoSign(x, z);
     case 'maptable': return mapTable(x, z);
     case 'stall': return stall(it.box);
     case 'sink': return sink(x, z);

@@ -46,6 +46,7 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
       ...w.restroom.male.map((p, i) => [`남${i}`, p] as [string, [number, number]]),
       ...w.restroom.female.map((p, i) => [`여${i}`, p] as [string, [number, number]]),
       ...w.stand.map((p, i) => [`서기${i}`, p] as [string, [number, number]]),
+      ...(w.pen?.feed ?? []).map((f, i) => [`먹이${i}`, f.at] as [string, [number, number]]),
     ];
     const bad: string[] = [];
     // 문에서 모든 자리로, 모든 자리에서 문으로, 그리고 휴게실 첫 자리와 서로
@@ -63,3 +64,22 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
     assert.deepEqual(bad.slice(0, 15), [], `${bad.length}건`);
   });
 }
+
+test('먹이 주는 사람이 서면 공룡 하나가 그 앞으로 와서 먹는다', async () => {
+  const { DinoPen } = await import('../iso/dinos.ts');
+  const w = buildWorld(OFFICES.slice(0, 2));
+  assert.ok(w.pen, '공룡 방이 있다');
+  const pen = new DinoPen(w.pen!.rect, w.pen!.feeder);
+  const f = w.pen!.feed[0];
+  for (let i = 0; i < 600; i++) pen.step(0.05, [{ id: 'a', dino: f.dino }]);   // 30초
+  const d = pen.dinos.find((x) => x.feedBy === 'a');
+  assert.ok(d, '맡은 공룡이 있다');
+  assert.ok(Math.hypot(d!.x - f.dino[0], d!.z - f.dino[1]) < 0.05, '울타리 앞에 왔다');
+  assert.notEqual(d!.pose, 'walk');
+  for (let i = 0; i < 20; i++) pen.step(0.05, []);
+  assert.equal(pen.dinos.filter((x) => x.feedBy).length, 0, '사람이 가면 놓아준다');
+  // 공룡은 울타리 밖으로 나가지 않는다
+  const [x0, z0, x1, z1] = w.pen!.rect;
+  for (let i = 0; i < 2000; i++) pen.step(0.05, []);
+  for (const x of pen.dinos) assert.ok(x.x > x0 && x.x < x1 && x.z > z0 && x.z < z1);
+});

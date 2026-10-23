@@ -3,7 +3,10 @@
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office, Terminal } from '../types.ts';
-import { bodyKey, headKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { bodyKey, headKey, dinoKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { DinoPen } from './dinos.ts';
+import { MODULES } from '../scene/modules.ts';
+import type { Rect } from '../scene/layout.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
 import { buildWorld, type World, type WorldItem } from '../scene/world.ts';
@@ -13,6 +16,35 @@ const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-mot
 type V3 = [number, number, number];
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+
+// 등각 차례 — 바닥 범위가 겹치지 않는 두 상자에서, A 가 B 의 완전히 왼쪽(x)이나 완전히 뒤(z)에 있으면 A 를 먼저 그린다.
+// 카메라가 +x·+z 쪽에서 내려다보므로 x+z 하나로는 긴 상자(칸막이·벽)끼리 틀린다 — 그래서 쌍으로 비교해 위상 정렬한다
+const behind = (a: Rect, b: Rect) => a[2] <= b[0] + 1e-6 || a[3] <= b[1] + 1e-6;
+function isoOrder<T>(list: T[], rect: (t: T) => Rect): T[] {
+  const n = list.length, rs = list.map(rect);
+  const indeg = new Array(n).fill(0), next: number[][] = rs.map(() => []);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    if (i !== j && behind(rs[i], rs[j]) && !behind(rs[j], rs[i])) { next[i].push(j); indeg[j]++; }
+  }
+  const key = (i: number) => rs[i][0] + rs[i][1];
+  const ready = [...Array(n).keys()].filter((i) => !indeg[i]);
+  const out: T[] = [];
+  const done = new Set<number>();
+  while (ready.length) {
+    ready.sort((a, b) => key(b) - key(a));          // 뒤(작은 x+z)부터
+    const i = ready.pop()!;
+    out.push(list[i]); done.add(i);
+    for (const j of next[i]) if (!--indeg[j]) ready.push(j);
+  }
+  for (let i = 0; i < n; i++) if (!done.has(i)) out.push(list[i]);   // 고리가 생기면 남은 것은 뒤에
+  return out;
+}
+// 모듈의 바닥 범위 (벽 모듈은 두께만큼)
+function moduleRect(m: World['modules'][number]): Rect {
+  const [w, d] = MODULES[m.type].size;
+  const [x, z] = m.at;
+  return [x - (w ? 0 : 0.25), z - (d ? 0 : 0.25), x + (w || 0), z + (d || 0)];
+}
 
 export function Stage({ agents, terminals, offices, selected, onSelect }: {
   agents: Agent[]; terminals: Terminal[]; offices: Office[]; selected: string | null; onSelect: (id: string | null) => void;
@@ -52,6 +84,9 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
       const ctx = canvas.current.getContext('2d')!;
       let k = 1, offX = 0, offY = 0, dpr = 1;   // 구운 픽셀 → 캔버스 픽셀
       let fitted: World | null = null;
+      let orderFor: World | null = null;
+      let order: number[] = [];
+      let pen: DinoPen | null = null;
       let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
       // 건물 전체가 들어가는 구운 픽셀 범위
@@ -111,6 +146,9 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
         ctx.globalAlpha = 1;
       };
       const moduleAt = (w: World, i: number) => proj([w.modules[i].at[0], 0, w.modules[i].at[1]]);
+      // 벽면의 기울기 — x 축(+z 를 보는 벽)과 z 축(+x 를 보는 벽)이 화면에서 기운 각도
+      const slope = (p: V3) => { const [u, v] = proj(p); return (Math.atan2(v, u) * 180) / Math.PI; };
+      const skewX = slope([1, 0, 0]), skewZ = slope([0, 0, 1]) + 180;
 
       const deskScreen = (w: World, d: number, act: Agent['activity'] | undefined, T: number) => {
         if (!act) return;
@@ -122,8 +160,6 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
           hex(desk.kind === 'rashdesk' ? PHOSPHOR : SCREEN[act]), flick ? 0.85 : 1);
       };
 
-      // 캐릭터가 가구 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다
-      const inFront = (a: Actor, it: WorldItem) => a.x > it.box[2] || a.z > it.box[3] || (sitting(a) && a.place.on === it.key);
 
       const label = (id: string, cls: string, html: string, at: V3, anchor: string) => {
         let el = labelEls.get(id);
@@ -147,9 +183,10 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
         ctx.setTransform(k, 0, 0, k, offX, offY);
         ctx.imageSmoothingQuality = 'high';
-        // 바닥 층 전부, 그다음 물건 층 (모듈 차례 = 뒤에서부터)
+        // 바닥 층 전부, 그다음 물건 층 (등각 차례)
+        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; }
         w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
-        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
+        for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } }
 
         // 왼쪽 벽 tmux 모니터 — 붙어 있으면 초록, claude 가 돌면 보라 테두리
         terms.slice(0, w.terminals.length).forEach((t, i) => {
@@ -181,31 +218,83 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
           const x1 = Math.max(bx + (body.ox + body.w) * s, hx + (head.ox + head.w) * s), y1 = Math.max(by + (body.oy + body.h) * s, hy + (head.oy + head.h) * s);
           draws.push({ a, body, head, bx, by, hx, hy, s, x0, y0, x1, y1 });
         }
-        // 차례: 캐릭터(x+z) 사이에, 그 캐릭터를 가리는 가구를 끼운다
-        const seq: { at: number; fn: () => void }[] = draws.map((d, i) => ({ at: i, fn: () => {
-          const { a } = d;
-          if (!sitting(a)) poly(circle(a.x, a.z, 0.3 * d.s), '#000', 0.12);   // 발 그림자
-          const waiting = a.agent.activity === 'wait' && !a.moving && !a.leaving;
-          if (waiting) ring(a.x, a.z, 0.42, 0.5, '#e24b4a', RM ? 0.8 : 0.5 + 0.4 * Math.sin(T * 5));
-          else if (sel === a.agent.id) ring(a.x, a.z, 0.42, 0.5, '#534ab7', 0.45);
-          blit(d.body, d.bx, d.by, d.s);
-          blit(d.head, d.hx, d.hy, d.s);
-        } }));
+        // 공룡 — 먹이 주는 사람(울타리 앞에 도착한 사람)이 있으면 그 앞으로 온다
+        if (pen && w.pen) {
+          const feeders: { id: string; dino: [number, number] }[] = [];
+          for (const a of actors) {
+            const g = a.place.group;
+            if (!g?.startsWith('feed') || a.moving || a.leaving) continue;
+            const f = w.pen.feed[Number(g.slice(4))];
+            if (f) feeders.push({ id: a.agent.id, dino: f.dino });
+          }
+          pen.step(Math.min(0.05, dt), feeders);
+        }
+        // 그릴 것 — 캐릭터와 공룡을 x+z 차례로, 사이사이에 그들을 가리는 가구를 끼운다
+        type Figure = { x: number; z: number; sit: boolean; on?: string; x0: number; y0: number; x1: number; y1: number; draw: () => void };
+        const figs: Figure[] = draws.map((d) => ({
+          x: d.a.x, z: d.a.z, sit: sitting(d.a), on: d.a.place.on, x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1,
+          draw: () => {
+            const { a } = d;
+            if (!sitting(a)) poly(circle(a.x, a.z, 0.3 * d.s), '#000', 0.12);   // 발 그림자
+            const waiting = a.agent.activity === 'wait' && !a.moving && !a.leaving;
+            if (waiting) ring(a.x, a.z, 0.42, 0.5, '#e24b4a', RM ? 0.8 : 0.5 + 0.4 * Math.sin(T * 5));
+            else if (sel === a.agent.id) ring(a.x, a.z, 0.42, 0.5, '#534ab7', 0.45);
+            blit(d.body, d.bx, d.by, d.s);
+            blit(d.head, d.hx, d.hy, d.s);
+          },
+        }));
+        for (const dn of pen?.dinos ?? []) {
+          const r = atlas.dinos?.[dinoKey(dn.color, dn.pose, dn.pose === 'walk' ? dn.frame : 0, dirOf(dn.rot))];
+          if (!r) continue;
+          const [ax, ay] = proj([dn.x, 0, dn.z]);
+          figs.push({
+            x: dn.x, z: dn.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
+            draw: () => {
+              poly(circle(dn.x, dn.z, 0.18), '#000', 0.12);
+              if (dn.feedBy && dn.pose === 'eat') poly(circle(dn.x + Math.sin(dn.rot) * 0.24, dn.z + Math.cos(dn.rot) * 0.24, 0.07, 0.04), '#9c3f2c');   // 고깃덩이
+              blit(r, ax, ay);
+            },
+          });
+        }
+        figs.sort((p, q) => (p.x + p.z) - (q.x + q.z));
+        // 가구가 그림 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다
+        const frontOf = (f: Figure, it: WorldItem) => f.x > it.box[2] || f.z > it.box[3] || (f.sit && f.on === it.key);
+        type Cover = { at: number; box: Rect; clip: Figure[]; fn: () => void };
+        const covers: Cover[] = [];
         for (const it of w.items) {
           const r = atlas.modules[w.modules[it.module].type]?.items[it.id];
           if (!r) continue;
           const [ax, ay] = moduleAt(w, it.module);
           let after = -1;
-          draws.forEach((d, i) => {
-            if (inFront(d.a, it)) return;
-            if (d.x1 < ax + r.ox || d.x0 > ax + r.ox + r.w || d.y1 < ay + r.oy || d.y0 > ay + r.oy + r.h) return;   // 겹치지 않는다
+          const clip: Figure[] = [];
+          figs.forEach((f, i) => {
+            if (frontOf(f, it)) return;
+            if (f.x1 < ax + r.ox || f.x0 > ax + r.ox + r.w || f.y1 < ay + r.oy || f.y0 > ay + r.oy + r.h) return;   // 겹치지 않는다
             after = Math.max(after, i);
+            clip.push(f);
           });
           if (after < 0) continue;
           const desk = w.desks.findIndex((dk) => dk.item === it.key);
-          seq.push({ at: after + 0.5, fn: () => { blit(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); } });
+          covers.push({ at: after + 0.5, box: it.box, clip, fn: () => { blit(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); } });
         }
-        seq.sort((a, b) => a.at - b.at).forEach((s) => s.fn());
+        // 같은 자리에 끼는 가구끼리도 등각 차례로
+        const rank = new Map(isoOrder(covers, (cv) => cv.box).map((cv, i) => [cv, i]));
+        const seq = [
+          ...figs.map((f, i) => ({ at: i, r: 0, fn: f.draw })),
+          ...covers.map((cv) => ({
+            at: cv.at, r: rank.get(cv)!,
+            // 가린 그림의 자리만 다시 칠한다 — 가구 전체를 다시 그리면 그 앞의 다른 소품까지 덮는다
+            fn: () => {
+              ctx.save();
+              ctx.beginPath();
+              for (const f of cv.clip) ctx.rect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
+              ctx.clip();
+              cv.fn();
+              ctx.restore();
+            },
+          })),
+        ];
+        seq.sort((a, b) => a.at - b.at || a.r - b.r).forEach((s) => s.fn());
 
         // 이름표 (HTML) — 하위 에이전트는 이름표 없이
         const live = new Set<string>();
@@ -246,11 +335,11 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
           label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(a.agent.name)}</small>${esc(said.text)}`,
             [a.x, 1.75 + SIT_LIFT + (a.place.lift ?? 0), a.z], 'translate(-50%, -100%)');
         });
-        // 방 이름표 — 바닥 앞 모서리에, 프로젝트 사무실은 굵게
+        // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)
         for (const r of w.labels) {
           const id = `room:${r.name}:${r.at.join(',')}`;
           live.add(id);
-          label(id, r.project ? 'rlbl proj' : 'rlbl', esc(r.name), [r.at[0], 0, r.at[1]], 'translate(0, -50%)');
+          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), esc(r.name), [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)`);
         }
         // 터미널 이름표
         terms.slice(0, w.terminals.length).forEach((t, i) => {

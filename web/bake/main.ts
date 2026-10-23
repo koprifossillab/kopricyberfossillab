@@ -10,7 +10,8 @@ import * as THREE from 'three';
 import { buildBody, buildHead, buildItem, buildFloor, buildTall } from '../src/scene/models.ts';
 import { PALETTE, FOREIGN_COLOR, DIRS, LOOKS, SKINS, HEAD_Y, type BodyShape } from '../src/scene/layout.ts';
 import { MODULES, type ModuleType } from '../src/scene/modules.ts';
-import { bodyKey, headKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
+import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
+import { bodyKey, headKey, dinoKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
 
 const SCALE = 96;                                      // 세계 1 = 96 구운 픽셀 (화면 2배 밀도에서 또렷하게)
 const VIEW = new THREE.Vector3(18, 16.5, 18);          // 시제품 카메라 방향 (CX+18, 17, CZ+18) → (CX, 0.5, CZ)
@@ -148,6 +149,17 @@ async function bake() {
     if (s) chars.set('h:' + headKey(skin, look, cap, d), s);
   }
 
+  // 공룡 조각 — 색 × (걷기 frame 셋 · 먹기 · 두리번) × 방향
+  const dinos = new Map<string, Shot>();
+  for (const color of DINO_COLORS) for (const [pose, frames] of [['walk', DINO_FRAMES], ['eat', 1], ['look', 1]] as [DinoPose, number][]) {
+    for (let f = 0; f < frames; f++) for (let d = 0; d < DIRS; d++) {
+      const s = shoot(buildDino({ rot: (d * 2 * Math.PI) / DIRS, frame: f, pose, color }), foot);
+      if (s) dinos.set(dinoKey(color, pose, f, d), s);
+    }
+  }
+  const dinoSheet = pack(dinos, 'dinos.webp', 1024);
+  files['dinos.webp'] = dinoSheet.data;
+
   const itemSheet = pack(items, 'items.webp', 2048);
   const charSheet = pack(chars, 'characters.webp', 2048);
   for (const [k, r] of Object.entries(itemSheet.rects)) {
@@ -163,6 +175,7 @@ async function bake() {
     up: up.toArray() as Atlas['up'],
     modules,
     bodies: Object.fromEntries(Object.entries(charSheet.rects).filter(([k]) => k.startsWith('b:')).map(([k, v]) => [k.slice(2), v])),
+    dinos: dinoSheet.rects,
     heads: Object.fromEntries(Object.entries(charSheet.rects).filter(([k]) => k.startsWith('h:')).map(([k, v]) => [k.slice(2), v])),
   };
   return { atlas, files, lost: renderer.getContext().isContextLost() };

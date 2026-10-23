@@ -14,6 +14,19 @@ import { isFemale } from './appearance.ts';
 
 const TRIP_WINDOW = 90;   // 초 — 이 창마다 한 번 제비뽑기
 const TRIP_ODDS = 8;      // 8 분의 1
+// 시간 창마다 제비뽑기 — 창(초)·확률(1/odds)·머무는 시간(초)·salt 로 볼일마다 따로 뽑는다
+function trip(id: string, now: number, window: number, odds: number, stay: [number, number], salt: number): boolean {
+  const slot = Math.floor(now / 1000 / window);
+  let h = slot * 7919 + salt;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
+  h = Math.abs(h ^ (h >>> 13));
+  if (h % odds) return false;
+  const len = stay[0] + (h % (stay[1] - stay[0] + 1));
+  const start = 5 + ((h >>> 4) % Math.max(1, window - len - 10));
+  const t = now / 1000 - slot * window;
+  return t >= start && t < start + len;
+}
+const FEED_WINDOW = 120, FEED_ODDS = 6;   // 2분 창마다 6분의 1, 25~40초 — 공룡 먹이 주기
 function restroomTrip(id: string, now: number): boolean {
   const slot = Math.floor(now / 1000 / TRIP_WINDOW);
   let h = slot;
@@ -102,7 +115,7 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
   assignSeats(w, agents);
 
   const out = new Map<string, Placement>();
-  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0 };
+  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0, feed: 0 };
   const CORE_SPOTS = w.core, BENCH_SPOTS = w.bench, BOARD_SPOTS = w.stand, TERM_SPOTS = w.term;
   const children = new Map<string, number>();
   const spot = (list: [number, number][], key: keyof typeof queue): [number, number] => {
@@ -137,6 +150,12 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
         const side = isFemale(a.id) ? 'female' : 'male';
         const list = w.restroom[side];
         if (list.length) { out.set(a.id, { target: list[queue[side]++ % list.length], pose: 'stand', face: Math.PI, desk: null }); continue; }
+      }
+      if (w.pen && queue.feed < w.pen.feed.length && trip(a.id, now, FEED_WINDOW, FEED_ODDS, [25, 40], 101)) {
+        const i = queue.feed++;
+        const f = w.pen.feed[i];
+        out.set(a.id, { target: f.at, pose: 'stand', face: f.face, desk: null, group: `feed${i}` });
+        continue;
       }
       out.set(a.id, lounge(a));
       continue;

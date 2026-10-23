@@ -9,8 +9,8 @@
 import type { Rect } from './layout.ts';
 import type { Office } from '../types.ts';
 import {
-  MODULES, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
-  type DeskKind, type ModuleType, type Seat, type Item,
+  MODULES, DINO_D, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
+  type DeskKind, type ModuleType, type Plaque, type Seat, type Item,
 } from './modules.ts';
 
 export const MAX_ROWS = 3;   // 사무실 줄이 셋을 넘으면 남는 프로젝트는 공용실로
@@ -46,7 +46,8 @@ export interface World {
   stand: [number, number][];
   restroom: { male: [number, number][]; female: [number, number][] };
   search: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];
-  labels: { name: string; at: [number, number]; project?: boolean }[];
+  pen: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] } | null;
+  labels: Plaque[];
   door: [number, number];
 }
 
@@ -92,15 +93,20 @@ export function buildWorld(offices: Office[]): World {
   modules.push({ type: 'entrance', at: [BUILDING_W, entZ] });
   modules.push({ type: 'service', at: [BUILDING_W, frontZ] });
   modules.push({ type: 'library', at: [BUILDING_W, 0] });
+  const DINO_X = 17;                                     // 휴게실(앞 블록 x 17..31) 앞
+  modules.push({ type: 'dino', at: [DINO_X, frontZ + FRONT_D] });
 
   const w: World = {
-    w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D, modules, rooms,
+    w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D + DINO_D, modules, rooms,
     desks: [], items: [], blocks: [], lounge: [], core: [], bench: [], term: [], terminals: [], stand: [], labels: [],
-    restroom: { male: [], female: [] }, search: [],
+    restroom: { male: [], female: [] }, search: [], pen: null,
     door: [BUILDING_W + ENTRANCE_W - 0.4, entZ + CORRIDOR / 2],
   };
   // 건물 밖은 입구 길만 걷는다
   if (entZ > OFFICE_D) w.blocks.push([BUILDING_W, OFFICE_D, w.w, entZ]);   // 자료실 아래 빈 곳
+  // 공룡 방 양옆의 빈 곳 (앞 블록의 앞은 공룡 방 말고는 바닥이 없다) — 앞 블록 앞 가장자리에 걸음 막기
+  const fz = frontZ + FRONT_D;
+  w.blocks.push([0, fz - 0.06, DINO_X, w.d], [DINO_X + 14, fz - 0.06, w.w, w.d], [DINO_X, fz - 0.06, DINO_X + 1.0, fz + 0.06], [DINO_X + 2.4, fz - 0.06, DINO_X + 14, fz + 0.06]);
   const mv = (p: [number, number], o: [number, number]): [number, number] => [p[0] + o[0], p[1] + o[1]];
   const mr = (r: Rect, o: [number, number]): Rect => [r[0] + o[0], r[1] + o[1], r[2] + o[0], r[3] + o[1]];
   modules.forEach((m, i) => {
@@ -118,13 +124,23 @@ export function buildWorld(offices: Office[]): World {
     w.term.push(...(def.term ?? []).map((p) => mv(p, o)));
     w.terminals.push(...(def.terminals ?? []).map((t) => ({ x: o[0] + 0.03, y: t.y, z: o[1] + t.z })));
     if (m.type === 'front') w.stand.push(...(def.stand ?? []).map((p) => mv(p, o)));
+    if (def.pen) {
+      const pn = def.pen;
+      w.pen = {
+        rect: mr(pn.rect, o), feeder: mv(pn.feeder, o),
+        feed: pn.feed.map((f) => ({ at: mv(f.at, o), face: f.face, dino: mv(f.dino, o) })),
+      };
+    }
     for (const sp of def.search ?? []) w.search.push({ ...sp, at: mv(sp.at, o), on: sp.on ? `${i}:${sp.on}` : undefined });
     if (def.restroom) {
       w.restroom.male.push(...def.restroom.male.map((p) => mv(p, o)));
       w.restroom.female.push(...def.restroom.female.map((p) => mv(p, o)));
     }
-    for (const l of def.labels ?? []) w.labels.push({ name: l.name, at: mv(l.at, o) });
-    if (m.type.startsWith('office')) w.labels.push({ name: m.label ?? '빈 사무실', at: [o[0] + 0.4, o[1] + OFFICE_D - 0.35], project: !!m.label });
+    for (const l of def.labels ?? []) w.labels.push({ ...l, at: mv(l.at, o) });
+    // 사무실 명판 — 앞 칸막이 출입구 위 (빈 사무실은 이름 없이)
+    if (m.type.startsWith('office') && m.label) {
+      w.labels.push({ name: m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: 1.55, axis: 'x', style: m.type === 'office-rash' ? 'rash' : 'project' });
+    }
   });
   return w;
 }
