@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261023_wetherilli_016](20261023_wetherilli_016_backdrop_daylight.md) | 바깥 배경 — 하늘·먼 도시·아래 두 층·땅, daylight(서울 시각)로 낮·밤 연속 |
 | [20261023_wetherilli_015](20261023_wetherilli_015_terrace_boss_lab.md) | 테라스, 부장실·본부장실, 실험실, 나무, 명판 폭, 이름표 깜빡임, 아이콘·메신저·부서 상자 합치기 |
 | [20261023_wetherilli_014](20261023_wetherilli_014_messenger_chat.md) | 상담원 대화창을 메신저처럼 — 머리·말풍선·날짜 줄·입력 중 점·알약 입력 |
 | [20261023_wetherilli_013](20261023_wetherilli_013_icon.md) | 아이콘 — 등각 연구실 한 칸 + 빛나는 삼엽충·회로선, logokit icon_set, web/public/icons/ |
