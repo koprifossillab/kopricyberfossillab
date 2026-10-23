@@ -1,0 +1,24 @@
+# kopricyberfossillab 화면 서버 — 서버가 재부팅돼도 저절로 뜨게. 깔기는 deploy/host/install-service.sh (sudo 로 한 번).
+#
+# sclee 로 돈다 — ~/.claude(세션 등록·job·JSONL)는 그 계정만 읽을 수 있다.
+# 서버가 부르는 tmux·ps·git 은 PATH 에서 찾는다(/usr/bin). tmux 는 uid 로 소켓을 고른다 —
+# sclee(uid 1006)로 돌면 /tmp/tmux-1006/default 를 그대로 본다. 그래서 PrivateTmp 를 켜지 않는다(켜면 /tmp 가 갈려 터미널이 안 보인다).
+# web/dist 가 없으면 화면 대신 503 이 나간다 — 판을 바꾸면 그 클론에서 npm run build 뒤 systemctl restart kopricyberfossillab.
+[Unit]
+Description=kopricyberfossillab — Claude Code 세션 화면 (127.0.0.1:8098)
+After=network.target
+
+[Service]
+Type=simple
+User=sclee
+Group=sclee
+WorkingDirectory=/home/sclee/projects/kopricyberfossillab
+Environment=HOME=/home/sclee
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=FL_PORT=8098 FL_HOST=127.0.0.1
+ExecStart=/home/sclee/projects/kopricyberfossillab/node_modules/.bin/tsx server/index.ts
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
