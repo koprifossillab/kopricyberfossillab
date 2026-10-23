@@ -1,0 +1,60 @@
+/* 상담원 대화창 — 메신저 꼴 (Desk.tsx). styles.css 의 .desk*·.msg* 는 그대로 두고 여기서 덮는다.
+   색은 테마 변수(--panel·--bg·--accent·--accent-fg·--line·--muted)만 — 밝은·짙은 남색 둘 다에서 읽히게 */
+.dk{gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.dk-head{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.dk-head .av{width:36px;height:36px;flex:none}
+.dk-who{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.dk-who b{font-weight:500;font-size:14px}
+.dk-who span{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.dk-who span.on::before{content:"";width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 0 2px color-mix(in srgb,#34d399 25%,transparent)}
+.dk-who span.typing{color:var(--accent)}
+.dk-clear{margin-left:auto;font:inherit;font-size:11px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px;cursor:pointer}
+.dk-clear:hover{color:var(--fg);border-color:var(--muted)}
+
+.dk-log{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px;padding:10px 10px 6px}
+.dk-sys{margin:auto 8px;text-align:center;font-size:12px;color:var(--muted)}
+.dk-date{display:flex;align-items:center;gap:8px;margin:8px 0 6px;font-size:11px;color:var(--muted)}
+.dk-date::before,.dk-date::after{content:"";flex:1;height:1px;background:var(--line)}
+.dk-date span{padding:1px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line)}
+.dk-row{display:flex;align-items:flex-start;gap:7px;max-width:100%}
+.dk-row.first{margin-top:6px}
+.dk-row.by-me{justify-content:flex-end}
+.dk-row .av.sm{width:26px;height:26px;flex:none}
+.dk-gap{width:26px;flex:none}
+.dk-col{display:flex;flex-direction:column;min-width:0;max-width:82%}
+.dk-row.by-me .dk-col{align-items:flex-end}
+.dk-name{font-size:11px;color:var(--muted);margin:0 0 2px 2px}
+.dk-bubble{padding:6px 11px;border-radius:16px;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.dk-row.by-desk .dk-bubble{background:var(--panel);border:1px solid var(--line);color:var(--fg)}
+.dk-row.by-desk.first .dk-bubble{border-top-left-radius:4px}
+.dk-row.by-me .dk-bubble{background:var(--accent);color:var(--accent-fg)}
+.dk-row.by-me.first .dk-bubble{border-top-right-radius:4px}
+.dk-time{font-size:10px;color:var(--muted);margin:2px 4px 0;font-family:var(--mono)}
+.dk-err{align-self:center;margin:6px 0;padding:3px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn-fg);font-size:12px}
+
+/* 입력 중 — 점 셋이 차례로 통통 */
+.dk-typing{display:flex;gap:4px;align-items:center;padding:10px 12px}
+.dk-typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:dk-hop 1.2s infinite ease-in-out}
+.dk-typing i:nth-child(2){animation-delay:.15s}
+.dk-typing i:nth-child(3){animation-delay:.3s}
+@keyframes dk-hop{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-4px);opacity:1}}
+@media (prefers-reduced-motion:reduce){.dk-typing i{animation:none;opacity:.8}}
+
+/* 입력란 — 알약 꼴 + 둥근 보내기 단추 */
+.dk-in{display:flex;flex-direction:column;gap:3px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line)}
+.dk-pill{display:flex;align-items:flex-end;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:4px 4px 4px 14px}
+.dk-pill:focus-within{border-color:var(--accent)}
+.dk-pill textarea,.dk-pill input{flex:1;min-width:0;resize:none;border:0;outline:0;background:none;color:var(--fg);font:inherit;font-size:13px;line-height:1.45;padding:5px 0;max-height:96px;field-sizing:content}
+.dk-pill textarea::placeholder,.dk-pill input::placeholder{color:var(--muted)}
+.dk-send{flex:none;width:32px;height:32px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+.dk-send:disabled{opacity:.35;cursor:default}
+.dk-send:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.dk-count{align-self:flex-end;font-family:var(--mono);font-size:10px;color:var(--muted);padding-right:6px}
+
+/* 열쇠 넣기 — 메신저 「로그인」 꼴 */
+.dk-login{flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:16px 14px;text-align:center}
+.dk-login p{margin:0;font-size:13px}
+.dk-login .dk-hint{font-size:11px;color:var(--muted)}
+.dk-login code{font-family:var(--mono);font-size:10.5px;overflow-wrap:anywhere}
+.dk-login .dk-bad{font-size:12px;color:var(--warn-fg)}
+.dk-login .dk-pill{margin-top:4px;text-align:left}
