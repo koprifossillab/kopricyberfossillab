@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-**kopricyberfossillab** — paleo-server 에서 도는 Claude Code 세션·하위 에이전트·터미널(tmux)을 3D 미니어처 연구실 속
-캐릭터로 실시간으로 보이는 화면. 원천은 `~/.claude/`(세션 등록·job 상태·JSONL 기록)와 `/proc`·`tmux`·`ps` 이고,
+**kopricyberfossillab** — paleo-server 에서 도는 Claude Code 세션·하위 에이전트·터미널(tmux)을 미니어처 연구실 속
+캐릭터로 실시간으로 보이는 화면(2.5D — 구운 그림을 Canvas 2D 로). 원천은 `~/.claude/`(세션 등록·job 상태·JSONL 기록)와 `/proc`·`tmux`·`ps` 이고,
 **읽기만 한다** — 세션에 말을 걸거나 파일을 고치지 않는다.
 문서는 한국어로 쓴다 — 커밋 메시지, devlog, 주석 모두. 화면 글도 한국어.
 
@@ -22,9 +22,10 @@
 화면 제목은 `KOPRI Cyber Fossil Lab` — 사람이 다르게 정하면 여기와 `web/index.html`·`App.tsx` 를 같이.
 
 **말**: 세션(Claude Code 대화 하나 — 터미널 `session`·백그라운드 `job`) · 하위 에이전트(`subagent`, 세션이 Agent 도구로 띄운 것) ·
-다른 계정(`foreign`, 기록을 못 읽는 다른 Linux 계정의 claude) · 터미널(tmux 세션) · 활동(`Activity` — code·read·run·think·git·test·spawn·wait·idle) ·
-방(사무실·고객센터·휴게실 — `Room` 은 앞의 둘, 휴게실은 쉬는 활동이 정한다) · 고객센터는 **다른 세션이 보낸 지령(origin.kind=peer)** 을
-처리하는 세션의 방(최근 말 8개 중 절반 이상) · 장소(책상·상담 책상·코어 보관대·현미경 책상·휴게실·화이트보드·지령판·문). 「상태」 는 원천의 값(busy·idle·blocked)에만 쓴다.
+다른 계정(`foreign`, 기록을 못 읽는 다른 Linux 계정의 claude) · 터미널(tmux 세션) · 활동(`Activity` — code·read·search·run·think·git·test·spawn·wait·idle) ·
+방(`Room` — 프로젝트 이름이면 그 **사무실**, `center` 는 **고객센터**: 다른 세션이 보낸 지령(origin.kind=peer)이 최근 말 8개 중 절반 이상,
+`general` 은 **공용실**: 프로젝트를 모를 때) · 휴게실·자료실·화장실·창고는 방이 아니라 장소(활동·연출이 정한다) ·
+모듈(건물 조각, `modules.ts`) · 건물(`world.ts` 가 프로젝트 목록으로 짓는 것) · 터미널(tmux) 사람(`terminal`, 주황 모자). 「상태」 는 원천의 값(busy·idle·blocked)에만 쓴다.
 
 ## 구조
 
@@ -38,10 +39,13 @@ server/   Node(tsx 로 TS 를 바로) — 원천을 1초마다 읽어 Snapshot �
   system.ts      /proc 생존 확인, tmux, 다른 계정의 claude(ps)
   index.ts       http — /api/events(SSE) /api/snapshot /healthz + web/dist
 web/      Vite + React. 화면은 2.5D — 구운 그림을 Canvas 2D 로 붙인다(three 를 싣지 않는다)
-  src/scene/layout.ts    배치 좌표·색·가구 목록 (시제품 docs/agent-office-3d.html 에서)
-  src/scene/director.ts  Snapshot → 캐릭터마다 갈 자리
-  src/scene/nav.ts       격자 A*
-  src/scene/models.ts    로우폴리 3D 모형 — 굽기에서만 쓴다
+  src/scene/layout.ts    공용 상수 — 색·생김새·말 (시제품 docs/agent-office-3d.html 의 색)
+  src/scene/modules.ts   모듈 정의 — 바닥·가구(items)·걸음 막기(blocks)·책상·자리 (모듈 안 좌표)
+  src/scene/world.ts     프로젝트 목록(Snapshot.offices) → 건물 (모듈 놓기, 세계 좌표의 책상·자리·막기)
+  src/scene/director.ts  Snapshot + 건물 → 캐릭터마다 갈 자리 (책상·휴게실 자리는 붙박이, 화장실은 시간 창)
+  src/scene/nav.ts       격자 A* — 길이 없으면 빈 길(제자리). world.test.ts 가 벽을 넘지 않는지 본다
+  src/scene/appearance.ts 생김새 (id 로 정한다 — 머리 모양·피부·옷 꼴·성별)
+  src/scene/models.ts    로우폴리 3D 모형 — 굽기에서만 쓴다. props.ts 는 소품 25가지(wetherilli 007)
   src/iso/               화면: atlas.ts(구운 좌표) · cast.ts(걸음) · Stage.tsx(그리기·가림·이름표·확대)
   bake.html, bake/       굽기 페이지 — models.ts 를 고정 시점 정사영으로 그려 조각을 만든다
   public/sprites/        구운 그림과 atlas.json — 커밋한다
@@ -89,6 +93,7 @@ npm run dev                # 화면 개발 — http://127.0.0.1:8058/ (/api 는 
 - 이 서버의 node 는 Debian 판이라 TS 를 스스로 못 벗긴다(`ERR_NO_TYPESCRIPT`) — 그래서 `tsx`.
 - 굽기·화면 확인의 chromium 은 `~/.cache/ms-playwright/chromium-1148`(playwright 1.49.1) — 판을 올리면 브라우저를 다시 받아야 한다.
   WebGL 은 swiftshader 로 그린다. 화면 사진은 `~/tools/pw`(저장소 밖)로 찍어 본다.
-- **가구·방 배치를 고치면** `layout.ts` 의 `ITEMS`(가림 범위)·`BLOCKS`(걸음)·`models.ts` 를 함께 보고 `npm run bake`.
+- **가구·방 배치를 고치면** `modules.ts` 의 items(가림 범위)·blocks(걸음)·`models.ts` 를 함께 보고 `npm run bake`, 그리고 `npm test`(벽 넘기 시험).
+- 사용 한도 게이지는 `~/.claude/settings.json` 의 statusLine 이 `deploy/statusline-tee.sh` 를 거쳐야 값이 생긴다(wetherilli 006) — 2026-10-23 sclee 계정에 걸었다(사본 `settings.json.bak-20261023-statusline`).
 - 원천의 모양(세션 등록 JSON·job state·JSONL 필드)은 Claude Code 판에 따라 바뀔 수 있다 — 깨지면 `npm run probe` 로 먼저 본다.
   2026-10-23 에 본 판은 2.1.309.

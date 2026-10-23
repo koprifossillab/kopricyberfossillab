@@ -1,15 +1,18 @@
 # HANDOFF
 
-**2026-10-23** · **v0.3.0** — 방이 셋이다 ([wetherilli 003](devlog/20261023_wetherilli_003_three_rooms.md)): 사무실(사람이 시킨 일) ·
-고객센터(다른 세션이 보낸 지령) · 휴게실(쉬는 세션). 화면은 2.5D — 로우폴리 3D 를 미리 구워 Canvas 2D 로 붙인다 ([wetherilli 002](devlog/20261023_wetherilli_002_isometric_sprites.md)). 첫 판은 [wetherilli 001](devlog/20261023_wetherilli_001_initial_build.md).
-paleo-server 의 sclee 계정에서 `npm start` 가 tmux 세션 `fl` 에 떠 있다 — `http://127.0.0.1:8098/`.
-**사내망 주소 `http://paleolab/kopricyberfossillab/`** — 2026-10-23 15:53 paleoadmin 이 `install.sh` 로 nginx 길을 깔았다. 첫 화면 「Coding work」 칸에서 들어온다([wetherilli 004](devlog/20261023_wetherilli_004_paleolab_route.md)).
-계획은 [P02](devlog/20261023_wetherilli_P02_isometric_sprites.md)·[P01](devlog/20261023_wetherilli_P01_initial_build.md), 시작 문서·시제품은 `docs/`.
+**2026-10-23** · **v0.4.0** — 건물이 프로젝트 목록에서 지어진다 ([wetherilli 005](devlog/20261023_wetherilli_005_modular_building.md)):
+프로젝트마다 사무실(크기는 커밋 수, GSM 은 지도, rash-company 는 칙칙하게) · 공용실·고객센터·휴게실·자료실·화장실·창고·입구.
+상단바에 사용 한도 게이지([006](devlog/20261023_wetherilli_006_limits_gauge.md)), 소품 25가지([007](devlog/20261023_wetherilli_007_office_props.md)),
+재부팅 뒤 자동 시작 유닛([008](devlog/20261023_wetherilli_008_autostart_service.md) — **설치는 아직**, §0).
+사내망 `http://paleolab/kopricyberfossillab/`, 서버는 sclee 의 tmux `fl`(`npm start`, 127.0.0.1:8098).
+이번 판은 세 세션이 나눠 했다 — 이 세션(판 세션)이 005, 다른 둘이 006·008 과 007 을 각자 worktree(`-wt-limits`·`-wt-service`·`-wt-props`)에서. 합친 뒤 worktree 는 지운다.
 이어서 할 사람은 여기부터.
 
 ## 0. 운영 계정(paleoadmin)
 
 **끝났다**(2026-10-23) — nginx 길(`sudo bash deploy/host/install.sh`)과 `workon fl`(`deploy/host/add-workon.sh`).
+**남은 것: 자동 시작** — sclee 가 tmux `fl` 을 먼저 닫고(`tmux kill-session -t fl`), paleoadmin 이 `git pull && sudo bash deploy/host/install-service.sh`.
+그 뒤로 서버는 systemd `kopricyberfossillab.service`(User=sclee)로 돈다 — 판을 올리면 `sudo systemctl restart kopricyberfossillab` 이 필요하다(sclee 는 못 함).
 클론은 `~paleoadmin/projects/kopricyberfossillab`. 조각을 고치면 paleoadmin 이 `git pull && sudo bash deploy/host/install.sh` 를 다시 한다.
 `/kopricyberfossillab/` 가 502 면 sclee 의 서버(tmux `fl`)가 내려간 것 — sclee 가 `workon fl && npm start`.
 
@@ -22,12 +25,11 @@ paleo-server 의 sclee 계정에서 `npm start` 가 tmux 세션 `fl` 에 떠 있
 
 | | 지금 |
 |---|---|
-| 서버 | `server/` — 1초 폴링, SSE. 읽는 것: 세션 등록·job state·JSONL·하위 에이전트·tmux·ps. 의존성 없음 |
-| 그리기 | `npm run bake` 로 구운 `web/public/sprites/`(배경·가구 19·캐릭터 272) 를 Canvas 2D 로. 가구를 고치면 다시 굽는다 |
-| 화면 | 24×14 — 사무실 16×10(책상 여덟, 코어 보관대·현미경 책상·화이트보드, 왼쪽 벽 tmux 모니터 넷) · 휴게실 16×4 · 고객센터 8×14(상담 책상 여섯·지령판·문) |
-| 방 가르기 | 최근 받은 말 8개 중 `origin.kind=peer` 가 절반 이상이면 고객센터. 지금은 다른 세션의 메시지만 「외부 지령」 으로 본다 |
-| 시험 | 5개 (`npm test`) — 도구 가르기, 래치, 확인 대기 추정 |
-| 못 하는 것 | 터미널 세션의 권한 대기는 auto 모드에서 안 보인다(묻지 않으니 맞다) · 다른 계정은 바쁨/쉼만(CPU) · 청소부·스탠드업 없음 |
+| 서버 | `server/` — 1초 폴링, SSE. 세션 등록·job state·JSONL·하위 에이전트·tmux·ps·한도 파일. room(프로젝트·center·general)·offices(크기는 커밋 수, 10분 캐시) |
+| 화면 | 모듈 18가지를 프로젝트 목록대로 놓는다(`world.ts`). 그림은 `npm run bake`(7초) — 모듈마다 floor·objects 층, 가구 조각, 몸 36·머리 336 |
+| 시험 | 14개 (`npm test`) — 판정·래치·방·한도 + **벽 넘기**(주요 자리 모든 쌍) |
+| 한도 게이지 | sclee 의 statusLine 이 tee 를 거친다. 값은 **대화형 세션이 응답할 때만** 새로 쓰인다 — 아무도 안 쓰면 「n분 전 값」 |
+| 못 하는 것 | 터미널 세션의 권한 대기는 auto 모드에서 안 보인다 · 다른 계정은 바쁨/쉼만 · 휴게실 이름표 겹침 · 공룡 방(모형 대기 중) |
 
 ## 2. 다음
 
