@@ -79,7 +79,8 @@ npm run dev                # 화면 개발 — http://127.0.0.1:8058/ (/api 는 
 ```
 
 - **포트**: 8098(돌리는 것) · 8058(vite 개발). 8090~8097·8099 는 형제 앱 자리.
-- **127.0.0.1 에만 묶는다**(`FL_HOST`). 사내망에 내는 것은 nginx 서브경로(`deploy/nginx/`)로만, 사람이 정한 뒤에.
+- **127.0.0.1 에만 묶는다**(`FL_HOST`). 사내망은 nginx 서브경로 `/kopricyberfossillab/`(`deploy/nginx/`, 깔기는 `sudo bash deploy/host/install.sh`).
+- paleolab 첫 화면의 「Coding work」 칸과 카드 바탕은 `/srv/paleolab/index.html`·`cards.js` 에 있다(이 저장소 밖, wetherilli 004).
 - 이 서버의 node 는 Debian 판이라 TS 를 스스로 못 벗긴다(`ERR_NO_TYPESCRIPT`) — 그래서 `tsx`.
 - 굽기·화면 확인의 chromium 은 `~/.cache/ms-playwright/chromium-1148`(playwright 1.49.1) — 판을 올리면 브라우저를 다시 받아야 한다.
   WebGL 은 swiftshader 로 그린다. 화면 사진은 `~/tools/pw`(저장소 밖)로 찍어 본다.

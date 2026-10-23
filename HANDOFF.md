@@ -3,13 +3,14 @@
 **2026-10-23** · **v0.3.0** — 방이 셋이다 ([wetherilli 003](devlog/20261023_wetherilli_003_three_rooms.md)): 사무실(사람이 시킨 일) ·
 고객센터(다른 세션이 보낸 지령) · 휴게실(쉬는 세션). 화면은 2.5D — 로우폴리 3D 를 미리 구워 Canvas 2D 로 붙인다 ([wetherilli 002](devlog/20261023_wetherilli_002_isometric_sprites.md)). 첫 판은 [wetherilli 001](devlog/20261023_wetherilli_001_initial_build.md).
 paleo-server 의 sclee 계정에서 `npm start` 가 tmux 세션 `fl` 에 떠 있다 — `http://127.0.0.1:8098/`.
-사용자 PC 에서는 SSH 터널(`ssh -L 8098:127.0.0.1:8098 sclee@paleo-server`)로만 본다 — 사내망에는 아직 안 냈다.
+**사내망 주소 `http://paleolab/kopricyberfossillab/`** — 첫 화면 「Coding work」 칸에 길을 냈다([wetherilli 004](devlog/20261023_wetherilli_004_paleolab_route.md)).
+**nginx 는 아직** — 사람이 `sudo bash deploy/host/install.sh` 한 번(sudo 가 비밀번호를 물어 세션이 못 돌렸다). 그 전에는 SSH 터널로만.
 계획은 [P02](devlog/20261023_wetherilli_P02_isometric_sprites.md)·[P01](devlog/20261023_wetherilli_P01_initial_build.md), 시작 문서·시제품은 `docs/`.
 이어서 할 사람은 여기부터.
 
 ## 0. 사람이 정할 것
 
-- **사내망에 낼지** — 내면 세션 이름·프로젝트·도구 한 줄(파일 이름·명령 설명)이 `http://paleolab/kopricyberfossillab/` 로 보인다. 정하면 admin 이 `deploy/nginx/` 조각을 깐다(sudo)
+- **`sudo bash deploy/host/install.sh`** — nginx 길. 사내망에 내기로 2026-10-23 사용자가 정했다
 - **라이선스** — `LICENSE` 가 없다(`.guides/branding.md` §3). Claw3D·pixel-agents 는 MIT 이고 코드는 옮기지 않았다
 - **화면 제목** — 지금 `KOPRI Cyber Fossil Lab`
 
