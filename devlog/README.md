@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261023_wetherilli_013](20261023_wetherilli_013_icon.md) | 아이콘 — 등각 연구실 한 칸 + 빛나는 삼엽충·회로선, logokit icon_set, web/public/icons/ |
 | [20261023_wetherilli_012](20261023_wetherilli_012_desk_theme_names.md) | 상담원 대화창(도구 없음·본인만), 남색 테마, 문틀, 설정·판 이력, 사람 이름(유명인 피함), 실험대, 수족관 붙이기 |
 | [20261023_wetherilli_011](20261023_wetherilli_011_aquarium.md) | 수족관 방 — 모듈(수조 셋·원통·벤치)·물고기 6종·헤엄(FishTank), 미리보기 |
 | [20261023_wetherilli_010](20261023_wetherilli_010_dino_room_plaques.md) | 공룡 방(콤프소그나투스·먹이 주기), 벽·소품 그리는 차례(등각 위상 정렬·잘라 다시 칠하기), 벽 명판, 말풍선 시간 |
