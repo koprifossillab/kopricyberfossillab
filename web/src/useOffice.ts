@@ -29,9 +29,9 @@ function demo(set: (s: Snapshot) => void): () => void {
     test: 'Bash · pytest', wait: 'AskUserQuestion', idle: '응답 완료 · 다음 지시 대기', spawn: 'Agent · Review UI', run: 'Bash · ls',
   };
   const t0 = Date.now();
-  const base: Agent[] = ['Claude-A', 'Claude-B', 'gsm-pan', 'diaruga'].map((n, i) => ({
-    id: `demo-${i}`, kind: i === 2 ? 'job' : 'session', name: n, project: ['GSM', 'DiaRUGA', 'GSM', 'DiaRUGA'][i],
-    activity: acts[i], label: labels[acts[i]], startedAt: t0 + i, changedAt: t0,
+  const base: Agent[] = ['Claude-A', 'Claude-B', 'gsm-pan', 'diaruga', 'pan'].map((n, i) => ({
+    id: `demo-${i}`, kind: i === 2 ? 'job' : 'session', name: n, project: ['GSM', 'DiaRUGA', 'GSM', 'DiaRUGA', 'projects'][i],
+    activity: acts[i], label: labels[acts[i]], room: i >= 2 && i !== 3 ? 'center' : 'office', startedAt: t0 + i, changedAt: t0,
   }));
   const tick = () => {
     for (const a of base) {
@@ -40,10 +40,10 @@ function demo(set: (s: Snapshot) => void): () => void {
     const agents: Agent[] = base.map((a) => ({ ...a }));
     if (base[0].activity === 'spawn' || base[0].activity === 'think') {
       agents.push({ id: 'demo-0/sub', kind: 'subagent', name: 'Explore', project: 'Review UI', activity: 'read',
-        label: 'Glob · **/*.tif', parentId: 'demo-0', startedAt: Date.now(), changedAt: Date.now() });
+        label: 'Glob · **/*.tif', room: 'office', parentId: 'demo-0', startedAt: Date.now(), changedAt: Date.now() });
     }
     agents.push({ id: 'foreign/paleoadmin/1', kind: 'foreign', name: 'paleoadmin', project: '', activity: Math.random() < 0.5 ? 'think' : 'idle',
-      label: '다른 계정 — 기록은 읽지 않는다', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
+      label: '다른 계정 — 기록은 읽지 않는다', room: 'office', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
     set({ version: 'demo', host: 'demo', at: Date.now(), agents,
       terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true }, { name: 'build', attached: 1, windows: 2, claude: false }] });
   };

@@ -89,17 +89,18 @@ export class Office {
         name: r.name || t?.title || id.slice(0, 8),
         project: path.basename(r.cwd) || r.cwd,
         ...st,
+        room: t?.room() ?? 'office',
         tmux: r.tmux?.split(':')[0],
         startedAt: r.startedAt,
         changedAt: now,
       });
-      if (file) agents.push(...this.subagents(file, id, now));
+      if (file) agents.push(...this.subagents(file, id, t?.room() ?? 'office', now));
     }
     return agents;
   }
 
   // <프로젝트>/<세션>/subagents/agent-*.jsonl (+ .meta.json)
-  private subagents(sessionFile: string, parentId: string, now: number): Agent[] {
+  private subagents(sessionFile: string, parentId: string, room: Agent['room'], now: number): Agent[] {
     const dir = path.join(sessionFile.replace(/\.jsonl$/, ''), 'subagents');
     const out: Agent[] = [];
     for (const f of listDir(dir)) {
@@ -118,6 +119,7 @@ export class Office {
         name: meta?.agentType || 'agent',
         project: meta?.description || '',
         ...st,
+        room,
         parentId,
         startedAt: mtime,
         changedAt: now,
@@ -134,6 +136,7 @@ export class Office {
       project: '',
       activity: c.busy ? 'think' as const : 'idle' as const,
       label: '다른 계정 — 기록은 읽지 않는다',
+      room: 'office' as const,
       user: c.user,
       startedAt: c.startedAt,
       changedAt: now,

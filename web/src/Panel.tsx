@@ -27,7 +27,7 @@ function Row({ a, all, selected, onSelect }: { a: Agent; all: Agent[]; selected:
           <span className={pill}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span>
         </div>
         <div className="tool" title={a.label}>{a.label}</div>
-        <div className="meta">{KIND[a.kind]}{a.project ? ` · ${a.project}` : ''}{a.tmux ? ` · tmux ${a.tmux}` : ''} · {since(a.changedAt)}째</div>
+        <div className="meta">{a.kind !== 'foreign' && !a.parentId ? (a.room === 'center' ? '고객센터 · ' : '사무실 · ') : ''}{KIND[a.kind]}{a.project ? ` · ${a.project}` : ''}{a.tmux ? ` · tmux ${a.tmux}` : ''} · {since(a.changedAt)}째</div>
       </div>
     </button>
   );
@@ -64,7 +64,7 @@ export function Panel({ snap, link, selected, onSelect }: {
         ))}
         {snap && !snap.terminals.length && <p className="note">tmux 세션이 없다.</p>}
       </div>
-      <p className="note">책상 = 일하는 중 · 책상 옆 빨간 링 = 확인 필요 · 왼쪽 코어 보관대 = git·gh · 오른쪽 현미경 = 시험 · 라운지 = 휴식</p>
+      <p className="note">사무실 = 사람이 시킨 일 · 고객센터 = 다른 세션이 보낸 지령(최근 말 8개 중 절반 이상) · 휴게실 = 쉬는 세션. 책상 옆 빨간 링 = 확인 필요 · 코어 보관대 = git·gh · 현미경 = 시험</p>
     </aside>
   );
 }

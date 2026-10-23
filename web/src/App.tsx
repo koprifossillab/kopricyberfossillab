@@ -10,7 +10,7 @@ export function App() {
     <div className="wrap">
       <header>
         <h1>KOPRI Cyber Fossil Lab</h1>
-        <p className="lede">{snap?.host ?? 'paleo-server'} 에서 도는 Claude Code 세션·하위 에이전트·터미널. 일하는 세션은 자기 책상에, 쉬는 세션은 라운지에, 확인을 기다리는 세션은 책상 옆에 서서 빨간 링을 띄운다.</p>
+        <p className="lede">{snap?.host ?? 'paleo-server'} 에서 도는 Claude Code 세션·하위 에이전트·터미널. 사람이 시킨 일은 사무실에서, 다른 세션이 보낸 지령은 고객센터에서 처리하고, 쉬는 세션은 휴게실로 간다. 확인을 기다리는 세션은 책상 옆에 서서 빨간 링을 띄운다.</p>
       </header>
       <div className="main">
         <div className="view">

@@ -12,6 +12,10 @@ export type Activity =
   | 'wait'    // 사용자 확인을 기다림 — 책상 옆에 서서 빨간 링
   | 'idle';   // 응답을 마치고 입력을 기다림 — 라운지
 
+// 방 — 사람이 직접 시킨 일을 하면 사무실, 다른 세션이 보낸 지령(peer)을 받아 처리하면 고객센터.
+// 쉬는 세션은 방과 상관없이 휴게실로 간다(화면이 activity 로 정한다).
+export type Room = 'office' | 'center';
+
 export type AgentKind =
   | 'session'   // 사람이 연 대화형 세션 (터미널)
   | 'job'       // 백그라운드 세션 (claude daemon 의 job)
@@ -26,6 +30,7 @@ export interface Agent {
   activity: Activity;
   guessed?: boolean;        // wait 가 기록이 아니라 시간으로 추정한 것
   label: string;            // 지금 도구 한 줄 (파일 이름·명령 설명 — 대화 본문은 보내지 않는다)
+  room: Room;
   parentId?: string;
   tmux?: string;            // 세션이 도는 tmux 자리 (예: pan)
   user?: string;            // foreign 의 계정

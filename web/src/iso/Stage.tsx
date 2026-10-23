@@ -5,7 +5,7 @@ import type { Agent, Terminal } from '../types.ts';
 import type { Atlas, SpriteRect } from './atlas.ts';
 import { charKey } from './atlas.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
-import { DESKS, ITEMS, SCREEN, STATE_TEXT, screenQuad, type Item } from '../scene/layout.ts';
+import { DESKS, ITEMS, ROOM_LABELS, SCREEN, STATE_TEXT, screenQuad, type Item } from '../scene/layout.ts';
 
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 type V3 = [number, number, number];
@@ -168,7 +168,7 @@ export function Stage({ agents, terminals, selected, onSelect }: {
             after = Math.max(after, i);
           });
           if (after < 0) continue;
-          const desk = it.kind === 'desk' ? Number(it.id.slice(4)) : -1;
+          const desk = it.kind === 'desk' || it.kind === 'call' ? Number(it.id.slice(4)) : -1;
           seq.push({ at: after + 0.5, fn: () => { blit(r, 0, 0); if (desk >= 0) deskScreen(desk, seated.get(desk), T); } });
         }
         seq.sort((a, b) => a.at - b.at).forEach((s) => s.fn());
@@ -192,6 +192,15 @@ export function Stage({ agents, terminals, selected, onSelect }: {
           el.style.transform = `translate(${(lx * k + offX) / dpr}px, ${(ly * k + offY) / dpr}px) translate(-50%, -100%)`;
         }
         for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
+        // 방 이름표 — 바닥 앞 모서리에
+        ROOM_LABELS.forEach((r) => {
+          const id = `room:${r.name}`;
+          live.add(id);
+          let el = labelEls.get(id);
+          if (!el) { el = document.createElement('div'); el.className = 'rlbl'; el.textContent = r.name; labels.current.appendChild(el); labelEls.set(id, el); }
+          const [lx, ly] = proj([r.at[0], 0, r.at[1]]);
+          el.style.transform = `translate(${(lx * k + offX) / dpr}px, ${(ly * k + offY) / dpr}px) translate(-50%, -50%)`;
+        });
         // 터미널 이름표
         terms.slice(0, 4).forEach((t, i) => {
           const id = `tmux:${t.name}`;

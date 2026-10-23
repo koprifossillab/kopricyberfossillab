@@ -4,6 +4,8 @@
 
 ## 다음
 
+- [ ] 「외부 지령」 의 원천을 넓히기 — 지금은 다른 세션의 메시지(peer)만. 원격(claude.ai·휴대폰)·Slack·예약 실행이 생기면 그 origin 도 고객센터로
+
 - [ ] 계속 돌리는 자리 — 지금은 tmux `fl` 에서 `npm start`. 서버가 다시 켜져도 서게(사용자 systemd + linger 는 sudo 가 필요하다)
 - [ ] 사내망에 낼지 정하고(HANDOFF §0) `deploy/nginx/kopricyberfossillab-subpath.conf` 를 깔기 — paleolab 첫 화면에 한 줄
 - [ ] 터미널 세션의 확인 대기를 더 정확히 — 지금은 「묻는 모드에서 7초 조용」 추정. pixel-agents 처럼 훅(PermissionRequest·Notification)을 걸어 파일로 받는 길

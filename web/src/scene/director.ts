@@ -1,10 +1,11 @@
 // Snapshot → 캐릭터마다 갈 자리와 자세. 장소는 활동에서 정해진다:
+//   책상은 방에서 받는다 — 사무실 세션은 사무실 책상, 고객센터 세션은 상담 책상
 //   code·read·run·think·spawn → 자기 책상(앉음)   wait → 책상 옆(서서 빨간 링)
-//   git → 코어 보관대   test → 현미경 책상   idle → 라운지
+//   git → 코어 보관대   test → 현미경 책상   idle → 휴게실
 //   하위 에이전트 → 부모 책상 곁   다른 계정 → 바쁘면 화이트보드 앞, 아니면 라운지
 import type { Agent } from '../types.ts';
 import {
-  DESKS, seatOf, waitSpotOf, LOUNGE, CORE_SPOTS, BENCH_SPOTS, BOARD_SPOTS, DOOR,
+  DESKS, DESK_ROOM, seatOf, waitSpotOf, LOUNGE, CORE_SPOTS, BENCH_SPOTS, BOARD_SPOTS, DOOR,
   PALETTE, FOREIGN_COLOR,
 } from './layout.ts';
 
@@ -39,10 +40,21 @@ export function direct(agents: Agent[]): Map<string, Placement> {
   for (const id of deskOf.keys()) if (!live.has(id)) deskOf.delete(id);
   const taken = new Set(deskOf.values());
   for (const a of agents) {
-    if ((a.kind === 'session' || a.kind === 'job') && !deskOf.has(a.id)) {
-      const free = DESKS.findIndex((_, i) => !taken.has(i));
-      if (free >= 0) { deskOf.set(a.id, free); taken.add(free); }
+    if (a.kind !== 'session' && a.kind !== 'job') continue;
+    const has = deskOf.get(a.id);
+    if (has !== undefined && DESK_ROOM[has] === a.room) continue;
+    // 방이 바뀌었으면 그 방에 빈 책상이 있을 때만 옮긴다 (없으면 있던 책상에 그대로)
+    const free = DESKS.findIndex((_, i) => !taken.has(i) && DESK_ROOM[i] === a.room);
+    if (free < 0) {
+      if (has === undefined) {
+        const any = DESKS.findIndex((_, i) => !taken.has(i));   // 그 방이 꽉 차면 다른 방이라도
+        if (any >= 0) { deskOf.set(a.id, any); taken.add(any); }
+      }
+      continue;
     }
+    if (has !== undefined) taken.delete(has);
+    deskOf.set(a.id, free);
+    taken.add(free);
   }
 
   const out = new Map<string, Placement>();

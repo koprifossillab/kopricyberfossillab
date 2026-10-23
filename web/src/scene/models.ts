@@ -2,7 +2,7 @@
 // 화면은 three 를 싣지 않는다 — 여기서 구운 그림(web/public/sprites/)만 붙인다.
 import * as THREE from 'three';
 import {
-  W, D, DESKS, SOFAS, TABLES, COFFEE, CORE_RACK, BENCH, PLANTS, DOOR, SCREEN_OFF, type Item,
+  W, D, DESKS, SOFAS, TABLES, COFFEE, CORE_RACK, BENCH, PLANTS, DOOR, SCREEN_OFF, FLOORS, PARTITION_H, ORDER_BOARD, type Item,
 } from './layout.ts';
 
 const mats = new Map<number, THREE.MeshLambertMaterial>();
@@ -30,9 +30,14 @@ function mesh(g: THREE.Object3D, geo: THREE.BufferGeometry, c: number, x: number
   return m;
 }
 
-function desk(x: number, z: number): THREE.Group {
+// call: 고객센터 상담 책상 — 상판 색이 다르고 전화기가 있다
+function desk(x: number, z: number, call = false): THREE.Group {
   const g = new THREE.Group();
-  bx(g, 2, 0.1, 0.9, 0xd4a373, x, 0.78, z);
+  bx(g, 2, 0.1, 0.9, call ? 0x9ccfb8 : 0xd4a373, x, 0.78, z);
+  if (call) {
+    bx(g, 0.34, 0.08, 0.24, 0x2c2c2a, x + 0.6, 0.87, z + 0.1);          // 전화기
+    bx(g, 0.36, 0.06, 0.08, 0xd85a30, x + 0.6, 0.94, z + 0.1);          // 수화기
+  }
   bx(g, 0.1, 0.74, 0.8, 0xb07a48, x - 0.92, 0.37, z);
   bx(g, 0.1, 0.74, 0.8, 0xb07a48, x + 0.92, 0.37, z);
   bx(g, 0.08, 0.3, 0.08, 0x444441, x, 0.98, z - 0.25);
@@ -121,10 +126,21 @@ function bench(): THREE.Group {
   return g;
 }
 
+// 낮은 칸막이 — 뒤의 사람이 보이게 무릎 높이, 위에 밝은 테
+function partition([x0, z0, x1, z1]: Item['box']): THREE.Group {
+  const g = new THREE.Group();
+  const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  bx(g, w, PARTITION_H, d, 0xbab6d6, cx, PARTITION_H / 2, cz);
+  bx(g, w + 0.02, 0.05, d + 0.02, 0xf0eefa, cx, PARTITION_H + 0.025, cz, false);
+  return g;
+}
+
 export function buildItem(it: Item): THREE.Group {
   const [x, z] = it.at;
   switch (it.kind) {
     case 'desk': return desk(x, z);
+    case 'call': return desk(x, z, true);
+    case 'partition': return partition(it.box);
     case 'sofa': return sofa(x, z);
     case 'table': return table(x, z, TABLES.findIndex(([tx]) => tx === x));
     case 'coffee': return coffee();
@@ -138,8 +154,11 @@ export function buildItem(it: Item): THREE.Group {
 // 바닥·벽·깔개처럼 캐릭터를 가리지 않는 것 — 배경에만 들어간다
 export function buildShell(): THREE.Group {
   const g = new THREE.Group();
-  bx(g, W, 0.5, D, 0xd3d1c7, W / 2, -0.25, D / 2, false);
-  const grid = new THREE.GridHelper(W, W, 0xbdbbb2, 0xbdbbb2);
+  for (const f of FLOORS) {
+    const [x0, z0, x1, z1] = f.rect;
+    bx(g, x1 - x0, 0.5, z1 - z0, f.color, (x0 + x1) / 2, -0.25, (z0 + z1) / 2, false);
+  }
+  const grid = new THREE.GridHelper(W, W, 0xb4b2a9, 0xb4b2a9);
   grid.scale.set(1, 1, D / W);
   grid.position.set(W / 2, 0.005, D / 2);
   (grid.material as THREE.Material).transparent = true;
@@ -147,8 +166,14 @@ export function buildShell(): THREE.Group {
   g.add(grid);
   bx(g, W, 3.2, 0.25, 0xcecbf6, W / 2, 1.6, -0.125);
   bx(g, 0.25, 3.2, D, 0xafa9ec, -0.125, 1.6, D / 2);
-  bx(g, 5, 1.6, 0.06, 0xfafafa, W / 2, 1.7, 0.04);
-  bx(g, 5.2, 0.08, 0.12, 0x888780, W / 2, 0.88, 0.08);
+  bx(g, 5, 1.6, 0.06, 0xfafafa, 8, 1.7, 0.04);                          // 화이트보드 (사무실)
+  bx(g, 5.2, 0.08, 0.12, 0x888780, 8, 0.88, 0.08);
+  // 지령판 (고객센터) — 받은 지령 쪽지들
+  bx(g, ORDER_BOARD.w, 1.5, 0.06, 0x2f4a3f, ORDER_BOARD.x, 1.75, 0.04);
+  for (let i = 0; i < 9; i++) {
+    const c = [0xfac775, 0x9fe1cb, 0xf4c0d1, 0xffffff][i % 4];
+    bx(g, 0.5, 0.36, 0.03, c, ORDER_BOARD.x - 1.6 + (i % 5) * 0.8, 2.15 - Math.floor(i / 5) * 0.6 - (i % 2) * 0.08, 0.09, false);
+  }
   ([[6.4, 1.4, 0xfac775], [7.6, 2.0, 0x9fe1cb], [8.6, 1.6, 0xf4c0d1]] as const).forEach(([x, y, c]) => bx(g, 0.7, 0.5, 0.03, c, x, y, 0.09, false));
   bx(g, 9, 0.04, 3.2, 0xfaeeda, 8, 0.02, 12.1, false);                // 라운지 깔개
   bx(g, 1.2, 0.03, 0.8, 0x5f5e5a, DOOR[0] - 0.1, 0.015, DOOR[1], false); // 문 앞 깔개

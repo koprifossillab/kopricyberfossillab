@@ -12,7 +12,7 @@ function print(): void {
   console.log(`— ${new Date(s.at).toLocaleTimeString()} · ${s.agents.length}명 · 터미널 ${s.terminals.length}`);
   for (const a of s.agents) {
     const indent = a.parentId ? '    └ ' : '  ';
-    console.log(`${indent}[${a.kind}] ${a.name} (${a.project}) → ${NAMES[a.activity]}${a.guessed ? '?' : ''} · ${a.label}`);
+    console.log(`${indent}[${a.kind}] ${a.name} (${a.project}) [${a.room === 'center' ? '고객센터' : '사무실'}] → ${NAMES[a.activity]}${a.guessed ? '?' : ''} · ${a.label}`);
   }
   for (const t of s.terminals) console.log(`  tmux ${t.name} 창 ${t.windows} 붙음 ${t.attached}${t.claude ? ' · claude' : ''}`);
 }

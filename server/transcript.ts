@@ -5,6 +5,7 @@ import { classifyTool } from './classify.ts';
 import type { Activity } from './model.ts';
 
 const TAIL_BYTES = 512 * 1024;
+export const ROLE_WINDOW = 8;   // 방을 정할 때 보는 최근 말의 수
 
 export interface ToolCall {
   name: string;
@@ -23,6 +24,7 @@ export class Transcript {
   lastLineAt = 0;                          // 마지막 줄의 시각
   ended = false;                           // 마지막 assistant 가 end_turn 으로 끝났고 열린 호출이 없다
   permissionMode = '';
+  origins: string[] = [];                  // 최근에 받은 말의 출처 (human·peer), 오래된 것부터 ROLE_WINDOW 개
   title = '';
   mtime = 0;
 
@@ -65,7 +67,7 @@ export class Transcript {
       case 'ai-title': this.title = d.aiTitle ?? this.title; return;
       case 'agent-name': this.title = d.agentName ?? this.title; return;
       case 'assistant': this.onAssistant(d.message, at); return;
-      case 'user': this.onUser(d.message); return;
+      case 'user': this.onUser(d.message, d.origin?.kind); return;
     }
   }
 
@@ -84,7 +86,11 @@ export class Transcript {
     this.ended = m?.stop_reason === 'end_turn' && this.pending.size === 0;
   }
 
-  private onUser(m: any): void {
+  private onUser(m: any, origin: unknown): void {
+    if (origin === 'human' || origin === 'peer') {
+      this.origins.push(origin);
+      if (this.origins.length > ROLE_WINDOW) this.origins.shift();
+    }
     const blocks = Array.isArray(m?.content) ? m.content : [];
     let result = false;
     for (const b of blocks) {
@@ -92,6 +98,12 @@ export class Transcript {
     }
     if (!result) this.pending.clear();   // 사람이 새로 말했다 — 앞의 열린 호출은 끊긴 것
     this.ended = false;
+  }
+
+  // 최근 말의 절반 이상이 다른 세션에서 왔으면 고객센터 — 말 하나로 방을 오가지 않게 흐름으로 본다
+  room(): 'office' | 'center' {
+    const peer = this.origins.filter((o) => o === 'peer').length;
+    return this.origins.length > 0 && peer * 2 >= this.origins.length ? 'center' : 'office';
   }
 
   // 가장 최근에 열린 호출

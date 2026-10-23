@@ -57,3 +57,17 @@ test('auto 모드에서는 시간으로 확인 대기를 추정하지 않는다'
     message: { content: [{ type: 'tool_use', id: 'u1', name: 'Bash', input: { command: 'sleep 60' } }] } }));
   assert.equal(resolve('busy', t, t0 + 60_000).activity, 'run');
 });
+
+test('다른 세션의 지령이 절반을 넘으면 고객센터', () => {
+  const t = new Transcript('/없음');
+  const say = (kind: string) => t.feed(line({ type: 'user', origin: { kind }, message: { content: 'x' } }));
+  assert.equal(t.room(), 'office');
+  say('human'); say('human'); say('peer');
+  assert.equal(t.room(), 'office');
+  say('peer');
+  assert.equal(t.room(), 'center');                     // 2 : 2
+  t.feed(line({ type: 'user', origin: { kind: 'task-notification' }, message: { content: 'x' } }));
+  assert.equal(t.origins.length, 4);                    // 알림은 세지 않는다
+  for (let i = 0; i < 8; i++) say('human');
+  assert.equal(t.room(), 'office');                     // 창은 최근 8 개
+});

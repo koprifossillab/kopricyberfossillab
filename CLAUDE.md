@@ -23,7 +23,8 @@
 
 **말**: 세션(Claude Code 대화 하나 — 터미널 `session`·백그라운드 `job`) · 하위 에이전트(`subagent`, 세션이 Agent 도구로 띄운 것) ·
 다른 계정(`foreign`, 기록을 못 읽는 다른 Linux 계정의 claude) · 터미널(tmux 세션) · 활동(`Activity` — code·read·run·think·git·test·spawn·wait·idle) ·
-장소(책상·코어 보관대·현미경 책상·라운지·화이트보드·문). 「상태」 는 원천의 값(busy·idle·blocked)에만 쓴다.
+방(사무실·고객센터·휴게실 — `Room` 은 앞의 둘, 휴게실은 쉬는 활동이 정한다) · 고객센터는 **다른 세션이 보낸 지령(origin.kind=peer)** 을
+처리하는 세션의 방(최근 말 8개 중 절반 이상) · 장소(책상·상담 책상·코어 보관대·현미경 책상·휴게실·화이트보드·지령판·문). 「상태」 는 원천의 값(busy·idle·blocked)에만 쓴다.
 
 ## 구조
 
