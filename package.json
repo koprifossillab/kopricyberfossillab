@@ -1,6 +1,6 @@
 {
   "name": "kopricyberfossillab",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "type": "module",
   "description": "paleo-server 의 Claude Code 세션·터미널·에이전트를 3D 연구실로 보이는 화면",

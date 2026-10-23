@@ -28,23 +28,42 @@ function cpuTicks(pid: number): number {
   }
 }
 
-export interface TmuxSession { name: string; attached: number; windows: number; command: string }
+export interface TmuxSession { name: string; attached: number; windows: number; command: string; self: boolean }
+
+// 이 화면 서버의 조상 프로세스들 — tmux 칸의 프로세스가 여기에 있으면 그 tmux 가 이 서버를 돌리는 것이다
+let ancestors: Set<number> | null = null;
+function selfAncestors(): Set<number> {
+  if (ancestors) return ancestors;
+  ancestors = new Set();
+  let pid = process.pid;
+  for (let i = 0; i < 64 && pid > 1; i++) {
+    ancestors.add(pid);
+    try {
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+      pid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);   // ppid
+    } catch { break; }
+  }
+  return ancestors;
+}
 
 export function tmuxSessions(): TmuxSession[] {
   try {
     const out = execFileSync('tmux', ['list-sessions', '-F', '#{session_name}\t#{session_attached}\t#{session_windows}'],
       { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] });
     // 세션마다 보이는 창(활성 창의 활성 칸)에서 지금 도는 명령
-    const panes = execFileSync('tmux', ['list-panes', '-a', '-F', '#{session_name}\t#{window_active}\t#{pane_active}\t#{pane_current_command}'],
+    const panes = execFileSync('tmux', ['list-panes', '-a', '-F', '#{session_name}\t#{window_active}\t#{pane_active}\t#{pane_current_command}\t#{pane_pid}'],
       { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] });
     const command = new Map<string, string>();
+    const self = new Set<string>();
+    const mine = selfAncestors();
     for (const l of panes.trim().split('\n')) {
-      const [s, wa, pa, cmd] = l.split('\t');
+      const [s, wa, pa, cmd, ppid] = l.split('\t');
       if (wa === '1' && pa === '1') command.set(s, cmd ?? '');
+      if (mine.has(Number(ppid))) self.add(s);
     }
     return out.trim().split('\n').filter(Boolean).map((l) => {
       const [name, a, w] = l.split('\t');
-      return { name, attached: Number(a), windows: Number(w), command: command.get(name) ?? '' };
+      return { name, attached: Number(a), windows: Number(w), command: command.get(name) ?? '', self: self.has(name) };
     });
   } catch {
     return [];   // tmux 서버가 없다

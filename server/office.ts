@@ -204,7 +204,9 @@ export class Office {
     }
     agents.sort((a, b) => a.startedAt - b.startedAt);
     const claudeTmux = new Set(agents.map((a) => a.tmux).filter(Boolean));
-    const terminals: Terminal[] = tmuxSessions().map((s) => ({ ...s, claude: claudeTmux.has(s.name) || s.command === 'claude' }));
+    // 이 화면 서버를 돌리는 tmux 는 빼고 — 화면에 자기 자신이 사람으로 앉아 있으면 어색하다 (사용자)
+    const terminals: Terminal[] = tmuxSessions().filter((s) => !s.self)
+      .map(({ self: _self, ...s }) => ({ ...s, claude: claudeTmux.has(s.name) || s.command === 'claude' }));
     // claude 가 없는 tmux 세션도 사람으로 — claude 가 있으면 그 세션이 이미 사람이다
     terminals.forEach((t, slot) => {
       if (t.claude) return;
