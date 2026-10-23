@@ -7,10 +7,8 @@ import { bodyKey, headKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
 import { buildWorld, type World, type WorldItem } from '../scene/world.ts';
+import { Chatter } from './chatter.ts';
 
-// 휴게실 말풍선 — CHAT_EVERY 초마다 무리 안에서 말하는 이가 바뀐다
-const CHAT_EVERY = 3.4;
-const CHAT = ['커피 맛있다', 'PR 봤어요?', '빌드 됐대요', 'ㅋㅋㅋ', '그러게요', '점심 뭐 먹지', '오늘 배포해요?', '시험 다 통과!', '…', '음~', '토큰 아껴요', '컨텍스트 꽉 찼어'];
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 type V3 = [number, number, number];
 
@@ -41,6 +39,7 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
     const view = { zoom: 1, panX: 0, panY: 0 };
     let hits: { id: string; x0: number; y0: number; x1: number; y1: number }[] = [];
     const labelEls = new Map<string, HTMLDivElement>();
+    const chatter = new Chatter();
     let cleanup = () => {};
 
     loadAtlas().then(({ atlas, sheets }) => {
@@ -215,6 +214,9 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
           const { a } = d;
           hits.push({ id: a.agent.id, x0: d.x0 * k + offX, y0: d.y0 * k + offY, x1: d.x1 * k + offX, y1: d.y1 * k + offY });
           if (a.agent.kind === 'subagent' || a.leaving) continue;
+          // 휴게실에 앉은 사람은 이름표를 숨긴다 (겹친다) — 말할 때 말풍선에 이름이 붙고, 고르면 보인다
+          const resting = a.agent.activity === 'idle' && !!a.place.group && !a.moving;
+          if (resting && sel !== a.agent.id) continue;
           live.add(a.agent.id);
           const wait = a.agent.activity === 'wait';
           const top = (sitting(a) ? 1.45 + SIT_LIFT : 1.6) + (sitting(a) ? (a.place.lift ?? 0) : 0);
@@ -222,7 +224,7 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
             `<i style="background:${hex(a.color)}"></i>${esc(a.agent.name)}${wait ? ` · ${STATE_TEXT.wait}${a.agent.guessed ? '?' : ''}` : ''}`,
             [a.x, top, a.z], 'translate(-50%, -100%)');
         }
-        // 휴게실 잡담 — 같은 무리(카페 탁자·소파)에 둘 이상 있으면 돌아가며 말풍선, 커피 머신 앞 혼자면 가끔 ☕
+        // 휴게실 잡담 — 같은 무리(카페 탁자·소파)에 둘 이상 있으면 대화를 돌아가며, 혼자면 드문드문 혼잣말 (chatter.ts)
         const groups = new Map<string, Actor[]>();
         for (const d of draws) {
           const { a } = d;
@@ -231,19 +233,18 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
           g.push(a);
           groups.set(a.place.group, g);
         }
-        groups.forEach((members, name) => {
-          if (RM) return;
+        chatter.keep(new Set(groups.keys()));
+        if (!RM) groups.forEach((members, name) => {
           members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
-          const seed = name.length * 7 + name.charCodeAt(name.length - 1);
-          const slot = Math.floor(T / CHAT_EVERY + seed);
-          if ((T + seed * CHAT_EVERY) % CHAT_EVERY >= CHAT_EVERY * 0.75) return;
-          let who = -1, text = '';
-          if (members.length >= 2) { who = slot % members.length; text = CHAT[(slot * 7 + seed) % CHAT.length]; }
-          else if (name === 'coffee' && slot % 3 === 0) { who = 0; text = '☕'; }
-          if (who < 0) return;
-          const a = members[who];
-          live.add(`bubble:${a.agent.id}`);
-          label(`bubble:${a.agent.id}`, 'bubble', esc(text), [a.x, 2.05 + (a.place.lift ?? 0), a.z], 'translate(-50%, -100%)');
+          const said = chatter.step(name, members.map((m) => m.agent.id), T);
+          if (!said) return;
+          const a = members.find((m) => m.agent.id === said.who);
+          if (!a) return;
+          const id = `bubble:${a.agent.id}`;
+          live.add(id);
+          labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);   // 이름표 대신 말풍선
+          label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(a.agent.name)}</small>${esc(said.text)}`,
+            [a.x, 1.75 + SIT_LIFT + (a.place.lift ?? 0), a.z], 'translate(-50%, -100%)');
         });
         // 방 이름표 — 바닥 앞 모서리에, 프로젝트 사무실은 굵게
         for (const r of w.labels) {

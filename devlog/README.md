@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261023_wetherilli_009](20261023_wetherilli_009_lounge_chatter.md) | 휴게실 잡담 — 대화 서른여섯, 들쭉날쭉한 박자, 말풍선에 이름(이름표 숨김) |
 | [20261023_wetherilli_008](20261023_wetherilli_008_autostart_service.md) | 재부팅 뒤 자동 시작 — systemd 유닛(User=sclee)과 install-service.sh |
 | [20261023_wetherilli_007](20261023_wetherilli_007_office_props.md) | 사무실 소품 25가지 — scene/props.ts, 미리보기 npm run props |
 | [20261023_wetherilli_006](20261023_wetherilli_006_limits_gauge.md) | 상단바 한도 게이지 — statusLine stdin 을 tee 로 남겨 5시간·주간 |
