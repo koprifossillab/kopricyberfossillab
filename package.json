@@ -11,7 +11,8 @@
     "probe": "tsx server/probe.ts",
     "test": "tsx --test server/*.test.ts",
     "typecheck": "tsc --noEmit -p .",
-    "bake": "tsx tools/bake.ts"
+    "bake": "tsx tools/bake.ts",
+    "props": "tsx tools/props-gallery.ts"
   },
   "engines": {
     "node": ">=22"
