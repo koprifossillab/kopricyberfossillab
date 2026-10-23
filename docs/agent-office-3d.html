@@ -1,0 +1,192 @@
+<title>에이전트 디오라마 오피스</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500&family=IBM+Plex+Mono&display=swap">
+<style>
+/* layout: 위 머리말, 아래 3D 뷰포트 + 오른쪽 에이전트 패널(좁으면 세로로 쌓임) */
+:root{--bg:#f2f1f6;--panel:#ffffff;--fg:#25242c;--muted:#6c6a78;--line:#dddbe6;--scene:#eceaf6;--accent:#534AB7;--warn-bg:#fcebeb;--warn-fg:#a32d2d;
+--display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;--body:"IBM Plex Sans KR",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171c;--panel:#212128;--fg:#ecebf2;--muted:#a3a1b0;--line:#34333d;--scene:#1e1d26;--accent:#AFA9EC;--warn-bg:#4a1d1d;--warn-fg:#f7c1c1;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17171c;--panel:#212128;--fg:#ecebf2;--muted:#a3a1b0;--line:#34333d;--scene:#1e1d26;--accent:#AFA9EC;--warn-bg:#4a1d1d;--warn-fg:#f7c1c1;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 32px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:4px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,4.5vw,36px);line-height:1.15;margin:0}
+.lede{margin:0;color:var(--muted);max-width:68ch;font-size:14px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start}
+@media (max-width:820px){.main{grid-template-columns:minmax(0,1fr)}}
+.view{position:relative;background:var(--scene);border:1px solid var(--line);border-radius:12px;overflow:hidden;aspect-ratio:16/10;max-width:100%;min-height:320px}
+.view canvas{display:block;width:100%;height:100%;cursor:grab}
+.view canvas:active{cursor:grabbing}
+.hint{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:11px;color:var(--muted);pointer-events:none}
+.lbl{position:absolute;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:2px 9px 2px 7px;font-size:12px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.lbl i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.lbl.wait{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+aside h2{margin:0;font-size:14px;font-weight:500;display:flex;justify-content:space-between;align-items:baseline}
+aside h2 span{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)}
+.row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.av{width:28px;height:28px;border-radius:50%;color:#fff;font-size:13px;font-weight:500;display:flex;align-items:center;justify-content:center}
+.who{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.who b{font-weight:500;font-size:14px}
+.pill{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--bg);color:var(--muted);white-space:nowrap}
+.pill.wait{background:var(--warn-bg);color:var(--warn-fg)}
+.pill.work{color:var(--accent)}
+.tool{font-family:var(--mono);font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note{margin:0;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>에이전트 디오라마 오피스</h1>
+    <p class="lede">작업 중인 에이전트는 자기 책상에, 쉬는 에이전트는 라운지에, 사용자 확인을 기다리는 에이전트는 책상 옆에 서서 빨간 표시를 띄웁니다. 지금은 예시 데이터로 움직이고, 다음 단계에서 Claude Code 세션 기록을 연결할 예정이에요.</p>
+  </header>
+  <div class="main">
+    <div class="view" id="view">
+      <div class="hint">드래그 회전 · 휠 확대</div>
+    </div>
+    <aside>
+      <h2>에이전트 <span>예시 데이터</span></h2>
+      <div id="list"></div>
+      <p class="note">상태 판정 예시: Edit/Write → 코딩 중, Read/Grep → 탐색 중, 권한 요청 → 확인 필요, 응답 완료 후 대기 → 휴식</p>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+const RM=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+const view=document.getElementById('view');
+if(!window.THREE){view.insertAdjacentHTML('beforeend','<p style="padding:16px;color:var(--muted)">3D 라이브러리를 불러오지 못했어요. 새로고침해 주세요.</p>');return}
+const W=16,D=10,CX=W/2,CZ=D/2;
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+view.prepend(renderer.domElement);
+const scene=new THREE.Scene();
+const FR=13;
+const cam=new THREE.OrthographicCamera(-FR,FR,FR,-FR,0.1,200);
+cam.position.set(CX+18,17,CZ+18);
+const controls=new THREE.OrbitControls(cam,renderer.domElement);
+controls.target.set(CX,0.5,CZ);controls.enableDamping=true;controls.enablePan=false;
+controls.minZoom=0.7;controls.maxZoom=2.4;controls.minPolarAngle=0.5;controls.maxPolarAngle=1.15;
+cam.zoom=1.05;cam.updateProjectionMatrix();controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff,0xb4b2a9,0.75));
+const sun=new THREE.DirectionalLight(0xffffff,0.7);
+sun.position.set(CX+10,18,CZ+6);sun.target.position.set(CX,0,CZ);scene.add(sun,sun.target);
+sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-14,right:14,top:14,bottom:-14,near:1,far:60});sun.shadow.bias=-0.0008;
+
+const M=c=>new THREE.MeshLambertMaterial({color:c,flatShading:true});
+function bx(w,h,d,c,x,y,z,opt){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c));m.position.set(x,y,z);m.castShadow=!(opt&&opt.noCast);m.receiveShadow=true;scene.add(m);return m}
+
+bx(W,0.5,D,0xd3d1c7,CX,-0.25,CZ,{noCast:true});
+const grid=new THREE.GridHelper(16,16,0xbdbbb2,0xbdbbb2);grid.scale.set(1,1,10/16);grid.position.set(CX,0.005,CZ);
+grid.material.transparent=true;grid.material.opacity=0.45;scene.add(grid);
+bx(W,3.2,0.25,0xcecbf6,CX,1.6,-0.125);
+bx(0.25,3.2,D,0xafa9ec,-0.125,1.6,CZ);
+bx(5,1.6,0.06,0xfafafa,CX,1.7,0.04);
+bx(5.2,0.08,0.12,0x888780,CX,0.88,0.08);
+[[6.4,1.4],[7.6,2.0],[8.6,1.6]].forEach(([x,y])=>bx(0.7,0.5,0.03,[0xfac775,0x9fe1cb,0xf4c0d1][Math.round(x)%3],x,y,0.09,{noCast:true}));
+bx(0.9,2.6,0.6,0x7f77dd,0.6,1.3,0.45);
+for(let i=0;i<4;i++)bx(0.7,0.22,0.4,[0xd85a30,0x378add,0x1d9e75,0xef9f27][i],0.6,0.5+i*0.6,0.55,{noCast:true});
+bx(9,0.04,3.6,0xfaeeda,8,0.02,8.1,{noCast:true});
+
+const DESKS=[2.5,6,9.5,13];const DZ=3;
+const screens=[];
+DESKS.forEach(x=>{
+  bx(2,0.1,0.9,0xd4a373,x,0.78,DZ);
+  bx(0.1,0.74,0.8,0xb07a48,x-0.92,0.37,DZ);bx(0.1,0.74,0.8,0xb07a48,x+0.92,0.37,DZ);
+  bx(0.08,0.3,0.08,0x444441,x,0.98,DZ-0.25);
+  bx(0.8,0.5,0.06,0x2c2c2a,x,1.35,DZ-0.25);
+  const s=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.4),new THREE.MeshBasicMaterial({color:0x2a3a52}));
+  s.position.set(x,1.35,DZ-0.215);scene.add(s);screens.push(s);
+  bx(0.6,0.08,0.6,0x5f5e5a,x,0.48,DZ+0.85);bx(0.6,0.55,0.08,0x5f5e5a,x,0.75,DZ+1.15);
+  bx(0.08,0.44,0.08,0x444441,x,0.22,DZ+0.85);
+});
+function sofa(x,z,rot){const g=new THREE.Group();
+  const p=[[1.8,0.35,0.8,0,0.2,0],[1.8,0.5,0.2,0,0.5,0.32],[0.2,0.45,0.8,-0.9,0.35,0],[0.2,0.45,0.8,0.9,0.35,0]];
+  p.forEach(([w,h,d,a,b,c],i)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(i===0?0xed93b1:0xd4537e));m.position.set(a,b,c);m.castShadow=m.receiveShadow=true;g.add(m)});
+  g.position.set(x,0,z);g.rotation.y=rot;scene.add(g)}
+sofa(5,9,Math.PI);sofa(10.5,9,Math.PI);
+bx(1.2,0.35,0.7,0xb07a48,5,0.18,7.6);bx(1.2,0.35,0.7,0xb07a48,10.5,0.18,7.6);
+bx(0.5,0.12,0.04,0xfac775,5.1,0.4,7.5,{noCast:true});
+bx(0.9,1.1,0.6,0x888780,15.2,0.55,6.3);bx(0.5,0.3,0.15,0x2c2c2a,15.2,1.0,6.0);bx(0.2,0.12,0.2,0xffffff,15.2,0.72,5.95);
+function plant(x,z,h){bx(0.6,0.5,0.6,0xd85a30,x,0.25,z);
+  const c1=new THREE.Mesh(new THREE.ConeGeometry(0.5,h,6),M(0x639922));c1.position.set(x,0.5+h/2,z);c1.castShadow=true;scene.add(c1);
+  const c2=new THREE.Mesh(new THREE.ConeGeometry(0.38,h*0.7,6),M(0x3b6d11));c2.position.set(x,0.5+h*0.75,z);c2.castShadow=true;scene.add(c2)}
+plant(15.3,0.7,1.6);plant(0.8,9.2,1.3);plant(15.3,9.2,1.1);
+
+const LOUNGE=[[4.4,8.4],[5.6,8.4],[9.9,8.4],[11.1,8.4],[14.4,6.6],[7.8,7.2]];
+const AG=[
+ {n:'Claude-A',col:0xd85a30,hex:'#D85A30',tools:['Edit · src/viewer.ts','Write · README.md']},
+ {n:'Claude-B',col:0x378add,hex:'#378ADD',tools:['Read · data/cores.csv','Grep · "Thalassiosira"']},
+ {n:'Explore',col:0x1d9e75,hex:'#1D9E75',tools:['Glob · **/*.tif','Read · index/plates.json']},
+ {n:'Plan',col:0x7f77dd,hex:'#7F77DD',tools:['Edit · docs/plan.md','Bash · npm test']}
+];
+const ST={work:{t:'코딩 중',c:'work'},read:{t:'탐색 중',c:'work'},wait:{t:'확인 필요',c:'wait'},idle:{t:'휴식',c:''}};
+const list=document.getElementById('list');
+AG.forEach((a,i)=>{
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.32,0.75,8),M(a.col));body.position.y=0.42;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.24,10,8),M(0xf5c4b3));head.position.y=1.03;head.castShadow=true;g.add(head);
+  const hair=new THREE.Mesh(new THREE.SphereGeometry(0.25,10,6,0,Math.PI*2,0,Math.PI/2.2),M(0x4a1b0c));hair.position.y=1.06;hair.rotation.x=-0.25;g.add(hair);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.5,24),new THREE.MeshBasicMaterial({color:0xe24b4a,transparent:true,opacity:0}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=0.02;g.add(ring);
+  a.seat=[DESKS[i],DZ+1.45];a.x=a.seat[0];a.z=a.seat[1];g.position.set(a.x,0,a.z);scene.add(g);
+  a.g=g;a.body=body;a.ring=ring;a.path=[];a.state='work';a.timer=2+Math.random()*6;a.spot=null;a.tool=a.tools[0];
+  const l=document.createElement('div');l.className='lbl';view.appendChild(l);a.lbl=l;
+  const r=document.createElement('div');r.className='row';
+  r.innerHTML='<div class="av" style="background:'+a.hex+'">'+a.n.slice(-1)+'</div><div style="min-width:0"><div class="who"><b>'+a.n+'</b><span class="pill"></span></div><div class="tool"></div></div>';
+  list.appendChild(r);a.pill=r.querySelector('.pill');a.toolEl=r.querySelector('.tool');
+});
+function route(a,tx,tz){const p=[];const aisle=5.6;
+  if(Math.abs(a.z-aisle)>0.01)p.push([a.x,aisle]);
+  if(Math.abs(a.x-tx)>0.01)p.push([tx,aisle]);
+  p.push([tx,tz]);a.path=p}
+function pick(){const r=Math.random();return r<0.38?'work':r<0.6?'read':r<0.72?'wait':'idle'}
+function setState(a,s){
+  a.state=s;a.timer=(s==='wait'?5:7)+Math.random()*8;
+  if(a.spot){a.spot.used=false;a.spot=null}
+  if(s==='idle'){const free=LOUNGE.map(p=>p).filter(p=>!p.used);const p=free[Math.floor(Math.random()*free.length)]||LOUNGE[0];p.used=true;a.spot=p;route(a,p[0],p[1])}
+  else if(s==='wait'){route(a,a.seat[0]+0.75,a.seat[1]+0.2)}
+  else route(a,a.seat[0],a.seat[1]);
+  a.tool=s==='idle'?'응답 완료 · 다음 지시 대기':s==='wait'?'권한 요청 · '+a.tools[0].split(' · ')[0]:a.tools[Math.floor(Math.random()*a.tools.length)];
+  paint(a)}
+function paint(a){const s=ST[a.state];
+  a.pill.textContent=s.t;a.pill.className='pill '+s.c;a.toolEl.textContent=a.tool;
+  a.lbl.className='lbl'+(a.state==='wait'?' wait':'');
+  a.lbl.innerHTML='<i style="background:'+a.hex+'"></i>'+a.n+' · '+s.t}
+AG.forEach((a,i)=>{a.state=['work','read','work','idle'][i];setState(a,a.state)});
+
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);
+  const asp=w/h;const f=asp>1.2?8.2:10.5;cam.left=-f*asp;cam.right=f*asp;cam.top=f;cam.bottom=-f;cam.updateProjectionMatrix()}
+new ResizeObserver(resize).observe(view);resize();
+
+const v=new THREE.Vector3();let last=performance.now(),T=0;
+function tick(now){const dt=Math.min(0.05,(now-last)/1000);last=now;T+=dt;
+  AG.forEach((a,i)=>{
+    a.timer-=dt;if(a.timer<=0&&!a.path.length)setState(a,pick());
+    let moving=false;
+    if(a.path.length){const [tx,tz]=a.path[0];const dx=tx-a.x,dz=tz-a.z,d=Math.hypot(dx,dz),sp=2.2*dt;
+      if(d<=sp){a.x=tx;a.z=tz;a.path.shift()}else{a.x+=dx/d*sp;a.z+=dz/d*sp;moving=true;a.g.rotation.y=Math.atan2(dx,dz)}}
+    else{const face=a.state==='idle'?Math.PI:a.state==='wait'?Math.PI*0.75:Math.PI;a.g.rotation.y+= (face-a.g.rotation.y)*Math.min(1,dt*6)}
+    const seated=!moving&&(a.state==='work'||a.state==='read');
+    const bob=moving&&!RM?Math.abs(Math.sin(T*10))*0.08:0;
+    a.g.position.set(a.x,bob+(seated?0.12:0),a.z);
+    a.body.scale.y=seated?0.82:1;
+    a.ring.material.opacity=a.state==='wait'&&!moving?(RM?0.8:0.5+0.4*Math.sin(T*5)):0;
+    const sc=screens[i].material.color;
+    const on=seated?(a.state==='work'?0x85b7eb:0x9fe1cb):0x2a3a52;
+    sc.setHex(on);
+    if(seated&&a.state==='work'&&!RM&&Math.sin(T*14+i)>0.6)sc.offsetHSL(0,0,0.06);
+    v.set(a.x,1.55+bob,a.z).project(cam);
+    const w=view.clientWidth,h=view.clientHeight;
+    a.lbl.style.transform='translate('+((v.x*0.5+0.5)*w)+'px,'+((-v.y*0.5+0.5)*h)+'px) translate(-50%,-100%)';
+  });
+  controls.update();renderer.render(scene,cam);requestAnimationFrame(tick)}
+requestAnimationFrame(tick);
+})();
+</script>

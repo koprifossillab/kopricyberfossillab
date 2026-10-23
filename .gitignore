@@ -1,0 +1,11 @@
+node_modules/
+web/dist/
+
+# kopri-devdocs/guides 로 가는 심볼릭 링크 — kopri-devdocs 는 private 이다 (CLAUDE.md)
+.guides
+
+# 참고 저장소(Claw3D·pixel-agents)의 얕은 클론 — 고치지 않고 읽기만 (CLAUDE.md)
+ref/
+
+# 장비마다 다른 값
+.env
