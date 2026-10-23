@@ -3,11 +3,13 @@ import { useEffect, useRef } from 'react';
 import type { Agent, Snapshot } from './types.ts';
 import { loadAtlas, headKey, bodyKey } from './iso/atlas.ts';
 import { appearanceOf } from './scene/appearance.ts';
+import { personName, subtitle } from './scene/names.ts';
 import { STATE_TEXT } from './scene/layout.ts';
 import { colorOf } from './scene/director.ts';
 import type { Link } from './useOffice.ts';
+import { Desk } from './Desk.tsx';
 
-const KIND: Record<Agent['kind'], string> = { session: '터미널', job: '백그라운드', subagent: '하위', foreign: '다른 계정', terminal: 'tmux' };
+const KIND: Record<Agent['kind'], string> = { session: '터미널', job: '백그라운드', subagent: '하위', foreign: '다른 계정', terminal: 'tmux', desk: '상담원' };
 const WORK = new Set(['code', 'read', 'search', 'run', 'think', 'spawn', 'git', 'test']);
 const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : r);
 const FACE_DIR = 1;   // 머리 조각의 방향 — 카메라 쪽(+x+z)을 본다
@@ -58,7 +60,7 @@ function Row({ a, all, selected, onSelect }: { a: Agent; all: Agent[]; selected:
       <Avatar a={a} color={colorOf(a, all)} small={!!a.parentId} />
       <div className="txt">
         <div className="who">
-          <b title={a.name}>{a.name}</b>
+          <b title={subtitle(a)}>{personName(a)}<small>{subtitle(a)}</small></b>
           <span className={pill}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span>
         </div>
         <div className="tool" title={a.label}>{a.label}</div>
@@ -106,46 +108,53 @@ export function SidePanel({ snap, selected, onSelect }: {
   const kids = a ? agents.filter((x) => x.parentId === a.id) : [];
   return (
     <aside className="side right">
-      <h2>고른 에이전트{a && <button className="x" onClick={() => onSelect(null)} aria-label="고르기 풀기">×</button>}</h2>
-      {a ? (
-        <div className="detail">
-          <div className="dhead">
-            <Avatar a={a} color={colorOf(a, agents)} small={false} />
-            <div><b>{a.name}</b><span className={a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill'}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span></div>
+      <section className="sel-box">
+        <h2>고른 에이전트{a && <button className="x" onClick={() => onSelect(null)} aria-label="고르기 풀기">×</button>}</h2>
+        {a ? (
+          <div className="detail">
+            <div className="dhead">
+              <Avatar a={a} color={colorOf(a, agents)} small={false} />
+              <div><b>{personName(a)}</b><small className="sub">{subtitle(a)}</small><span className={a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill'}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span></div>
+            </div>
+            <dl>
+              <dt>지금</dt><dd className="mono">{a.label}</dd>
+              <dt>종류</dt><dd>{KIND[a.kind]}{a.user ? ` · ${a.user}` : ''}</dd>
+              {a.kind !== 'foreign' && <><dt>방</dt><dd>{ROOM(a.room)}</dd></>}
+              {a.project && <><dt>{a.parentId ? '맡은 일' : '프로젝트'}</dt><dd>{a.project}</dd></>}
+              {a.tmux && <><dt>tmux</dt><dd className="mono">{a.tmux}</dd></>}
+              <dt>시작</dt><dd>{clock(a.startedAt)} · {since(a.startedAt)} 전</dd>
+              <dt>이 활동</dt><dd>{since(a.changedAt)}째</dd>
+              {kids.length > 0 && <><dt>하위</dt><dd>{kids.map((k) => `${personName(k)}(${k.name})`).join(', ')}</dd></>}
+            </dl>
           </div>
-          <dl>
-            <dt>지금</dt><dd className="mono">{a.label}</dd>
-            <dt>종류</dt><dd>{KIND[a.kind]}{a.user ? ` · ${a.user}` : ''}</dd>
-            {a.kind !== 'foreign' && <><dt>방</dt><dd>{ROOM(a.room)}</dd></>}
-            {a.project && <><dt>{a.parentId ? '맡은 일' : '프로젝트'}</dt><dd>{a.project}</dd></>}
-            {a.tmux && <><dt>tmux</dt><dd className="mono">{a.tmux}</dd></>}
-            <dt>시작</dt><dd>{clock(a.startedAt)} · {since(a.startedAt)} 전</dd>
-            <dt>이 활동</dt><dd>{since(a.changedAt)}째</dd>
-            {kids.length > 0 && <><dt>하위</dt><dd>{kids.map((k) => k.name).join(', ')}</dd></>}
-          </dl>
+        ) : <p className="empty">선택한 에이전트가 없습니다.</p>}
+      </section>
+      <section className="desk-box">
+        <h2>상담원에게 묻기<span>고객센터</span></h2>
+        <Desk />
+      </section>
+      <details className="more">
+        <summary>터미널 {snap?.terminals.length ?? 0} · 보는 법</summary>
+        <div className="terms">
+          {(snap?.terminals ?? []).map((t) => (
+            <div key={t.name} className="term">
+              <i className={t.attached ? 'on' : ''} />
+              <b>{t.name}</b>
+              <span>{t.command && t.command !== 'bash' ? `$ ${t.command} · ` : ''}창 {t.windows}{t.attached ? ` · 붙음 ${t.attached}` : ''}{t.claude ? ' · claude' : ''}</span>
+            </div>
+          ))}
+          {snap && !snap.terminals.length && <p className="note">tmux 세션이 없다.</p>}
         </div>
-      ) : <p className="note">화면의 캐릭터나 왼쪽 목록을 누르면 여기에 자세히 보인다.</p>}
-      <h2>터미널 {snap?.terminals.length ?? 0}<span>tmux</span></h2>
-      <div className="terms">
-        {(snap?.terminals ?? []).map((t) => (
-          <div key={t.name} className="term">
-            <i className={t.attached ? 'on' : ''} />
-            <b>{t.name}</b>
-            <span>{t.command && t.command !== 'bash' ? `$ ${t.command} · ` : ''}창 {t.windows}{t.attached ? ` · 붙음 ${t.attached}` : ''}{t.claude ? ' · claude' : ''}</span>
-          </div>
-        ))}
-        {snap && !snap.terminals.length && <p className="note">tmux 세션이 없다.</p>}
-      </div>
-      <h2>보는 법</h2>
-      <ul className="legend">
-        <li><b>사무실</b> 프로젝트마다 — 크기는 커밋 수</li>
-        <li><b>고객센터</b> 다른 세션이 보낸 지령(최근 말 8개 중 절반 이상)</li>
-        <li><b>공용실</b> 프로젝트를 모를 때 · 코어 보관대 = git · 현미경 = 시험</li>
-        <li><b>자료실</b> 웹 검색</li>
-        <li><b>휴게실</b> 쉬는 세션 — 잡담, 가끔 화장실·공룡 먹이</li>
-        <li><b>빨간 링</b> 확인을 기다린다 · <b>주황 모자</b> tmux</li>
-      </ul>
-      <p className="hint2">휠 확대 · 끌어 옮기기 · 두 번 눌러 처음대로</p>
+        <ul className="legend">
+          <li><b>사무실</b> 프로젝트마다 — 크기는 커밋 수</li>
+          <li><b>고객센터</b> 다른 세션이 보낸 지령(최근 말 8개 중 절반 이상) · 상담원</li>
+          <li><b>공용실</b> 프로젝트를 모를 때 · 코어 보관대 = git · 현미경 = 시험</li>
+          <li><b>자료실</b> 웹 검색</li>
+          <li><b>휴게실</b> 쉬는 세션 — 잡담, 가끔 화장실·공룡 먹이</li>
+          <li><b>빨간 링</b> 확인을 기다린다 · <b>주황 모자</b> tmux</li>
+        </ul>
+        <p className="hint2">휠 확대 · 끌어 옮기기 · 두 번 눌러 처음대로</p>
+      </details>
     </aside>
   );
 }

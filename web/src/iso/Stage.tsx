@@ -11,6 +11,7 @@ import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
 import { buildWorld, type World, type WorldItem } from '../scene/world.ts';
 import { Chatter } from './chatter.ts';
+import { personName } from '../scene/names.ts';
 
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 type V3 = [number, number, number];
@@ -303,8 +304,18 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const wait = a.agent.activity === 'wait';
           const top = (sitting(a) ? 1.45 + SIT_LIFT : 1.6) + (sitting(a) ? (a.place.lift ?? 0) : 0);
           label(a.agent.id, 'lbl' + (wait ? ' wait' : '') + (sel === a.agent.id ? ' sel' : ''),
-            `<i style="background:${hex(a.color)}"></i>${esc(a.agent.name)}${wait ? ` · ${STATE_TEXT.wait}${a.agent.guessed ? '?' : ''}` : ''}`,
+            `<i style="background:${hex(a.color)}"></i>${esc(personName(a.agent))}${wait ? ` · ${STATE_TEXT.wait}${a.agent.guessed ? '?' : ''}` : ''}`,
             [a.x, top, a.z], 'translate(-50%, -100%)');
+        }
+        // 상담원이 답하는 중이면 「답하는 중…」 (질문·답은 대화창에만)
+        for (const d of draws) {
+          const { a } = d;
+          if (a.agent.kind !== 'desk' || a.agent.activity !== 'think') continue;
+          const id = `bubble:${a.agent.id}`;
+          live.add(id);
+          labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);
+          label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>답하는 중…`,
+            [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : 0), a.z], 'translate(-50%, -100%)');
         }
         // 휴게실 잡담 — 같은 무리(카페 탁자·소파)에 둘 이상 있으면 대화를 돌아가며, 혼자면 드문드문 혼잣말 (chatter.ts)
         const groups = new Map<string, Actor[]>();
@@ -325,7 +336,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const id = `bubble:${a.agent.id}`;
           live.add(id);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);   // 이름표 대신 말풍선
-          label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(a.agent.name)}</small>${esc(said.text)}`,
+          label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(said.text)}`,
             [a.x, 1.75 + SIT_LIFT + (a.place.lift ?? 0), a.z], 'translate(-50%, -100%)');
         });
         // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)

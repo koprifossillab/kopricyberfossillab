@@ -44,6 +44,8 @@ function demo(set: (s: Snapshot) => void): () => void {
     }
     agents.push({ id: 'foreign/paleoadmin/1', kind: 'foreign', name: 'paleoadmin', project: '', activity: Math.random() < 0.5 ? 'think' : 'idle',
       label: '다른 계정 — 기록은 읽지 않는다', room: 'general', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
+    agents.push({ id: 'desk/상담원', kind: 'desk', name: '상담원', project: '고객센터', activity: Math.random() < 0.4 ? 'think' : 'idle',
+      label: '질문을 기다림', room: 'center', startedAt: t0 - 3, changedAt: Date.now() });
     const buildBusy = Math.random() < 0.5;
     agents.push({ id: 'tmux/build', kind: 'terminal', name: 'build', project: 'tmux', activity: buildBusy ? 'run' : 'idle',
       label: buildBusy ? '$ npm' : '프롬프트 대기', room: 'general', tmux: 'build', slot: 1, startedAt: t0 - 2, changedAt: Date.now() });

@@ -9,7 +9,7 @@
 import type { Rect } from './layout.ts';
 import type { Office } from '../types.ts';
 import {
-  MODULES, DINO_D, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
+  MODULES, DINO_D, DOOR_TOP, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
   type DeskKind, type ModuleType, type Plaque, type Seat, type Item,
 } from './modules.ts';
 
@@ -135,7 +135,7 @@ export function buildWorld(offices: Office[]): World {
     for (const l of def.labels ?? []) w.labels.push({ ...l, at: mv(l.at, o) });
     // 사무실 명판 — 앞 칸막이 출입구 위 (빈 사무실은 이름 없이)
     if (m.type.startsWith('office') && m.label) {
-      w.labels.push({ name: m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: 1.55, axis: 'x', style: m.type === 'office-rash' ? 'rash' : 'project' });
+      w.labels.push({ name: m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', style: m.type === 'office-rash' ? 'rash' : 'project' });
     }
   });
   return w;

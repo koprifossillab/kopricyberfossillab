@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Office } from './office.ts';
+import { ask, askToken, checkToken, ASK_MAX, type Turn } from './desk.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'web', 'dist');
@@ -54,11 +55,43 @@ function serveStatic(url: string, res: http.ServerResponse): void {
   });
 }
 
+function readBody(req: http.IncomingMessage, limit: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let n = 0; const parts: Buffer[] = [];
+    req.on('data', (b: Buffer) => { n += b.length; if (n > limit) { reject(new Error('too large')); req.destroy(); } else parts.push(b); });
+    req.on('end', () => resolve(Buffer.concat(parts).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+const json = (res: http.ServerResponse, status: number, data: unknown) =>
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(JSON.stringify(data));
+
+// 상담원 — 열쇠(x-fl-token)가 맞을 때만. 본인만 쓴다 (desk.ts 머리 주석)
+async function handleAsk(req: http.IncomingMessage, res: http.ServerResponse, url: string): Promise<void> {
+  const tok = req.headers['x-fl-token'];
+  if (!checkToken(Array.isArray(tok) ? tok[0] : tok)) { json(res, 401, { error: '열쇠가 맞지 않다' }); return; }
+  if (url.startsWith('/api/ask/check')) { json(res, 200, { ok: true, max: ASK_MAX }); return; }
+  if (req.method !== 'POST') { json(res, 405, { error: 'POST 만' }); return; }
+  let body: { question?: unknown; history?: unknown };
+  try { body = JSON.parse(await readBody(req, 16 * 1024)); } catch { json(res, 400, { error: '본문을 읽지 못했다' }); return; }
+  const history: Turn[] = Array.isArray(body.history)
+    ? body.history.filter((t): t is Turn => !!t && typeof t.q === 'string' && typeof t.a === 'string').slice(-3) : [];
+  const r = await ask(String(body.question ?? ''), history, current);
+  if (r.ok) json(res, 200, { answer: r.answer }); else json(res, r.status, { error: r.error });
+}
+
 const server = http.createServer((req, res) => {
   // nginx 서브경로(/kopricyberfossillab/) 뒤에 서도 되게 앞부분을 떼고 본다
   const url = (req.url ?? '/').replace(/^\/kopricyberfossillab(?=\/|$)/, '') || '/';
   if (url === '/healthz' || url === '/healthz/') {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, version: VERSION }));
+  } else if (url.startsWith('/api/ask')) {
+    handleAsk(req, res, url).catch(() => json(res, 500, { error: '서버 오류' }));
+  } else if (url.startsWith('/api/changelog')) {
+    // 판 이력 — 설정 화면이 읽는다
+    fs.readFile(path.join(ROOT, 'CHANGELOG.md'), 'utf8', (err, text) =>
+      err ? res.writeHead(404).end() : res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'no-cache' }).end(text));
   } else if (url.startsWith('/api/snapshot')) {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(body);
   } else if (url.startsWith('/api/events')) {
@@ -73,4 +106,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`kopricyberfossillab ${VERSION} — http://${HOST}:${PORT}/`);
+  askToken();   // 상담원 열쇠를 미리 만들어 둔다 (~/.config/kopricyberfossillab/ask-token)
 });

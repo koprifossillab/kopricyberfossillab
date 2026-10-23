@@ -9,6 +9,7 @@ export type ItemKind =
   | 'cabinet' | 'boxes' | 'deadplant' | 'doorframe'
   | 'stall' | 'sink' | 'sign-m' | 'sign-f' | 'rack' | 'bucket' | 'ladder'
   | 'mapboard' | 'maptable'
+  | 'door'   // 출입구 문틀 — 기둥 둘과 가로대. 명판은 가로대에 건다 (h = 출입구 폭, rot 0 이면 x 로 뻗는다)
   | 'fence' | 'feeder' | 'fern' | 'rock' | 'nest' | 'dinosign'
   | 'prop';   // props.ts 의 소품 (prop 에 이름)
 
@@ -69,6 +70,12 @@ function prop(id: string, name: keyof typeof PROPS, x: number, z: number, rot = 
   const [hw, hd] = turned ? [sd / 2, sw / 2] : [sw / 2, sd / 2];
   return { item: { id, kind: 'prop', prop: name, at: [x, z], rot, box: [x - hw, z - hd, x + hw, z + hd] }, block: [x - hw - 0.05, z - hd - 0.05, x + hw + 0.05, z + hd + 0.05] };
 }
+// 출입구 문틀 — 가운데 (x, z), 폭 span, axis 는 문틀이 뻗은 방향. 기둥은 칸막이 끝에 서므로 걸음을 따로 막지 않는다
+export const DOOR_TOP = 1.9;
+function door(id: string, x: number, z: number, span: number, axis: 'x' | 'z'): Item {
+  const box: Rect = axis === 'x' ? [x - span / 2 - 0.06, z - 0.07, x + span / 2 + 0.06, z + 0.07] : [x - 0.07, z - span / 2 - 0.06, x + 0.07, z + span / 2 + 0.06];
+  return { id, kind: 'door', at: [x, z], box, h: span, rot: axis === 'x' ? 0 : Math.PI / 2 };
+}
 function addProps(items: Item[], blocks: Rect[], list: ReturnType<typeof prop>[]): void {
   for (const p of list) { items.push(p.item); blocks.push(p.block); }
 }
@@ -80,17 +87,18 @@ function office(rash: boolean, size: 's' | 'm' | 'l' = 'm', theme?: 'gsm'): Modu
   const OFFICE_W = OFFICE_WIDTH[size];
   const cols = size === 's' ? [1.75] : size === 'm' ? [1.9, 5.1] : [1.9, 5.1, 8.9, 12.1];
   const deskAt: [number, number][] = [1.4, 4.2].flatMap((z) => cols.map((x) => [x, z] as [number, number]));
-  const door: [number, number] = [OFFICE_W / 2 - 0.7, OFFICE_W / 2 + 0.7];
+  const door_: [number, number] = [OFFICE_W / 2 - 0.7, OFFICE_W / 2 + 0.7];
   const deskKind: DeskKind = rash ? 'rashdesk' : 'desk';
   const wallKind: ItemKind = rash ? 'rashwall' : 'partition';
   const walls: Rect[] = [
-    [0, OFFICE_D - T / 2, door[0], OFFICE_D + T / 2],        // 앞, 가운데에 출입구
-    [door[1], OFFICE_D - T / 2, OFFICE_W, OFFICE_D + T / 2],
+    [0, OFFICE_D - T / 2, door_[0], OFFICE_D + T / 2],        // 앞, 가운데에 출입구
+    [door_[1], OFFICE_D - T / 2, OFFICE_W, OFFICE_D + T / 2],
     [OFFICE_W - T / 2, 0, OFFICE_W + T / 2, OFFICE_D - T / 2], // 오른쪽
   ];
   const items: Item[] = [
     ...deskItems(deskAt, 'desk', deskKind),
     ...walls.map((r, i) => ({ id: `wall${i}`, kind: wallKind, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
+    door('door', OFFICE_W / 2, OFFICE_D, door_[1] - door_[0], 'x'),
   ];
   const blocks: Rect[] = [...deskAt.map(([x, z]) => box(x, z, 1.05, 0.5)), ...walls.map((r) => pad(r))];
   const R = OFFICE_W;   // 오른쪽 끝 — 소품 자리를 크기에 맞춘다
@@ -158,13 +166,14 @@ function front(): ModuleDef {
   const stools = cafe.flatMap(([x, z], t) => stoolOff.map(([dx, dz], k) => ({ at: [x + dx, z + dz] as [number, number], t, k })));
   const coffee: [number, number] = [30.3, 0.6];
   const core = { x: 0.45, z: 5.8, len: 3.2 };
-  const bench = { x: 7.35, z: 5.0, len: 1.8 };
+  const bench = { x: 7.35, z: 3.8, len: 5.6 };   // 시험 — 오른쪽 칸막이를 따라 길게 (시험 중인 세션이 몰려서 넓혔다)
   const plants: [number, number, number][] = [[17.6, 7.4, 1.0], [30.5, 7.4, 1.1], [0.6, 7.5, 1.2]];
 
   const items: Item[] = [
     ...deskItems(gen, 'gen', 'desk'),
     ...deskItems(call, 'call', 'call'),
     ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
+    door('door0', 6.3, 0, 1.4, 'x'), door('door1', 12.45, 0, 1.3, 'x'), door('door2', 22.9, 0, 1.4, 'x'),
     { id: 'core', kind: 'core', at: [core.x, core.z], box: [0, core.z - core.len / 2, 0.85, core.z + core.len / 2] },
     { id: 'bench', kind: 'bench', at: [bench.x, bench.z], box: [bench.x - 0.4, bench.z - bench.len / 2, bench.x + 0.4, bench.z + bench.len / 2] },
     ...sofas.map(({ at, rot }, i) => ({ id: `sofa${i}`, kind: 'sofa' as const, at, rot, box: box(at[0], at[1], 1, 0.45) })),
@@ -189,7 +198,7 @@ function front(): ModuleDef {
   addProps(items, blocks, [
     // 공용실 — 연구실다운 것
     prop('fossil', 'fossil_cabinet', 2.0, 7.5), prop('corebox', 'core_box', 6.6, 7.45), prop('rocks', 'rock_shelf', 1.7, 0.35),
-    prop('server', 'server_rack', 7.5, 2.4, -Math.PI / 2),
+    prop('server', 'server_rack', 0.45, 2.5, Math.PI / 2),   // 왼쪽 벽 (tmux 모니터가 있던 자리)
     // 고객센터
     prop('cooler', 'water_cooler', 16.5, 0.5), prop('copier', 'copier', 12.45, 7.3), prop('easel', 'whiteboard_easel', 9.2, 7.3),
     prop('bin', 'trash_bin', 16.6, 3.2),
@@ -228,12 +237,12 @@ function front(): ModuleDef {
       { at: [30.4, 5.2], pose: 'stand', face: -Math.PI / 2, group: 'cafe3', lift: 0 },
     ],
     core: [[1.5, 4.8], [1.5, 5.8], [1.5, 6.8]],
-    bench: [[6.6, 4.6], [6.6, 5.4]],
+    bench: [1.3, 2.3, 3.3, 4.3, 5.3, 6.3].map((z) => [6.6, z] as [number, number]),
     stand: [[3.6, 7.0], [4.4, 7.0], [5.2, 7.0], [3.6, 6.4]],
     // 복도 쪽 칸막이의 문 위에
+    // 문틀 가로대에 (휴게실은 이름 없이 — 사용자)
     labels: [
-      { name: '공용실', at: [6.3, 0], y: 1.45, axis: 'x' }, { name: '고객센터', at: [12.45, 0], y: 1.45, axis: 'x' },
-      { name: '휴게실', at: [22.9, 0], y: 1.45, axis: 'x' },
+      { name: '공용실', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x' }, { name: '고객센터', at: [12.45, 0], y: DOOR_TOP + 0.12, axis: 'x' },
     ],
     flats: ['rug'],
     tall: ['leftwall'],
@@ -251,6 +260,7 @@ function library(): ModuleDef {
   const items: Item[] = [
     ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
     ...deskItems([[2.0, 3.6]], 'desk', 'desk'),
+    door('door', 0, 5.0, 1.2, 'z'),
   ];
   const blocks: Rect[] = [...walls.map((r) => pad(r)), box(2.0, 3.6, 1.05, 0.5)];
   addProps(items, blocks, [
@@ -269,7 +279,7 @@ function library(): ModuleDef {
       { at: [2.8, 5.6], pose: 'stand', face: Math.PI / 2 },
       { at: [1.4, 5.6], pose: 'stand', face: Math.PI / 2 },
     ],
-    labels: [{ name: '자료실', at: [0, 5.0], y: 1.45, axis: 'z' }],   // 통로 쪽 문 위
+    labels: [{ name: '자료실', at: [0, 5.0], y: DOOR_TOP + 0.12, axis: 'z' }],   // 통로 쪽 문틀
   };
 }
 
@@ -299,6 +309,7 @@ function dinoRoom(): ModuleDef {
     { id: 'rock1', kind: 'rock', at: [10.2, 2.6], box: box(10.2, 2.6, 0.3, 0.25) },
     { id: 'nest', kind: 'nest', at: [12.5, 1.4], box: box(12.5, 1.4, 0.3, 0.3) },
     { id: 'sign', kind: 'dinosign', at: [2.6, 0.45], box: box(2.6, 0.45, 0.3, 0.1) },
+    door('door', 1.7, 0, 1.4, 'x'),
   ];
   addProps(items, [], [prop('bench0', 'plant_bush', 0.5, 5.4), prop('bin', 'trash_bin', 0.4, 0.5)]);
   return {
@@ -324,7 +335,7 @@ function dinoRoom(): ModuleDef {
         { at: [12.0, 5.75], face: Math.PI, dino: [12.0, 4.85] },
       ],
     },
-    labels: [{ name: '공룡 방', at: [1.7, 0], y: 1.45, axis: 'x' }],   // 휴게실 쪽 문 위
+    labels: [{ name: '공룡 방', at: [1.7, 0], y: DOOR_TOP + 0.12, axis: 'x' }],   // 휴게실 쪽 문틀
   };
 }
 
@@ -359,6 +370,7 @@ function service(): ModuleDef {
     { id: 'sinkF', kind: 'sink', at: [1.7, 3.0], box: box(1.7, 3.0, 0.3, 0.22) },
     { id: 'signM', kind: 'sign-m', at: [0, 1.5], box: [-0.1, 1.3, 0.1, 1.7] },
     { id: 'signF', kind: 'sign-f', at: [0, 4.1], box: [-0.1, 3.9, 0.1, 4.3] },
+    door('doorM', 0, 1.5, 1.0, 'z'), door('doorF', 0, 4.1, 1.0, 'z'), door('doorS', 0, 6.6, 1.0, 'z'),
     { id: 'rack', kind: 'rack', at: [2.4, 5.75], box: [1.2, 5.45, 3.6, 6.05] },
     { id: 'bucket', kind: 'bucket', at: [0.8, 7.55], box: box(0.8, 7.55, 0.22, 0.22) },
     { id: 'ladder', kind: 'ladder', at: [3.55, 7.3], box: [3.3, 6.6, 3.8, 7.9] },
@@ -379,10 +391,7 @@ function service(): ModuleDef {
     ],
     desks: [],
     restroom: { male: [[1.4, 1.2], [2.2, 1.6]], female: [[1.4, 3.9], [2.2, 4.3]] },
-    labels: [
-      { name: '화장실 남', at: [0, 1.5], y: 1.45, axis: 'z', style: 'small' }, { name: '화장실 여', at: [0, 4.1], y: 1.45, axis: 'z', style: 'small' },
-      { name: '창고', at: [0, 6.6], y: 1.45, axis: 'z', style: 'small' },
-    ],
+    // 화장실·창고는 이름 없이 (사용자) — 문 옆 남·여 표지로 안다
   };
 }
 

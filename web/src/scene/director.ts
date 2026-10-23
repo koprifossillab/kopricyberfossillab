@@ -77,7 +77,7 @@ function assignDesks(w: World, agents: Agent[]): void {
   const taken = new Set(deskOf.values());
   const room = (i: number) => w.desks[i].room;
   for (const a of agents) {
-    if (a.kind !== 'session' && a.kind !== 'job' && a.kind !== 'terminal') continue;
+    if (a.kind !== 'session' && a.kind !== 'job' && a.kind !== 'terminal' && a.kind !== 'desk') continue;
     if (a.kind === 'terminal' && a.activity === 'idle') { deskOf.delete(a.id); continue; }   // tmux 는 명령이 돌 때만 책상에
     const has = deskOf.get(a.id);
     if (has !== undefined && room(has) === a.room) continue;

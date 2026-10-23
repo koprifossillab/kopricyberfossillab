@@ -1,8 +1,9 @@
 /* 시제품 agent-office-3d.html 의 색·글꼴 토큰을 그대로 */
-:root{--bg:#f2f1f6;--panel:#ffffff;--fg:#25242c;--muted:#6c6a78;--line:#dddbe6;--scene:#eceaf6;--accent:#534AB7;--warn-bg:#fcebeb;--warn-fg:#a32d2d;
---display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;--body:"IBM Plex Sans KR",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171c;--panel:#212128;--fg:#ecebf2;--muted:#a3a1b0;--line:#34333d;--scene:#1e1d26;--accent:#AFA9EC;--warn-bg:#4a1d1d;--warn-fg:#f7c1c1;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#17171c;--panel:#212128;--fg:#ecebf2;--muted:#a3a1b0;--line:#34333d;--scene:#1e1d26;--accent:#AFA9EC;--warn-bg:#4a1d1d;--warn-fg:#f7c1c1;color-scheme:dark}
+/* 테마 — 짙은 남색 (paleolab 첫 화면과 같은 계열). 밝은 모드는 같은 남색을 조금 밝게만 */
+:root{--bg:#16223d;--panel:#1f2e4f;--fg:#e6ecf7;--muted:#9fb0cf;--line:#33466e;--scene:#1a2847;--accent:#5fb8f0;--accent-fg:#0f172a;--warn-bg:#5a2433;--warn-fg:#ffc9c9;
+--display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;--body:"IBM Plex Sans KR",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f172a;--panel:#1a2540;--fg:#e2e8f0;--muted:#94a3b8;--line:#2c3b5a;--scene:#131d33;--accent:#38bdf8;--accent-fg:#0f172a;--warn-bg:#4a1d28;--warn-fg:#f7c1c1}}
+:root[data-theme="dark"]{--bg:#0f172a;--panel:#1a2540;--fg:#e2e8f0;--muted:#94a3b8;--line:#2c3b5a;--scene:#131d33;--accent:#38bdf8;--accent-fg:#0f172a;--warn-bg:#4a1d28;--warn-fg:#f7c1c1}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;height:100vh;overflow:hidden}
 /* 화면 폭을 다 쓴다 — 위 한 줄, 아래 [목록 | 연구실 | 고른 것·터미널·보는 법] */
@@ -53,7 +54,9 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(20px,2.2vw,28px);l
 .av.sm{width:22px;height:22px}
 .txt{min-width:0}
 .who{display:flex;justify-content:space-between;gap:8px;align-items:center}
-.who b{font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who b{font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:baseline;gap:6px;min-width:0}
+.who b small{font-weight:400;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.dhead .sub{display:block;font-size:11px;color:var(--muted)}
 .pill{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--bg);color:var(--muted);white-space:nowrap}
 .pill.wait{background:var(--warn-bg);color:var(--warn-fg)}
 .pill.work{color:var(--accent)}
@@ -93,3 +96,52 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(20px,2.2vw,28px);l
 .limits-pct{font-family:var(--mono);font-size:12px;min-width:3.5ch;text-align:right}
 .limits-reset,.limits-age{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
 @media (max-width:520px){.limits-bar{width:72px}}
+
+/* 오른쪽 칸 — 고른 에이전트(높이 고정) · 상담원(남는 높이) · 터미널·보는 법(접기) */
+.side.right{overflow:hidden}
+.sel-box{height:236px;flex:none;display:flex;flex-direction:column;gap:8px;overflow:auto;border-bottom:1px solid var(--line);padding-bottom:8px}
+.sel-box .empty{margin:auto 0;text-align:center;color:var(--muted);font-size:13px}
+.desk-box{flex:1;min-height:200px;display:flex;flex-direction:column;gap:6px}
+.side h2 span{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)}
+.desk{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+.desk-log{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+.msg{max-width:88%;padding:5px 9px;border-radius:10px;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-fg);border-bottom-right-radius:3px}
+.msg.desk{align-self:flex-start;background:var(--bg);border:1px solid var(--line);border-bottom-left-radius:3px}
+.msg.desk.wait{color:var(--muted);font-style:italic}
+.msg.err{align-self:center;background:var(--warn-bg);color:var(--warn-fg);font-size:12px}
+.desk-in{display:flex;flex-direction:column;gap:4px}
+.desk-in textarea{resize:none;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.desk-bar{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.desk-bar span{margin-right:auto}
+.desk-bar button,.desk-key button{font:inherit;font-size:12px;padding:3px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-fg);cursor:pointer}
+.desk-bar button:disabled{opacity:.45;cursor:default}
+.desk-bar button.link{background:none;color:var(--muted);border:none;padding:0}
+.desk-key{display:flex;flex-wrap:wrap;gap:6px}
+.desk-key .note{flex-basis:100%;border:0;padding:0}
+.desk-key input{flex:1;font:inherit;font-size:13px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+.more{flex:none;font-size:12px;border-top:1px solid var(--line);padding-top:6px}
+.more summary{cursor:pointer;color:var(--muted);font-size:12px}
+.more[open]{max-height:45%;overflow:auto}
+
+/* 설정 — 우측 상단 톱니바퀴, 가운데 창 */
+.gear{all:unset;cursor:pointer;font-size:20px;line-height:1;color:var(--muted);padding:4px 6px;border-radius:8px}
+.gear:hover{color:var(--fg);background:var(--panel)}
+.gear:focus-visible{outline:2px solid var(--accent)}
+.modal-bg{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(720px,100%);max-height:min(80vh,760px);display:flex;flex-direction:column;box-shadow:0 10px 40px #0006}
+.modal header{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.modal header h2{margin:0;font-size:16px;font-weight:500}
+.modal nav{display:flex;gap:4px;margin-right:auto}
+.modal nav button{all:unset;cursor:pointer;font-size:13px;padding:3px 10px;border-radius:999px;color:var(--muted)}
+.modal nav button.on{background:var(--bg);color:var(--fg)}
+.modal .x{all:unset;cursor:pointer;font-size:20px;color:var(--muted);padding:0 4px}
+.modal-body{overflow:auto;padding:12px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.rel h3{margin:0 0 4px;font-size:14px;font-weight:500;display:flex;align-items:baseline;gap:8px}
+.rel h3 small{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400}
+.rel h3 .now{font-size:10px;background:var(--accent);color:var(--accent-fg);border-radius:999px;padding:0 7px}
+.rel ul{margin:0;padding-left:18px;font-size:13px;color:var(--fg);display:flex;flex-direction:column;gap:2px}
+.rel code,.opts code{font-family:var(--mono);font-size:12px;background:var(--bg);padding:0 4px;border-radius:4px}
+.opts{display:flex;flex-direction:column;gap:8px;font-size:14px}
+.opts label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.opts button{align-self:flex-start;font:inherit;font-size:13px;padding:4px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}

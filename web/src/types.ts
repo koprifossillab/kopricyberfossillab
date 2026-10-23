@@ -23,7 +23,8 @@ export type AgentKind =
   | 'job'       // 백그라운드 세션 (claude daemon 의 job)
   | 'subagent'  // 세션이 띄운 하위 에이전트
   | 'foreign'   // 다른 Linux 계정의 claude — 기록을 못 읽으니 있다는 것만
-  | 'terminal'; // claude 가 없는 tmux 세션 — 명령이 돌면 run, 프롬프트면 idle
+  | 'terminal'  // claude 가 없는 tmux 세션 — 명령이 돌면 run, 프롬프트면 idle
+  | 'desk';     // 고객센터 상담원 — 화면 대화창의 질문에 답한다(도구 없는 claude -p). 답할 때 think
 
 export interface Agent {
   id: string;

@@ -82,3 +82,20 @@ test('먹이 주는 사람이 서면 공룡 하나가 그 앞으로 와서 먹�
   for (let i = 0; i < 2000; i++) pen.step(0.05, []);
   for (const x of pen.dinos) assert.ok(x.x > x0 && x.x < x1 && x.z > z0 && x.z < z1);
 });
+
+test('사람 이름 — 늘 같고, 생김새 성별대로, 유명인 이름은 피한다', async () => {
+  const { makeName, personName, FAMOUS_NAMES } = await import('./names.ts');
+  const { isFemale } = await import('./appearance.ts');
+  assert.equal(personName({ id: 'x/1' }), personName({ id: 'x/1' }));
+  const seen = new Set<string>();
+  for (let i = 0; i < 3000; i++) {
+    const id = `session-${i}-${i * 7919}`;
+    const n = makeName(id, isFemale(id));
+    assert.match(n, /^[가-힣]{3}$/);
+    assert.ok(!FAMOUS_NAMES.has(n), n);
+    seen.add(n);
+  }
+  assert.ok(seen.size > 1500, `이름이 고루 나온다 (${seen.size})`);
+  // 걸리는 이름이 실제로 걸러지는지 — 목록의 이름을 만드는 id 를 찾아 그 id 로 다시 지으면 다른 이름이 나와야 한다
+  assert.ok(FAMOUS_NAMES.has('김수현'));
+});

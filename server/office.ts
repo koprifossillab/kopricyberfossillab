@@ -9,6 +9,7 @@ import { resolve, type Busy } from './latches.ts';
 import { alive, tmuxSessions, foreignClaudes } from './system.ts';
 import { execFileSync } from 'node:child_process';
 import { readLimits } from './limits.ts';
+import { desk, DESK_DIR } from './desk.ts';
 import type { Agent, Office as OfficeRoom, Snapshot, Terminal } from './model.ts';
 
 // 사무실 크기 — 커밋 수로 (2026-10-23: ForGIA 13 · Cropobite 19 · rash-company 333 · DiaRUGA 736 · GSM 1561)
@@ -71,7 +72,8 @@ export class Office {
   private transcripts = new Map<string, Transcript>();   // 파일 경로 → 꼬리
   private fileOf = new Map<string, string>();            // sessionId → 기록 파일
   private changed = new Map<string, { activity: string; at: number }>();
-  private tmuxSeen = new Map<string, number>();          // tmux 세션 이름 → 처음 본 때
+  private tmuxSeen = new Map<string, number>();
+  private bornAt = Date.now();          // tmux 세션 이름 → 처음 본 때
   readonly version: string;
 
   constructor(version: string) {
@@ -102,6 +104,7 @@ export class Office {
       if (!f.endsWith('.json')) continue;
       const r = readJson<Registry>(path.join(SESSIONS_DIR, f));
       if (!r || r.spare || !alive(r.pid, r.procStart)) continue;
+      if (r.cwd.startsWith(DESK_DIR)) continue;   // 상담원이 부른 claude -p — 상담원 캐릭터가 대신 보인다
       const isJob = r.kind === 'bg';
       let busy: Busy = r.status === 'busy' ? 'busy' : 'idle';
       if (isJob && r.jobId) {
@@ -222,6 +225,12 @@ export class Office {
       this.tmuxSeen.delete(n);
       this.changed.delete(`tmux/${n}`);
     }
+    // 고객센터 상담원 — 늘 있다. 질문에 답하는 동안 think
+    agents.push({
+      id: 'desk/상담원', kind: 'desk', name: '상담원', project: '고객센터', room: 'center',
+      activity: desk.busy ? 'think' : 'idle', label: desk.busy ? '질문에 답하는 중' : '질문을 기다림',
+      startedAt: this.bornAt, changedAt: desk.busy ? desk.since : desk.lastAt || this.bornAt,
+    });
     const offices: OfficeRoom[] = [...new Set(agents.filter((a) => (a.kind === 'session' || a.kind === 'job') && a.room !== 'center' && a.room !== 'general').map((a) => a.room))]
       .sort().map((name) => {
         const n = commitCount(name, now);

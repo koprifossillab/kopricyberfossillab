@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {
   SCREEN_OFF, CAP, HEAD_Y, SIT_LIFT, HAIR_COLOR, PARTITION_H, RASH_WALL_H, type BodyShape, type Look, type Rect,
 } from './layout.ts';
-import { MODULES, type Item, type ModuleType } from './modules.ts';
+import { MODULES, DOOR_TOP, type Item, type ModuleType } from './modules.ts';
 import { PROPS } from './props.ts';
 
 const mats = new Map<number, THREE.MeshLambertMaterial>();
@@ -157,9 +157,12 @@ function coreRack(x: number, z: number, len: number): THREE.Group {
 function bench(x: number, z: number, len: number): THREE.Group {
   const g = new THREE.Group();
   bx(g, 0.8, 0.1, len, 0xe8e6df, x, 0.8, z);
-  bx(g, 0.7, 0.75, 0.08, 0x888780, x, 0.38, z - len / 2 + 0.1);
-  bx(g, 0.7, 0.75, 0.08, 0x888780, x, 0.38, z + len / 2 - 0.1);
-  for (const mz of [z - 0.4, z + 0.45]) {
+  const legs = Math.max(2, Math.round(len / 1.8) + 1);
+  for (let k = 0; k < legs; k++) bx(g, 0.7, 0.75, 0.08, 0x888780, x, 0.38, z - len / 2 + 0.1 + (k * (len - 0.2)) / (legs - 1));
+  // 현미경 — 1.1 마다 한 대
+  const n = Math.max(2, Math.round(len / 1.1));
+  for (let k = 0; k < n; k++) {
+    const mz = z - len / 2 + (len * (k + 0.5)) / n;
     bx(g, 0.3, 0.06, 0.3, 0x2c2c2a, x, 0.88, mz);
     bx(g, 0.07, 0.4, 0.07, 0x2c2c2a, x + 0.08, 1.1, mz);
     const tube = mesh(g, new THREE.CylinderGeometry(0.05, 0.06, 0.3, 8), 0x444441, x - 0.02, 1.28, mz);
@@ -267,6 +270,17 @@ function mapTable(x: number, z: number): THREE.Group {
   bx(g, 1.2, 0.01, 0.56, 0xf4efe6, x, 0.825, z, false);
   geoPatches(g, x - 0.56, 0.835, 1.12, 0.5, z, 3, false);
   mesh(g, new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8), 0x6e6a5e, x + 0.4, 0.88, z - 0.15);   // 누름돌
+  return g;
+}
+
+// 출입구 문틀 — 칸막이 끝에 기둥 둘, 위에 가로대 (명판을 건다). rot 0 이면 x 로 뻗는다
+function doorway(x: number, z: number, span: number, rot: number): THREE.Group {
+  const g = new THREE.Group();
+  const top = DOOR_TOP;
+  for (const d of [-span / 2, span / 2]) bx(g, 0.1, top, 0.12, 0x6f6a8a, d, top / 2, 0);
+  bx(g, span + 0.1, 0.14, 0.14, 0x6f6a8a, 0, top + 0.05, 0);
+  g.position.set(x, 0, z);
+  g.rotation.y = rot;
   return g;
 }
 
@@ -415,6 +429,7 @@ export function buildItem(it: Item): THREE.Group {
     case 'doorframe': return doorFrame(x, z, it.box[3] - it.box[1] - 0.2);
     case 'prop': return PROPS[it.prop as keyof typeof PROPS].build(x, z, it.rot ?? 0);
     case 'mapboard': return mapBoard(x, z, Number(it.id.slice(3)));
+    case 'door': return doorway(x, z, it.h ?? 1.4, it.rot ?? 0);
     case 'fence': return fence(it.box);
     case 'feeder': return feeder(x, z);
     case 'fern': return fern(x, z, Number(it.id.slice(4)));
