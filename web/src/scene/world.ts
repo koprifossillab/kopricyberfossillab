@@ -41,8 +41,6 @@ export interface World {
   lounge: Seat[];                  // on 은 WorldItem.key
   core: [number, number][];
   bench: [number, number][];
-  term: [number, number][];
-  terminals: { x: number; y: number; z: number }[];
   stand: [number, number][];
   restroom: { male: [number, number][]; female: [number, number][] };
   search: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];
@@ -98,7 +96,7 @@ export function buildWorld(offices: Office[]): World {
 
   const w: World = {
     w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D + DINO_D, modules, rooms,
-    desks: [], items: [], blocks: [], lounge: [], core: [], bench: [], term: [], terminals: [], stand: [], labels: [],
+    desks: [], items: [], blocks: [], lounge: [], core: [], bench: [], stand: [], labels: [],
     restroom: { male: [], female: [] }, search: [], pen: null,
     door: [BUILDING_W + ENTRANCE_W - 0.4, entZ + CORRIDOR / 2],
   };
@@ -121,8 +119,6 @@ export function buildWorld(offices: Office[]): World {
     for (const s of def.lounge ?? []) w.lounge.push({ ...s, at: mv(s.at, o), on: s.on ? `${i}:${s.on}` : undefined });
     w.core.push(...(def.core ?? []).map((p) => mv(p, o)));
     w.bench.push(...(def.bench ?? []).map((p) => mv(p, o)));
-    w.term.push(...(def.term ?? []).map((p) => mv(p, o)));
-    w.terminals.push(...(def.terminals ?? []).map((t) => ({ x: o[0] + 0.03, y: t.y, z: o[1] + t.z })));
     if (m.type === 'front') w.stand.push(...(def.stand ?? []).map((p) => mv(p, o)));
     if (def.pen) {
       const pn = def.pen;

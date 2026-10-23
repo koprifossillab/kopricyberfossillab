@@ -18,7 +18,7 @@ export function App() {
       <div className="cols">
         <AgentList snap={snap} link={link} selected={selected} onSelect={setSelected} />
         <main className="view">
-          <Stage agents={snap?.agents ?? []} terminals={snap?.terminals ?? []} offices={snap?.offices ?? []} selected={selected} onSelect={setSelected} />
+          <Stage agents={snap?.agents ?? []} offices={snap?.offices ?? []} selected={selected} onSelect={setSelected} />
         </main>
         <SidePanel snap={snap} selected={selected} onSelect={setSelected} />
       </div>

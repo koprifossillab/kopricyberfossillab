@@ -2,7 +2,7 @@
 // 그리는 차례: 모든 모듈의 바닥 층 → 모든 모듈의 물건 층(뒤에서부터) → 벽 tmux 모니터·책상 모니터 빛
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
-import type { Agent, Office, Terminal } from '../types.ts';
+import type { Agent, Office } from '../types.ts';
 import { bodyKey, headKey, dinoKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { DinoPen } from './dinos.ts';
 import { MODULES } from '../scene/modules.ts';
@@ -46,8 +46,8 @@ function moduleRect(m: World['modules'][number]): Rect {
   return [x - (w ? 0 : 0.25), z - (d ? 0 : 0.25), x + (w || 0), z + (d || 0)];
 }
 
-export function Stage({ agents, terminals, offices, selected, onSelect }: {
-  agents: Agent[]; terminals: Terminal[]; offices: Office[]; selected: string | null; onSelect: (id: string | null) => void;
+export function Stage({ agents, offices, selected, onSelect }: {
+  agents: Agent[]; offices: Office[]; selected: string | null; onSelect: (id: string | null) => void;
 }) {
   const box = useRef<HTMLDivElement>(null!);
   const canvas = useRef<HTMLCanvasElement>(null!);
@@ -55,8 +55,8 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
   const cast = useRef(new Cast());
   const key = offices.map((o) => `${o.name}:${o.size}`).join('\n');
   const world = useMemo(() => buildWorld(offices), [key]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const props = useRef({ terminals, selected, onSelect, world });
-  props.current = { terminals, selected, onSelect, world };
+  const props = useRef({ selected, onSelect, world });
+  props.current = { selected, onSelect, world };
 
   useEffect(() => {
     cast.current.update(world, agents);
@@ -174,7 +174,7 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
       const frame = (now: number) => {
         if (stop) return;
         const dt = (now - last) / 1000; last = now; T += dt;
-        const { terminals: terms, selected: sel, world: w } = props.current;
+        const { selected: sel, world: w } = props.current;
         if (fitted !== w) { fitted = w; measure(w); fit(); }
         const c = cast.current;
         c.step(dt);
@@ -187,13 +187,6 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
         if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; }
         w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
         for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } }
-
-        // 왼쪽 벽 tmux 모니터 — 붙어 있으면 초록, claude 가 돌면 보라 테두리
-        terms.slice(0, w.terminals.length).forEach((t, i) => {
-          const { x, y, z } = w.terminals[i];
-          poly([[x, y + 0.33, z - 0.4], [x, y + 0.33, z + 0.4], [x, y - 0.33, z + 0.4], [x, y - 0.33, z - 0.4]], t.claude ? '#7f77dd' : '#2c2c2a');
-          poly([[x, y + 0.27, z - 0.34], [x, y + 0.27, z + 0.34], [x, y - 0.27, z + 0.34], [x, y - 0.27, z - 0.34]], t.attached ? '#9fe1cb' : '#2a3a52');
-        });
 
         const actors = [...c.actors.values()].sort((a, b) => (a.x + a.z) - (b.x + b.z));
         const seated = new Map<number, Agent['activity']>();
@@ -341,13 +334,6 @@ export function Stage({ agents, terminals, offices, selected, onSelect }: {
           live.add(id);
           label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), esc(r.name), [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)`);
         }
-        // 터미널 이름표
-        terms.slice(0, w.terminals.length).forEach((t, i) => {
-          const id = `tmux:${t.name}`;
-          live.add(id);
-          const { x, z } = w.terminals[i];
-          label(id, 'tlbl', esc(t.name), [x, 1.42, z], 'translate(-50%, 0)');
-        });
         for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
 
         raf = requestAnimationFrame(frame);

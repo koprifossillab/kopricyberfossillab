@@ -41,7 +41,6 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
       ...w.lounge.map((s, i) => [`휴게${i}`, s.at] as [string, [number, number]]),
       ...w.core.map((p, i) => [`코어${i}`, p] as [string, [number, number]]),
       ...w.bench.map((p, i) => [`현미경${i}`, p] as [string, [number, number]]),
-      ...w.term.map((p, i) => [`tmux${i}`, p] as [string, [number, number]]),
       ...w.search.map((s, i) => [`자료실${i}`, s.at] as [string, [number, number]]),
       ...w.restroom.male.map((p, i) => [`남${i}`, p] as [string, [number, number]]),
       ...w.restroom.female.map((p, i) => [`여${i}`, p] as [string, [number, number]]),

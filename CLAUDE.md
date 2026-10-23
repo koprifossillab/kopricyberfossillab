@@ -25,7 +25,7 @@
 다른 계정(`foreign`, 기록을 못 읽는 다른 Linux 계정의 claude) · 터미널(tmux 세션) · 활동(`Activity` — code·read·search·run·think·git·test·spawn·wait·idle) ·
 방(`Room` — 프로젝트 이름이면 그 **사무실**, `center` 는 **고객센터**: 다른 세션이 보낸 지령(origin.kind=peer)이 최근 말 8개 중 절반 이상,
 `general` 은 **공용실**: 프로젝트를 모를 때) · 휴게실·자료실·화장실·창고는 방이 아니라 장소(활동·연출이 정한다) ·
-모듈(건물 조각, `modules.ts`) · 건물(`world.ts` 가 프로젝트 목록으로 짓는 것) · 터미널(tmux) 사람(`terminal`, 주황 모자). 「상태」 는 원천의 값(busy·idle·blocked)에만 쓴다.
+모듈(건물 조각, `modules.ts`) · 건물(`world.ts` 가 프로젝트 목록으로 짓는 것) · 터미널(tmux) 사람(`terminal`, 주황 모자 — 벽 모니터는 0.4.4 에서 치웠다, 명령이 돌면 공용실 책상). 「상태」 는 원천의 값(busy·idle·blocked)에만 쓴다.
 
 ## 구조
 

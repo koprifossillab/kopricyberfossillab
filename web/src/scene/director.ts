@@ -4,7 +4,7 @@
 //   git → 코어 보관대   test → 현미경 책상   search → 자료실   idle → 휴게실 (소파·카페 의자에 앉거나 커피 머신 앞)
 //   휴게실 사람은 낮은 확률로 화장실(생김새의 성별대로)에 잠깐 다녀온다 — 시간 창마다 정해져 다시 그려도 같다
 //   하위 에이전트 → 부모 책상 곁   다른 계정 → 바쁘면 화이트보드 앞, 아니면 휴게실
-//   tmux 사람 → 명령이 돌면 자기 벽 모니터 앞, 아니면 휴게실
+//   tmux 사람 → 명령이 돌면 공용실 책상(차 있으면 서는 자리), 아니면 휴게실
 // 책상과 휴게실 자리는 한 번 받으면 떠날 때까지 그대로 — 남이 일어나도 자리를 옮기지 않는다.
 import type { Agent } from '../types.ts';
 import { PALETTE, FOREIGN_COLOR } from './layout.ts';
@@ -77,15 +77,16 @@ function assignDesks(w: World, agents: Agent[]): void {
   const taken = new Set(deskOf.values());
   const room = (i: number) => w.desks[i].room;
   for (const a of agents) {
-    if (a.kind !== 'session' && a.kind !== 'job') continue;
+    if (a.kind !== 'session' && a.kind !== 'job' && a.kind !== 'terminal') continue;
+    if (a.kind === 'terminal' && a.activity === 'idle') { deskOf.delete(a.id); continue; }   // tmux 는 명령이 돌 때만 책상에
     const has = deskOf.get(a.id);
     if (has !== undefined && room(has) === a.room) continue;
     // 방이 바뀌었으면 그 방에 빈 책상이 있을 때만 옮긴다 (없으면 있던 책상에 그대로)
     const free = w.desks.findIndex((_, i) => !taken.has(i) && room(i) === a.room);
     if (free < 0) {
       if (has === undefined) {
-        // 그 방이 꽉 찼거나 없으면 공용실 → 고객센터 차례로
-        const any = ['general', 'center'].map((r) => w.desks.findIndex((_, i) => !taken.has(i) && room(i) === r)).find((i) => i >= 0);
+        // 그 방이 꽉 찼거나 없으면 공용실 → 고객센터 차례로 (tmux 는 공용실에만)
+        const any = (a.kind === 'terminal' ? ['general'] : ['general', 'center']).map((r) => w.desks.findIndex((_, i) => !taken.has(i) && room(i) === r)).find((i) => i >= 0);
         if (any !== undefined) { deskOf.set(a.id, any); taken.add(any); }
       }
       continue;
@@ -96,14 +97,35 @@ function assignDesks(w: World, agents: Agent[]): void {
   }
 }
 
+// 휴게실 자리 — 한곳에 몰리지 않게. 새로 온 사람은 열에 넷은 사람이 있는 무리에 끼어(이야기하러), 나머지는 빈 무리
+// (빈 카페 탁자·소파·커피 머신)를 골라 앉는다. 고르기는 id 로 정해 다시 그려도 같은 자리, 받은 자리는 떠날 때까지 그대로
+function seatHash(id: string, salt: number): number {
+  let h = salt;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
+  h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12;
+  return Math.abs(h);
+}
 function assignSeats(w: World, agents: Agent[]): void {
   const want = new Set(agents.filter(resting).map((a) => a.id));
   for (const id of seatAt.keys()) if (!want.has(id)) seatAt.delete(id);
   const taken = new Set(seatAt.values());
   for (const a of agents) {
     if (!want.has(a.id) || seatAt.has(a.id)) continue;
-    const free = w.lounge.findIndex((_, i) => !taken.has(i));
-    if (free >= 0) { seatAt.set(a.id, free); taken.add(free); }
+    const free = w.lounge.map((_, i) => i).filter((i) => !taken.has(i));
+    if (!free.length) continue;
+    const used = new Set([...taken].map((i) => w.lounge[i].group));
+    const join = seatHash(a.id, 1) % 10 < 4;
+    // 앉는 자리를 먼저 — 서는 자리(커피 머신 앞·통로)는 앉을 데가 없을 때
+    const sitFirst = (list: number[]) => { const sit = list.filter((i) => w.lounge[i].pose === 'sit'); return sit.length ? sit : list; };
+    let pool = sitFirst(free.filter((i) => (join ? used.has(w.lounge[i].group) : !used.has(w.lounge[i].group))));
+    if (!pool.length) pool = sitFirst(free);
+    // 무리를 먼저 고르고(무리마다 같은 몫), 그 안에서 자리
+    const groups = [...new Set(pool.map((i) => w.lounge[i].group))];
+    const g = groups[seatHash(a.id, 2) % groups.length];
+    const inG = pool.filter((i) => w.lounge[i].group === g);
+    const pick = inG[seatHash(a.id, 3) % inG.length];
+    seatAt.set(a.id, pick);
+    taken.add(pick);
   }
 }
 
@@ -116,7 +138,7 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
 
   const out = new Map<string, Placement>();
   const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0, feed: 0 };
-  const CORE_SPOTS = w.core, BENCH_SPOTS = w.bench, BOARD_SPOTS = w.stand, TERM_SPOTS = w.term;
+  const CORE_SPOTS = w.core, BENCH_SPOTS = w.bench, BOARD_SPOTS = w.stand;
   const children = new Map<string, number>();
   const spot = (list: [number, number][], key: keyof typeof queue): [number, number] => {
     const n = queue[key]++;
@@ -162,11 +184,6 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
     }
     if (a.kind === 'foreign') {
       out.set(a.id, { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
-      continue;
-    }
-    if (a.kind === 'terminal') {
-      const t = a.slot !== undefined && a.slot < TERM_SPOTS.length ? TERM_SPOTS[a.slot] : spot(BOARD_SPOTS, 'board');
-      out.set(a.id, { target: t, pose: 'stand', face: -Math.PI / 2, desk: null });
       continue;
     }
     switch (a.activity) {

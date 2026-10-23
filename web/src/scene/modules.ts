@@ -30,8 +30,6 @@ export interface ModuleDef {
   lounge?: Seat[];
   core?: [number, number][];
   bench?: [number, number][];
-  term?: [number, number][];                        // tmux 모니터 앞 (모니터 i)
-  terminals?: { z: number; y: number }[];           // 왼쪽 벽 tmux 모니터 (x≈0)
   stand?: [number, number][];                       // 갈 곳이 없을 때 서는 곳
   restroom?: { male: [number, number][]; female: [number, number][] };   // 휴게실에서 가끔 들르는 곳
   search?: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];   // 자료 검색할 때 가는 곳
@@ -148,7 +146,7 @@ function front(): ModuleDef {
     [0, -T / 2, 5.6, T / 2], [7.0, -T / 2, 11.8, T / 2], [13.1, -T / 2, 22.2, T / 2], [23.6, -T / 2, W, T / 2],   // 뒤
     [8 - T / 2, T / 2, 8 + T / 2, D], [17 - T / 2, T / 2, 17 + T / 2, D],                                       // 방 사이
   ];
-  // 공용실: 일반 책상 둘, 코어 보관대(왼쪽 벽), 현미경 책상, tmux 모니터(왼쪽 벽)
+  // 공용실: 일반 책상 둘, 코어 보관대(왼쪽 벽), 현미경 책상
   const gen: [number, number][] = [[4.0, 1.6], [4.0, 4.6]];
   // 고객센터: 상담 책상 넷
   const call: [number, number][] = [[10.3, 1.6], [14.6, 1.6], [10.3, 4.6], [14.6, 4.6]];
@@ -231,8 +229,6 @@ function front(): ModuleDef {
     ],
     core: [[1.5, 4.8], [1.5, 5.8], [1.5, 6.8]],
     bench: [[6.6, 4.6], [6.6, 5.4]],
-    terminals: [0, 1, 2, 3].map((i) => ({ z: 0.8 + i * 0.9, y: 1.85 })),
-    term: [0, 1, 2, 3].map((i) => [0.75, 0.8 + i * 0.9] as [number, number]),
     stand: [[3.6, 7.0], [4.4, 7.0], [5.2, 7.0], [3.6, 6.4]],
     // 복도 쪽 칸막이의 문 위에
     labels: [
