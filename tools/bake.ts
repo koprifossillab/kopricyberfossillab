@@ -22,6 +22,8 @@ try {
   await page.waitForFunction(() => (window as any).__ready === true, null, { timeout: 60_000 });
   const t0 = Date.now();
   const res = await page.evaluate(() => (window as any).__bake());
+  if (res.lost) throw new Error('WebGL 컨텍스트를 잃었다 — 그림이 비었을 수 있다');
+  fs.rmSync(OUT, { recursive: true, force: true });   // 지난 굽기의 남은 파일을 지운다 (모듈 이름이 바뀌면 남는다)
   fs.mkdirSync(OUT, { recursive: true });
   for (const [name, data] of Object.entries(res.files as Record<string, string>)) {
     const buf = Buffer.from(data.split(',')[1], 'base64');
@@ -29,7 +31,7 @@ try {
     console.log(`${name}  ${(buf.length / 1024).toFixed(0)} KB`);
   }
   fs.writeFileSync(path.join(OUT, 'atlas.json'), JSON.stringify(res.atlas, null, 1) + '\n');
-  console.log(`atlas.json — 가구 ${Object.keys(res.atlas.items).length}, 캐릭터 ${Object.keys(res.atlas.characters).length} (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
+  console.log(`atlas.json — 모듈 ${Object.keys(res.atlas.modules).length}, 몸 ${Object.keys(res.atlas.bodies).length}, 머리 ${Object.keys(res.atlas.heads).length} (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
 } finally {
   await browser.close();
   await server.close();

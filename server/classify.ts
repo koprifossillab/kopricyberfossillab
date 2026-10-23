@@ -4,7 +4,8 @@ import path from 'node:path';
 import type { Activity } from './model.ts';
 
 const CODE = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
-const READ = new Set(['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'ToolSearch', 'LS']);
+const READ = new Set(['Read', 'Grep', 'Glob', 'ToolSearch', 'LS']);
+const SEARCH = new Set(['WebSearch', 'WebFetch']);   // 바깥 자료 검색 — 자료실에 다녀온다
 const SPAWN = new Set(['Agent', 'Task', 'Workflow']);
 const ASK = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
@@ -26,12 +27,15 @@ export function classifyTool(name: string, input: Input): { activity: Activity; 
   if (CODE.has(name)) {
     return { activity: 'code', label: `${name} · ${path.basename(str(input?.file_path) || str(input?.notebook_path))}` };
   }
-  if (READ.has(name)) {
+  if (SEARCH.has(name)) {
     if (name === 'WebFetch') {
       let host = '';
       try { host = new URL(str(input?.url)).host; } catch { /* 주소가 아니면 이름만 */ }
-      return { activity: 'read', label: `WebFetch · ${host}` };
+      return { activity: 'search', label: `WebFetch · ${host}` };
     }
+    return { activity: 'search', label: `WebSearch · ${clip(str(input?.query), 32)}` };
+  }
+  if (READ.has(name)) {
     const target = str(input?.file_path) ? path.basename(str(input?.file_path))
       : str(input?.pattern) || str(input?.query);
     return { activity: 'read', label: `${name} · ${clip(target, 32)}` };

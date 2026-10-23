@@ -23,15 +23,15 @@ export function useOffice(): { snap: Snapshot | null; link: Link } {
 
 // 시제품의 예시 네 명 + 하위 에이전트 하나, 몇 초마다 활동을 바꾼다
 function demo(set: (s: Snapshot) => void): () => void {
-  const acts: Activity[] = ['code', 'read', 'think', 'git', 'test', 'wait', 'idle', 'spawn'];
+  const acts: Activity[] = ['code', 'read', 'search', 'think', 'git', 'test', 'wait', 'idle', 'idle', 'idle', 'spawn'];
   const labels: Record<Activity, string> = {
-    code: 'Edit · viewer.ts', read: 'Grep · Thalassiosira', think: '생각 중', git: 'Bash · git push',
+    code: 'Edit · viewer.ts', read: 'Grep · Thalassiosira', search: 'WebSearch · Compsognathus', think: '생각 중', git: 'Bash · git push',
     test: 'Bash · pytest', wait: 'AskUserQuestion', idle: '응답 완료 · 다음 지시 대기', spawn: 'Agent · Review UI', run: 'Bash · ls',
   };
   const t0 = Date.now();
   const base: Agent[] = ['Claude-A', 'Claude-B', 'gsm-pan', 'diaruga', 'pan'].map((n, i) => ({
     id: `demo-${i}`, kind: i === 2 ? 'job' : 'session', name: n, project: ['GSM', 'DiaRUGA', 'GSM', 'DiaRUGA', 'projects'][i],
-    activity: acts[i], label: labels[acts[i]], room: i >= 2 && i !== 3 ? 'center' : 'office', startedAt: t0 + i, changedAt: t0,
+    activity: acts[i], label: labels[acts[i]], room: ['GSM', 'DiaRUGA', 'center', 'rash-company', 'center'][i], startedAt: t0 + i, changedAt: t0,
   }));
   const tick = () => {
     for (const a of base) {
@@ -40,12 +40,15 @@ function demo(set: (s: Snapshot) => void): () => void {
     const agents: Agent[] = base.map((a) => ({ ...a }));
     if (base[0].activity === 'spawn' || base[0].activity === 'think') {
       agents.push({ id: 'demo-0/sub', kind: 'subagent', name: 'Explore', project: 'Review UI', activity: 'read',
-        label: 'Glob · **/*.tif', room: 'office', parentId: 'demo-0', startedAt: Date.now(), changedAt: Date.now() });
+        label: 'Glob · **/*.tif', room: 'GSM', parentId: 'demo-0', startedAt: Date.now(), changedAt: Date.now() });
     }
     agents.push({ id: 'foreign/paleoadmin/1', kind: 'foreign', name: 'paleoadmin', project: '', activity: Math.random() < 0.5 ? 'think' : 'idle',
-      label: '다른 계정 — 기록은 읽지 않는다', room: 'office', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
-    set({ version: 'demo', host: 'demo', at: Date.now(), agents,
-      terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true }, { name: 'build', attached: 1, windows: 2, claude: false }] });
+      label: '다른 계정 — 기록은 읽지 않는다', room: 'general', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
+    const buildBusy = Math.random() < 0.5;
+    agents.push({ id: 'tmux/build', kind: 'terminal', name: 'build', project: 'tmux', activity: buildBusy ? 'run' : 'idle',
+      label: buildBusy ? '$ npm' : '프롬프트 대기', room: 'general', tmux: 'build', slot: 1, startedAt: t0 - 2, changedAt: Date.now() });
+    set({ version: 'demo', host: 'demo', at: Date.now(), agents, offices: [{ name: 'DiaRUGA', size: 'm' }, { name: 'ForGIA', size: 's' }, { name: 'GSM', size: 'l' }, { name: 'rash-company', size: 'm' }],
+      terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true, command: 'claude' }, { name: 'build', attached: 1, windows: 2, claude: false, command: buildBusy ? 'npm' : 'bash' }] });
   };
   tick();
   const h = setInterval(tick, 4000);

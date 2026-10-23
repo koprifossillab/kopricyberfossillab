@@ -7,9 +7,28 @@ import { SESSIONS_DIR, JOBS_DIR, PROJECTS_DIR } from './paths.ts';
 import { Transcript } from './transcript.ts';
 import { resolve, type Busy } from './latches.ts';
 import { alive, tmuxSessions, foreignClaudes } from './system.ts';
-import type { Agent, Snapshot, Terminal } from './model.ts';
+import { execFileSync } from 'node:child_process';
+import type { Agent, Office as OfficeRoom, Snapshot, Terminal } from './model.ts';
 
-const SUBAGENT_FRESH_MS = 60_000;   // 하위 에이전트 기록이 이만큼 조용하면 끝난 것으로 본다
+// 사무실 크기 — 커밋 수로 (2026-10-23: ForGIA 13 · Cropobite 19 · rash-company 333 · DiaRUGA 736 · GSM 1561)
+const SMALL_COMMITS = 100;
+const LARGE_COMMITS = 1000;
+const COMMITS_TTL_MS = 10 * 60_000;
+const commits = new Map<string, { n: number; at: number }>();
+function commitCount(project: string, now: number): number {
+  const c = commits.get(project);
+  if (c && now - c.at < COMMITS_TTL_MS) return c.n;
+  let n = 0;
+  try {
+    n = Number(execFileSync('git', ['-C', path.join(os.homedir(), 'projects', project), 'rev-list', '--count', 'HEAD'],
+      { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).trim()) || 0;
+  } catch { /* git 저장소가 아니면 0 — 작은 사무실 */ }
+  commits.set(project, { n, at: now });
+  return n;
+}
+
+const SUBAGENT_FRESH_MS = 60_000;
+const SHELLS = new Set(['bash', 'zsh', 'sh', 'fish', 'dash', '']);   // 이것이면 프롬프트에서 쉬는 것   // 하위 에이전트 기록이 이만큼 조용하면 끝난 것으로 본다
 
 interface Registry {
   pid: number;
@@ -26,6 +45,19 @@ interface Registry {
   parkedJobId?: string;   // 대화를 백그라운드 job 으로 넘긴 터미널 — 대화는 job 쪽에서 이어진다
 }
 
+// 방: 다른 세션의 지령을 받아 처리하면 고객센터, 아니면 그 프로젝트의 사무실, 프로젝트를 모르면 공용실.
+// 프로젝트 = ~/projects 아래 첫 폴더 이름에서 worktree 꼬리(-wt-…)를 뗀 것 (GSM-wt-pan → GSM)
+const HOME = os.homedir();
+export function projectOf(cwd: string): string | null {
+  const rel = path.relative(path.join(HOME, 'projects'), cwd);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  return rel.split(path.sep)[0].replace(/-wt-.*$/, '') || null;
+}
+function roomOf(cwd: string, t: Transcript | null): Agent['room'] {
+  if (t?.room() === 'center') return 'center';
+  return projectOf(cwd) ?? 'general';
+}
+
 function readJson<T>(file: string): T | null {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) as T; } catch { return null; }
 }
@@ -38,6 +70,7 @@ export class Office {
   private transcripts = new Map<string, Transcript>();   // 파일 경로 → 꼬리
   private fileOf = new Map<string, string>();            // sessionId → 기록 파일
   private changed = new Map<string, { activity: string; at: number }>();
+  private tmuxSeen = new Map<string, number>();          // tmux 세션 이름 → 처음 본 때
   readonly version: string;
 
   constructor(version: string) {
@@ -89,12 +122,12 @@ export class Office {
         name: r.name || t?.title || id.slice(0, 8),
         project: path.basename(r.cwd) || r.cwd,
         ...st,
-        room: t?.room() ?? 'office',
+        room: roomOf(r.cwd, t),
         tmux: r.tmux?.split(':')[0],
         startedAt: r.startedAt,
         changedAt: now,
       });
-      if (file) agents.push(...this.subagents(file, id, t?.room() ?? 'office', now));
+      if (file) agents.push(...this.subagents(file, id, roomOf(r.cwd, t), now));
     }
     return agents;
   }
@@ -136,7 +169,7 @@ export class Office {
       project: '',
       activity: c.busy ? 'think' as const : 'idle' as const,
       label: '다른 계정 — 기록은 읽지 않는다',
-      room: 'office' as const,
+      room: 'general',
       user: c.user,
       startedAt: c.startedAt,
       changedAt: now,
@@ -153,7 +186,7 @@ export class Office {
       if (prev && prev.activity === a.activity) a.changedAt = prev.at;
       else this.changed.set(a.id, { activity: a.activity, at: now });
     }
-    for (const id of this.changed.keys()) if (!live.has(id)) this.changed.delete(id);
+    for (const id of this.changed.keys()) if (!live.has(id) && !id.startsWith('tmux/')) this.changed.delete(id);
     // 더 안 보는 기록은 닫는다. 하위 에이전트의 것은 조용해진 뒤 한참 남겨 둔다 — ended 를 기억해야 다시 안 나타난다
     const used = new Set<string>();
     for (const a of agents) {
@@ -166,7 +199,33 @@ export class Office {
     }
     agents.sort((a, b) => a.startedAt - b.startedAt);
     const claudeTmux = new Set(agents.map((a) => a.tmux).filter(Boolean));
-    const terminals: Terminal[] = tmuxSessions().map((s) => ({ ...s, claude: claudeTmux.has(s.name) }));
-    return { version: this.version, host: os.hostname(), at: now, agents, terminals };
+    const terminals: Terminal[] = tmuxSessions().map((s) => ({ ...s, claude: claudeTmux.has(s.name) || s.command === 'claude' }));
+    // claude 가 없는 tmux 세션도 사람으로 — claude 가 있으면 그 세션이 이미 사람이다
+    terminals.forEach((t, slot) => {
+      if (t.claude) return;
+      const busy = !SHELLS.has(t.command);
+      const id = `tmux/${t.name}`;
+      const prev = this.changed.get(id);
+      const activity = busy ? 'run' as const : 'idle' as const;
+      agents.push({
+        id, kind: 'terminal', name: t.name, project: 'tmux', activity,
+        label: busy ? `$ ${t.command}` : '프롬프트 대기',
+        room: 'general', tmux: t.name, slot,
+        startedAt: this.tmuxSeen.get(t.name) ?? (this.tmuxSeen.set(t.name, now), now),
+        changedAt: prev && prev.activity === activity ? prev.at : now,
+      });
+      if (!prev || prev.activity !== activity) this.changed.set(id, { activity, at: now });
+    });
+    for (const n of this.tmuxSeen.keys()) {
+      if (terminals.some((t) => t.name === n && !t.claude)) continue;
+      this.tmuxSeen.delete(n);
+      this.changed.delete(`tmux/${n}`);
+    }
+    const offices: OfficeRoom[] = [...new Set(agents.filter((a) => (a.kind === 'session' || a.kind === 'job') && a.room !== 'center' && a.room !== 'general').map((a) => a.room))]
+      .sort().map((name) => {
+        const n = commitCount(name, now);
+        return { name, size: n < SMALL_COMMITS ? 's' as const : n >= LARGE_COMMITS ? 'l' as const : 'm' as const };
+      });
+    return { version: this.version, host: os.hostname(), at: now, agents, terminals, offices };
   }
 }

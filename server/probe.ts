@@ -3,7 +3,7 @@ import { Office } from './office.ts';
 
 const office = new Office('probe');
 const NAMES: Record<string, string> = {
-  code: '코딩 중', read: '탐색 중', run: '실행 중', think: '생각 중', git: 'GitHub 작업',
+  code: '코딩 중', read: '탐색 중', search: '자료 검색', run: '실행 중', think: '생각 중', git: 'GitHub 작업',
   test: '시험 중', spawn: '하위 작업', wait: '확인 필요', idle: '휴식',
 };
 
@@ -12,7 +12,7 @@ function print(): void {
   console.log(`— ${new Date(s.at).toLocaleTimeString()} · ${s.agents.length}명 · 터미널 ${s.terminals.length}`);
   for (const a of s.agents) {
     const indent = a.parentId ? '    └ ' : '  ';
-    console.log(`${indent}[${a.kind}] ${a.name} (${a.project}) [${a.room === 'center' ? '고객센터' : '사무실'}] → ${NAMES[a.activity]}${a.guessed ? '?' : ''} · ${a.label}`);
+    console.log(`${indent}[${a.kind}] ${a.name} (${a.project}) [${a.room}] → ${NAMES[a.activity]}${a.guessed ? '?' : ''} · ${a.label}`);
   }
   for (const t of s.terminals) console.log(`  tmux ${t.name} 창 ${t.windows} 붙음 ${t.attached}${t.claude ? ' · claude' : ''}`);
 }

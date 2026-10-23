@@ -9,6 +9,7 @@ test('도구 이름으로 활동을 가른다', () => {
   assert.equal(classifyTool('Edit', { file_path: '/a/b/viewer.ts' }).activity, 'code');
   assert.equal(classifyTool('Grep', { pattern: 'Thalassiosira' }).activity, 'read');
   assert.equal(classifyTool('WebFetch', { url: 'https://example.org/x?y' }).label, 'WebFetch · example.org');
+  assert.equal(classifyTool('WebSearch', { query: 'compsognathus' }).activity, 'search');
   assert.equal(classifyTool('Agent', { description: 'Review UI' }).activity, 'spawn');
   assert.equal(classifyTool('AskUserQuestion', {}).activity, 'wait');
 });
@@ -70,4 +71,15 @@ test('다른 세션의 지령이 절반을 넘으면 고객센터', () => {
   assert.equal(t.origins.length, 4);                    // 알림은 세지 않는다
   for (let i = 0; i < 8; i++) say('human');
   assert.equal(t.room(), 'office');                     // 창은 최근 8 개
+});
+
+test('프로젝트는 ~/projects 아래 첫 폴더, worktree 꼬리는 뗀다', async () => {
+  const os = await import('node:os');
+  const { projectOf } = await import('./office.ts');
+  const h = os.homedir();
+  assert.equal(projectOf(`${h}/projects/GSM`), 'GSM');
+  assert.equal(projectOf(`${h}/projects/GSM-wt-pan/web`), 'GSM');
+  assert.equal(projectOf(`${h}/projects`), null);
+  assert.equal(projectOf(h), null);
+  assert.equal(projectOf('/srv/Cropobite'), null);
 });

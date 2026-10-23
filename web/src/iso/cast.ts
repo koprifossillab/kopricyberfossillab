@@ -1,8 +1,10 @@
 // 캐릭터의 움직임 — 갈 자리(director)를 받아 A* 길(nav)로 걷는다. 그리기와 떨어져 있다.
 import type { Agent } from '../types.ts';
-import { findPath } from '../scene/nav.ts';
-import { direct, colorOf, doorSpot, type Placement } from '../scene/director.ts';
-import { DIRS, type Hair } from '../scene/layout.ts';
+import { Nav } from '../scene/nav.ts';
+import { direct, colorOf, type Placement } from '../scene/director.ts';
+import type { World } from '../scene/world.ts';
+import { DIRS } from '../scene/layout.ts';
+import { appearanceOf, type Appearance } from '../scene/appearance.ts';
 
 const SPEED = 2.2;
 
@@ -10,7 +12,7 @@ export interface Actor {
   agent: Agent;
   place: Placement;
   color: number;
-  hair: Hair;
+  look: Appearance;
   x: number; z: number; rot: number;
   path: [number, number][];
   moving: boolean;
@@ -18,15 +20,25 @@ export interface Actor {
   t: number;                 // 걸음 흔들림 위상
 }
 
-export const hairOf = (a: Agent): Hair => (a.kind === 'job' ? 'job' : a.kind === 'foreign' ? 'foreign' : 'session');
-
 export class Cast {
   actors = new Map<string, Actor>();
   private first = true;
+  private world: World | null = null;
+  private nav: Nav | null = null;
 
-  // 새 Snapshot — 새로 온 이는 문에서(처음 한 번은 제자리에서), 떠난 이는 문으로
-  update(agents: Agent[]): void {
-    const places = direct(agents);
+  private path(from: [number, number], to: [number, number]): [number, number][] {
+    return this.nav ? this.nav.findPath(from, to) : [];
+  }
+
+  // 새 Snapshot — 새로 온 이는 회사 입구 밖에서 걸어 들어오고(처음 한 번은 제자리에서), 떠난 이는 입구로 걸어 나간다
+  update(world: World, agents: Agent[]): void {
+    if (world !== this.world) {
+      this.world = world;
+      this.nav = new Nav(world.w, world.d, world.blocks);
+      for (const a of this.actors.values()) a.path = [];   // 건물이 바뀌었다 — 길을 새로 찾는다
+    }
+    const doorSpot = (): [number, number] => [...world.door];
+    const places = direct(world, agents);
     const live = new Set<string>();
     for (const a of agents) {
       live.add(a.id);
@@ -34,23 +46,22 @@ export class Cast {
       let actor = this.actors.get(a.id);
       if (!actor || actor.leaving) {
         const [x, z] = this.first ? place.target : doorSpot();
-        actor = { agent: a, place, color: 0, hair: hairOf(a), x, z, rot: Math.PI, path: [], moving: false, leaving: false, t: Math.random() * 10 };
+        actor = { agent: a, place, color: 0, look: appearanceOf(a), x, z, rot: Math.PI, path: [], moving: false, leaving: false, t: Math.random() * 10 };
         this.actors.set(a.id, actor);
       }
       const moved = actor.place.target[0] !== place.target[0] || actor.place.target[1] !== place.target[1];
       actor.agent = a;
       actor.place = place;
       actor.color = colorOf(a, agents);
-      actor.hair = hairOf(a);
       if (moved || (!actor.path.length && Math.hypot(actor.x - place.target[0], actor.z - place.target[1]) > 0.01)) {
-        actor.path = findPath([actor.x, actor.z], place.target);
+        actor.path = this.path([actor.x, actor.z], place.target);
       }
     }
     for (const actor of this.actors.values()) {
       if (live.has(actor.agent.id) || actor.leaving) continue;
       actor.leaving = true;
       actor.place = { ...actor.place, target: doorSpot(), pose: 'stand', desk: null };
-      actor.path = findPath([actor.x, actor.z], actor.place.target);
+      actor.path = this.path([actor.x, actor.z], actor.place.target);
     }
     this.first = false;
   }

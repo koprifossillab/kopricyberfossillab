@@ -9,7 +9,7 @@
     "build": "vite build --config web/vite.config.ts",
     "start": "tsx server/index.ts",
     "probe": "tsx server/probe.ts",
-    "test": "tsx --test server/*.test.ts",
+    "test": "tsx --test server/*.test.ts web/src/scene/*.test.ts",
     "typecheck": "tsc --noEmit -p .",
     "bake": "tsx tools/bake.ts",
     "props": "tsx tools/props-gallery.ts"

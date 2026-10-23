@@ -28,15 +28,23 @@ function cpuTicks(pid: number): number {
   }
 }
 
-export interface TmuxSession { name: string; attached: number; windows: number }
+export interface TmuxSession { name: string; attached: number; windows: number; command: string }
 
 export function tmuxSessions(): TmuxSession[] {
   try {
     const out = execFileSync('tmux', ['list-sessions', '-F', '#{session_name}\t#{session_attached}\t#{session_windows}'],
       { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] });
+    // 세션마다 보이는 창(활성 창의 활성 칸)에서 지금 도는 명령
+    const panes = execFileSync('tmux', ['list-panes', '-a', '-F', '#{session_name}\t#{window_active}\t#{pane_active}\t#{pane_current_command}'],
+      { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] });
+    const command = new Map<string, string>();
+    for (const l of panes.trim().split('\n')) {
+      const [s, wa, pa, cmd] = l.split('\t');
+      if (wa === '1' && pa === '1') command.set(s, cmd ?? '');
+    }
     return out.trim().split('\n').filter(Boolean).map((l) => {
       const [name, a, w] = l.split('\t');
-      return { name, attached: Number(a), windows: Number(w) };
+      return { name, attached: Number(a), windows: Number(w), command: command.get(name) ?? '' };
     });
   } catch {
     return [];   // tmux 서버가 없다

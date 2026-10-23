@@ -1,13 +1,30 @@
 // Snapshot → 캐릭터마다 갈 자리와 자세. 장소는 활동에서 정해진다:
-//   책상은 방에서 받는다 — 사무실 세션은 사무실 책상, 고객센터 세션은 상담 책상
+//   책상은 방에서 받는다 — 프로젝트 세션은 그 프로젝트 사무실, 고객센터 세션은 상담 책상, 프로젝트가 없으면 공용실
 //   code·read·run·think·spawn → 자기 책상(앉음)   wait → 책상 옆(서서 빨간 링)
-//   git → 코어 보관대   test → 현미경 책상   idle → 휴게실
-//   하위 에이전트 → 부모 책상 곁   다른 계정 → 바쁘면 화이트보드 앞, 아니면 라운지
+//   git → 코어 보관대   test → 현미경 책상   search → 자료실   idle → 휴게실 (소파·카페 의자에 앉거나 커피 머신 앞)
+//   휴게실 사람은 낮은 확률로 화장실(생김새의 성별대로)에 잠깐 다녀온다 — 시간 창마다 정해져 다시 그려도 같다
+//   하위 에이전트 → 부모 책상 곁   다른 계정 → 바쁘면 화이트보드 앞, 아니면 휴게실
+//   tmux 사람 → 명령이 돌면 자기 벽 모니터 앞, 아니면 휴게실
+// 책상과 휴게실 자리는 한 번 받으면 떠날 때까지 그대로 — 남이 일어나도 자리를 옮기지 않는다.
 import type { Agent } from '../types.ts';
-import {
-  DESKS, DESK_ROOM, seatOf, waitSpotOf, LOUNGE, CORE_SPOTS, BENCH_SPOTS, BOARD_SPOTS, DOOR,
-  PALETTE, FOREIGN_COLOR,
-} from './layout.ts';
+import { PALETTE, FOREIGN_COLOR } from './layout.ts';
+import { SEAT_LIFT } from './modules.ts';
+import { seatOf, waitSpotOf, type World } from './world.ts';
+import { isFemale } from './appearance.ts';
+
+const TRIP_WINDOW = 90;   // 초 — 이 창마다 한 번 제비뽑기
+const TRIP_ODDS = 8;      // 8 분의 1
+function restroomTrip(id: string, now: number): boolean {
+  const slot = Math.floor(now / 1000 / TRIP_WINDOW);
+  let h = slot;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
+  h = Math.abs(h ^ (h >>> 13));
+  if (h % TRIP_ODDS) return false;
+  const stay = 15 + (h % 11);                               // 15~25 초
+  const start = 10 + ((h >>> 4) % (TRIP_WINDOW - 40));      // 창 안의 어느 때
+  const t = now / 1000 - slot * TRIP_WINDOW;
+  return t >= start && t < start + stay;
+}
 
 export type Pose = 'sit' | 'stand';
 
@@ -15,10 +32,16 @@ export interface Placement {
   target: [number, number];
   pose: Pose;
   face: number;          // 도착하면 바라볼 방향 (y 회전)
-  desk: number | null;   // 모니터를 켤 책상
+  desk: number | null;   // 모니터를 켤 책상 (world.desks 의 번호)
+  on?: string;           // 앉는 가구 (WorldItem.key — 그 가구가 캐릭터를 가리지 않는다)
+  lift?: number;         // 앉은 그림을 더 올리는 만큼
+  group?: string;        // 휴게실에서 함께 이야기하는 무리
 }
 
-const deskOf = new Map<string, number>();   // 책상은 한 번 받으면 떠날 때까지 그대로
+// 책상·휴게실 자리 번호는 건물마다 다르다 — 건물이 바뀌면 처음부터 다시 받는다
+const deskOf = new Map<string, number>();
+const seatAt = new Map<string, number>();   // 휴게실 자리
+let builtFor: World | null = null;
 
 function hash(s: string): number {
   let h = 0;
@@ -35,20 +58,22 @@ export function colorOf(a: Agent, all: Agent[]): number {
   return PALETTE[hash(a.id) % PALETTE.length];
 }
 
-export function direct(agents: Agent[]): Map<string, Placement> {
-  const live = new Set(agents.map((a) => a.id));
-  for (const id of deskOf.keys()) if (!live.has(id)) deskOf.delete(id);
+const resting = (a: Agent) => a.activity === 'idle' && a.kind !== 'subagent';
+
+function assignDesks(w: World, agents: Agent[]): void {
   const taken = new Set(deskOf.values());
+  const room = (i: number) => w.desks[i].room;
   for (const a of agents) {
     if (a.kind !== 'session' && a.kind !== 'job') continue;
     const has = deskOf.get(a.id);
-    if (has !== undefined && DESK_ROOM[has] === a.room) continue;
+    if (has !== undefined && room(has) === a.room) continue;
     // 방이 바뀌었으면 그 방에 빈 책상이 있을 때만 옮긴다 (없으면 있던 책상에 그대로)
-    const free = DESKS.findIndex((_, i) => !taken.has(i) && DESK_ROOM[i] === a.room);
+    const free = w.desks.findIndex((_, i) => !taken.has(i) && room(i) === a.room);
     if (free < 0) {
       if (has === undefined) {
-        const any = DESKS.findIndex((_, i) => !taken.has(i));   // 그 방이 꽉 차면 다른 방이라도
-        if (any >= 0) { deskOf.set(a.id, any); taken.add(any); }
+        // 그 방이 꽉 찼거나 없으면 공용실 → 고객센터 차례로
+        const any = ['general', 'center'].map((r) => w.desks.findIndex((_, i) => !taken.has(i) && room(i) === r)).find((i) => i >= 0);
+        if (any !== undefined) { deskOf.set(a.id, any); taken.add(any); }
       }
       continue;
     }
@@ -56,15 +81,41 @@ export function direct(agents: Agent[]): Map<string, Placement> {
     deskOf.set(a.id, free);
     taken.add(free);
   }
+}
+
+function assignSeats(w: World, agents: Agent[]): void {
+  const want = new Set(agents.filter(resting).map((a) => a.id));
+  for (const id of seatAt.keys()) if (!want.has(id)) seatAt.delete(id);
+  const taken = new Set(seatAt.values());
+  for (const a of agents) {
+    if (!want.has(a.id) || seatAt.has(a.id)) continue;
+    const free = w.lounge.findIndex((_, i) => !taken.has(i));
+    if (free >= 0) { seatAt.set(a.id, free); taken.add(free); }
+  }
+}
+
+export function direct(w: World, agents: Agent[], now = Date.now()): Map<string, Placement> {
+  if (builtFor !== w) { deskOf.clear(); seatAt.clear(); builtFor = w; }
+  const live = new Set(agents.map((a) => a.id));
+  for (const id of deskOf.keys()) if (!live.has(id)) deskOf.delete(id);
+  assignDesks(w, agents);
+  assignSeats(w, agents);
 
   const out = new Map<string, Placement>();
-  const queue = { lounge: 0, core: 0, bench: 0, board: 0 };
+  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0 };
+  const CORE_SPOTS = w.core, BENCH_SPOTS = w.bench, BOARD_SPOTS = w.stand, TERM_SPOTS = w.term;
   const children = new Map<string, number>();
   const spot = (list: [number, number][], key: keyof typeof queue): [number, number] => {
     const n = queue[key]++;
     const base = list[n % list.length];
     const lap = Math.floor(n / list.length);   // 자리가 모자라면 조금씩 비켜 선다
     return [base[0] + lap * 0.45, base[1] + lap * 0.35];
+  };
+  const lounge = (a: Agent): Placement => {
+    const i = seatAt.get(a.id);
+    if (i === undefined) return { target: spot(BOARD_SPOTS, 'extra'), pose: 'stand', face: Math.PI, desk: null };
+    const s = w.lounge[i];
+    return { target: s.at, pose: s.pose, face: s.face, desk: null, on: s.on, lift: s.lift, group: s.group };
   };
 
   for (const a of agents) {
@@ -74,23 +125,39 @@ export function direct(agents: Agent[]): Map<string, Placement> {
       const n = children.get(a.parentId ?? '') ?? 0;
       children.set(a.parentId ?? '', n + 1);
       if (pd !== undefined) {
-        const [x, z] = seatOf(DESKS[pd]);
-        out.set(a.id, { target: [x - 0.8 - (n % 3) * 0.55, z + 0.5 + Math.floor(n / 3) * 0.55], pose: 'stand', face: Math.PI * 0.75, desk: null });
+        const [x, z] = w.desks[pd].at;
+        out.set(a.id, { target: [x - 0.75 - (n % 3) * 0.5, z + 1.3 + Math.floor(n / 3) * 0.5], pose: 'stand', face: Math.PI * 0.75, desk: null });
       } else {
-        out.set(a.id, { target: spot(LOUNGE, 'lounge'), pose: 'stand', face: Math.PI, desk: null });
+        out.set(a.id, { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
       }
       continue;
     }
+    if (resting(a)) {
+      if (restroomTrip(a.id, now)) {
+        const side = isFemale(a.id) ? 'female' : 'male';
+        const list = w.restroom[side];
+        if (list.length) { out.set(a.id, { target: list[queue[side]++ % list.length], pose: 'stand', face: Math.PI, desk: null }); continue; }
+      }
+      out.set(a.id, lounge(a));
+      continue;
+    }
     if (a.kind === 'foreign') {
-      out.set(a.id, a.activity === 'idle'
-        ? { target: spot(LOUNGE, 'lounge'), pose: 'stand', face: Math.PI, desk: null }
-        : { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
+      out.set(a.id, { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
+      continue;
+    }
+    if (a.kind === 'terminal') {
+      const t = a.slot !== undefined && a.slot < TERM_SPOTS.length ? TERM_SPOTS[a.slot] : spot(BOARD_SPOTS, 'board');
+      out.set(a.id, { target: t, pose: 'stand', face: -Math.PI / 2, desk: null });
       continue;
     }
     switch (a.activity) {
-      case 'idle':
-        out.set(a.id, { target: spot(LOUNGE, 'lounge'), pose: 'stand', face: Math.PI, desk: null });
+      case 'search': {
+        const sp = w.search[queue.search++ % Math.max(1, w.search.length)];
+        out.set(a.id, sp
+          ? { target: sp.at, pose: sp.pose, face: sp.face, desk: null, on: sp.on, lift: sp.lift }
+          : { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
         break;
+      }
       case 'git':
         out.set(a.id, { target: spot(CORE_SPOTS, 'core'), pose: 'stand', face: -Math.PI / 2, desk: null });
         break;
@@ -99,16 +166,16 @@ export function direct(agents: Agent[]): Map<string, Placement> {
         break;
       case 'wait':
         out.set(a.id, desk !== null
-          ? { target: waitSpotOf(DESKS[desk]), pose: 'stand', face: Math.PI * 0.75, desk: null }
-          : { target: spot(LOUNGE, 'lounge'), pose: 'stand', face: Math.PI, desk: null });
+          ? { target: waitSpotOf(w.desks[desk].at), pose: 'stand', face: Math.PI * 0.75, desk: null }
+          : { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
         break;
       default:
         out.set(a.id, desk !== null
-          ? { target: seatOf(DESKS[desk]), pose: 'sit', face: Math.PI, desk }
+          ? { target: seatOf(w.desks[desk].at), pose: 'sit', face: Math.PI, desk, on: w.desks[desk].item, lift: SEAT_LIFT[w.desks[desk].kind] }
           : { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });   // 책상이 모자라면 화이트보드 앞
     }
   }
   return out;
 }
 
-export const doorSpot = (): [number, number] => [...DOOR];
+

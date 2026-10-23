@@ -1,44 +1,39 @@
 // 2.5D 화면 — 구운 그림(sprites/)을 Canvas 2D 로 붙인다. three 를 싣지 않는다.
-// 그리는 차례: 배경(가구 포함) → 벽 모니터·책상 모니터 빛 → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례
-import { useEffect, useRef } from 'react';
-import type { Agent, Terminal } from '../types.ts';
-import type { Atlas, SpriteRect } from './atlas.ts';
-import { charKey } from './atlas.ts';
+// 그리는 차례: 모든 모듈의 바닥 층 → 모든 모듈의 물건 층(뒤에서부터) → 벽 tmux 모니터·책상 모니터 빛
+//            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
+import { useEffect, useMemo, useRef } from 'react';
+import type { Agent, Office, Terminal } from '../types.ts';
+import { bodyKey, headKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
-import { DESKS, ITEMS, ROOM_LABELS, SCREEN, STATE_TEXT, screenQuad, type Item } from '../scene/layout.ts';
+import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
+import { buildWorld, type World, type WorldItem } from '../scene/world.ts';
 
+// 휴게실 말풍선 — CHAT_EVERY 초마다 무리 안에서 말하는 이가 바뀐다
+const CHAT_EVERY = 3.4;
+const CHAT = ['커피 맛있다', 'PR 봤어요?', '빌드 됐대요', 'ㅋㅋㅋ', '그러게요', '점심 뭐 먹지', '오늘 배포해요?', '시험 다 통과!', '…', '음~', '토큰 아껴요', '컨텍스트 꽉 찼어'];
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 type V3 = [number, number, number];
 
-interface Loaded { atlas: Atlas; sheets: Record<string, HTMLImageElement> }
-
-async function load(): Promise<Loaded> {
-  const atlas: Atlas = await (await fetch('sprites/atlas.json')).json();
-  const names = new Set([atlas.background.sheet, ...Object.values(atlas.items).map((r) => r.sheet), ...Object.values(atlas.characters).map((r) => r.sheet)]);
-  const sheets: Record<string, HTMLImageElement> = {};
-  await Promise.all([...names].map((n) => new Promise<void>((ok, bad) => {
-    const img = new Image();
-    img.onload = () => ok();
-    img.onerror = () => bad(new Error(`sprites/${n}`));
-    img.src = `sprites/${n}`;
-    sheets[n] = img;
-  })));
-  return { atlas, sheets };
-}
-
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
-export function Stage({ agents, terminals, selected, onSelect }: {
-  agents: Agent[]; terminals: Terminal[]; selected: string | null; onSelect: (id: string | null) => void;
+export function Stage({ agents, terminals, offices, selected, onSelect }: {
+  agents: Agent[]; terminals: Terminal[]; offices: Office[]; selected: string | null; onSelect: (id: string | null) => void;
 }) {
   const box = useRef<HTMLDivElement>(null!);
   const canvas = useRef<HTMLCanvasElement>(null!);
   const labels = useRef<HTMLDivElement>(null!);
   const cast = useRef(new Cast());
-  const props = useRef({ terminals, selected, onSelect });
-  props.current = { terminals, selected, onSelect };
+  const key = offices.map((o) => `${o.name}:${o.size}`).join('\n');
+  const world = useMemo(() => buildWorld(offices), [key]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const props = useRef({ terminals, selected, onSelect, world });
+  props.current = { terminals, selected, onSelect, world };
 
-  useEffect(() => { cast.current.update(agents); }, [agents]);
+  useEffect(() => {
+    cast.current.update(world, agents);
+    // 자료가 그대로여도 2초마다 다시 정한다 — 화장실 다녀오기처럼 시간으로 바뀌는 자리
+    const h = setInterval(() => cast.current.update(world, agents), 2000);
+    return () => clearInterval(h);
+  }, [world, agents]);
 
   useEffect(() => {
     let stop = false;
@@ -46,8 +41,9 @@ export function Stage({ agents, terminals, selected, onSelect }: {
     const view = { zoom: 1, panX: 0, panY: 0 };
     let hits: { id: string; x0: number; y0: number; x1: number; y1: number }[] = [];
     const labelEls = new Map<string, HTMLDivElement>();
+    let cleanup = () => {};
 
-    load().then(({ atlas, sheets }) => {
+    loadAtlas().then(({ atlas, sheets }) => {
       if (stop) return;
       const S = atlas.scale, R = atlas.right, U = atlas.up;
       const proj = (p: V3): [number, number] => [
@@ -55,37 +51,55 @@ export function Stage({ agents, terminals, selected, onSelect }: {
         -(p[0] * U[0] + p[1] * U[1] + p[2] * U[2]) * S,
       ];
       const ctx = canvas.current.getContext('2d')!;
-      const bg = atlas.background;
       let k = 1, offX = 0, offY = 0, dpr = 1;   // 구운 픽셀 → 캔버스 픽셀
+      let fitted: World | null = null;
+      let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
+      // 건물 전체가 들어가는 구운 픽셀 범위
+      const measure = (w: World) => {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const m of w.modules) {
+          const ms = atlas.modules[m.type];
+          const [ax, ay] = proj([m.at[0], 0, m.at[1]]);
+          for (const r of [ms?.floor, ms?.objects]) {
+            if (!r) continue;
+            x0 = Math.min(x0, ax + r.ox); y0 = Math.min(y0, ay + r.oy);
+            x1 = Math.max(x1, ax + r.ox + r.w); y1 = Math.max(y1, ay + r.oy + r.h);
+          }
+        }
+        bounds = { x0, y0, x1, y1 };
+      };
       const fit = () => {
         dpr = Math.min(2, window.devicePixelRatio || 1);
         const w = box.current.clientWidth, h = box.current.clientHeight;
         canvas.current.width = Math.round(w * dpr);
         canvas.current.height = Math.round(h * dpr);
-        const base = Math.min(w / bg.w, h / bg.h) * 0.98;
+        const bw = bounds.x1 - bounds.x0, bh = bounds.y1 - bounds.y0;
+        const base = Math.min(w / bw, h / bh) * 0.98;
         k = base * view.zoom * dpr;
-        offX = (w * dpr - bg.w * k) / 2 - bg.ox * k + view.panX * dpr;
-        offY = (h * dpr - bg.h * k) / 2 - bg.oy * k + view.panY * dpr;
+        offX = (w * dpr - bw * k) / 2 - bounds.x0 * k + view.panX * dpr;
+        offY = (h * dpr - bh * k) / 2 - bounds.y0 * k + view.panY * dpr;
       };
       const ro = new ResizeObserver(fit);
       ro.observe(box.current);
-      fit();
 
       const blit = (r: SpriteRect, ax: number, ay: number, scale = 1) => {
         ctx.drawImage(sheets[r.sheet], r.sx, r.sy, r.w, r.h, ax + r.ox * scale, ay + r.oy * scale, r.w * scale, r.h * scale);
       };
-      const poly = (pts: V3[], fill: string, alpha = 1) => {
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = fill;
+      const path = (pts: V3[]) => {
         ctx.beginPath();
         pts.forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
         ctx.closePath();
+      };
+      const poly = (pts: V3[], fill: string, alpha = 1) => {
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = fill;
+        path(pts);
         ctx.fill();
         ctx.globalAlpha = 1;
       };
-      const circle = (x: number, z: number, r: number): V3[] =>
-        Array.from({ length: 24 }, (_, i) => [x + r * Math.cos((i / 24) * Math.PI * 2), 0.02, z + r * Math.sin((i / 24) * Math.PI * 2)] as V3);
+      const circle = (x: number, z: number, r: number, y = 0.02): V3[] =>
+        Array.from({ length: 24 }, (_, i) => [x + r * Math.cos((i / 24) * Math.PI * 2), y, z + r * Math.sin((i / 24) * Math.PI * 2)] as V3);
       const ring = (x: number, z: number, r0: number, r1: number, color: string, alpha: number) => {
         ctx.globalAlpha = alpha;
         ctx.fillStyle = color;
@@ -97,79 +111,100 @@ export function Stage({ agents, terminals, selected, onSelect }: {
         ctx.fill('evenodd');
         ctx.globalAlpha = 1;
       };
+      const moduleAt = (w: World, i: number) => proj([w.modules[i].at[0], 0, w.modules[i].at[1]]);
 
-      const deskScreen = (d: number, act: Agent['activity'] | undefined, T: number) => {
+      const deskScreen = (w: World, d: number, act: Agent['activity'] | undefined, T: number) => {
         if (!act) return;
-        const [x, z] = DESKS[d];
-        const q = screenQuad(x, z);
+        const desk = w.desks[d];
+        const q = screenQuad(desk.at[0], desk.at[1], desk.kind);
         const [cx, cy, cz] = q.c;
         const flick = act === 'code' && !RM && Math.sin(T * 14 + d) > 0.6;
         poly([[cx - q.w / 2, cy + q.h / 2, cz], [cx + q.w / 2, cy + q.h / 2, cz], [cx + q.w / 2, cy - q.h / 2, cz], [cx - q.w / 2, cy - q.h / 2, cz]],
-          hex(SCREEN[act]), flick ? 0.85 : 1);
+          hex(desk.kind === 'rashdesk' ? PHOSPHOR : SCREEN[act]), flick ? 0.85 : 1);
       };
 
-      // 캐릭터가 상자 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다
-      const inFront = (a: Actor, it: Item) => a.x > it.box[2] || a.z > it.box[3];
+      // 캐릭터가 가구 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다
+      const inFront = (a: Actor, it: WorldItem) => a.x > it.box[2] || a.z > it.box[3] || (sitting(a) && a.place.on === it.key);
+
+      const label = (id: string, cls: string, html: string, at: V3, anchor: string) => {
+        let el = labelEls.get(id);
+        if (!el) { el = document.createElement('div'); labels.current.appendChild(el); labelEls.set(id, el); }
+        if (el.className !== cls) el.className = cls;
+        if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
+        const [lx, ly] = proj(at);
+        el.style.transform = `translate(${(lx * k + offX) / dpr}px, ${(ly * k + offY) / dpr}px) ${anchor}`;
+      };
 
       let last = performance.now(), T = 0;
       const frame = (now: number) => {
         if (stop) return;
         const dt = (now - last) / 1000; last = now; T += dt;
+        const { terminals: terms, selected: sel, world: w } = props.current;
+        if (fitted !== w) { fitted = w; measure(w); fit(); }
         const c = cast.current;
         c.step(dt);
-        const { terminals: terms, selected: sel } = props.current;
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
         ctx.setTransform(k, 0, 0, k, offX, offY);
         ctx.imageSmoothingQuality = 'high';
-        blit(bg, 0, 0);
+        // 바닥 층 전부, 그다음 물건 층 (모듈 차례 = 뒤에서부터)
+        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
+        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
 
         // 왼쪽 벽 tmux 모니터 — 붙어 있으면 초록, claude 가 돌면 보라 테두리
-        terms.slice(0, 4).forEach((t, i) => {
-          const z = 1.7 + i * 1.15, y = 1.85, x = 0.03;
-          poly([[x, y + 0.33, z - 0.49], [x, y + 0.33, z + 0.49], [x, y - 0.33, z + 0.49], [x, y - 0.33, z - 0.49]], t.claude ? '#7f77dd' : '#2c2c2a');
-          poly([[x, y + 0.27, z - 0.43], [x, y + 0.27, z + 0.43], [x, y - 0.27, z + 0.43], [x, y - 0.27, z - 0.43]], t.attached ? '#9fe1cb' : '#2a3a52');
+        terms.slice(0, w.terminals.length).forEach((t, i) => {
+          const { x, y, z } = w.terminals[i];
+          poly([[x, y + 0.33, z - 0.4], [x, y + 0.33, z + 0.4], [x, y - 0.33, z + 0.4], [x, y - 0.33, z - 0.4]], t.claude ? '#7f77dd' : '#2c2c2a');
+          poly([[x, y + 0.27, z - 0.34], [x, y + 0.27, z + 0.34], [x, y - 0.27, z + 0.34], [x, y - 0.27, z - 0.34]], t.attached ? '#9fe1cb' : '#2a3a52');
         });
 
         const actors = [...c.actors.values()].sort((a, b) => (a.x + a.z) - (b.x + b.z));
         const seated = new Map<number, Agent['activity']>();
         for (const a of actors) if (sitting(a) && a.place.desk !== null) seated.set(a.place.desk, a.agent.activity);
-        seated.forEach((act, d) => deskScreen(d, act, T));
+        seated.forEach((act, d) => deskScreen(w, d, act, T));
 
-        // 캐릭터의 그림 자리 (구운 픽셀)
-        type Draw = { a: Actor; r: SpriteRect; ax: number; ay: number; s: number; x0: number; y0: number; x1: number; y1: number };
+        // 캐릭터의 그림 자리 (구운 픽셀) — 몸 위에 머리를 겹친다
+        type Draw = { a: Actor; body: SpriteRect; head: SpriteRect; bx: number; by: number; hx: number; hy: number; s: number; x0: number; y0: number; x1: number; y1: number };
         const draws: Draw[] = [];
         for (const a of actors) {
           const sit = sitting(a);
-          const r = atlas.characters[charKey(a.color, a.hair, sit, dirOf(a.rot))];
-          if (!r) continue;
+          const L = a.look;
+          const body = atlas.bodies[bodyKey(a.color, L.shape, sit)];
+          const head = atlas.heads[headKey(L.skin, L.look, L.cap, dirOf(a.rot))];
+          if (!body || !head) continue;
           const bob = a.moving && !RM ? Math.abs(Math.sin(a.t * 10)) * 0.08 : 0;
-          const [ax, ay] = proj([a.x, bob, a.z]);
+          const lift = sit ? (a.place.lift ?? 0) : 0;
           const s = a.agent.kind === 'subagent' ? 0.72 : 1;
-          draws.push({ a, r, ax, ay, s, x0: ax + r.ox * s, y0: ay + r.oy * s, x1: ax + (r.ox + r.w) * s, y1: ay + (r.oy + r.h) * s });
+          const [bx, by] = proj([a.x, bob + lift, a.z]);
+          const [hx, hy] = proj([a.x, bob + lift + (HEAD_Y + (sit ? SIT_LIFT : 0)) * s, a.z]);
+          const x0 = Math.min(bx + body.ox * s, hx + head.ox * s), y0 = Math.min(by + body.oy * s, hy + head.oy * s);
+          const x1 = Math.max(bx + (body.ox + body.w) * s, hx + (head.ox + head.w) * s), y1 = Math.max(by + (body.oy + body.h) * s, hy + (head.oy + head.h) * s);
+          draws.push({ a, body, head, bx, by, hx, hy, s, x0, y0, x1, y1 });
         }
         // 차례: 캐릭터(x+z) 사이에, 그 캐릭터를 가리는 가구를 끼운다
         const seq: { at: number; fn: () => void }[] = draws.map((d, i) => ({ at: i, fn: () => {
           const { a } = d;
-          poly(circle(a.x, a.z, 0.3 * d.s), '#000', 0.12);   // 발 그림자
+          if (!sitting(a)) poly(circle(a.x, a.z, 0.3 * d.s), '#000', 0.12);   // 발 그림자
           const waiting = a.agent.activity === 'wait' && !a.moving && !a.leaving;
           if (waiting) ring(a.x, a.z, 0.42, 0.5, '#e24b4a', RM ? 0.8 : 0.5 + 0.4 * Math.sin(T * 5));
           else if (sel === a.agent.id) ring(a.x, a.z, 0.42, 0.5, '#534ab7', 0.45);
-          blit(d.r, d.ax, d.ay, d.s);
+          blit(d.body, d.bx, d.by, d.s);
+          blit(d.head, d.hx, d.hy, d.s);
         } }));
-        for (const it of ITEMS) {
-          const r = atlas.items[it.id];
+        for (const it of w.items) {
+          const r = atlas.modules[w.modules[it.module].type]?.items[it.id];
           if (!r) continue;
+          const [ax, ay] = moduleAt(w, it.module);
           let after = -1;
           draws.forEach((d, i) => {
             if (inFront(d.a, it)) return;
-            if (d.x1 < r.ox || d.x0 > r.ox + r.w || d.y1 < r.oy || d.y0 > r.oy + r.h) return;   // 겹치지 않는다
+            if (d.x1 < ax + r.ox || d.x0 > ax + r.ox + r.w || d.y1 < ay + r.oy || d.y0 > ay + r.oy + r.h) return;   // 겹치지 않는다
             after = Math.max(after, i);
           });
           if (after < 0) continue;
-          const desk = it.kind === 'desk' || it.kind === 'call' ? Number(it.id.slice(4)) : -1;
-          seq.push({ at: after + 0.5, fn: () => { blit(r, 0, 0); if (desk >= 0) deskScreen(desk, seated.get(desk), T); } });
+          const desk = w.desks.findIndex((dk) => dk.item === it.key);
+          seq.push({ at: after + 0.5, fn: () => { blit(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); } });
         }
         seq.sort((a, b) => a.at - b.at).forEach((s) => s.fn());
 
@@ -181,36 +216,49 @@ export function Stage({ agents, terminals, selected, onSelect }: {
           hits.push({ id: a.agent.id, x0: d.x0 * k + offX, y0: d.y0 * k + offY, x1: d.x1 * k + offX, y1: d.y1 * k + offY });
           if (a.agent.kind === 'subagent' || a.leaving) continue;
           live.add(a.agent.id);
-          let el = labelEls.get(a.agent.id);
-          if (!el) { el = document.createElement('div'); labels.current.appendChild(el); labelEls.set(a.agent.id, el); }
           const wait = a.agent.activity === 'wait';
-          const cls = 'lbl' + (wait ? ' wait' : '') + (sel === a.agent.id ? ' sel' : '');
-          const html = `<i style="background:${hex(a.color)}"></i>${esc(a.agent.name)}${wait ? ` · ${STATE_TEXT.wait}${a.agent.guessed ? '?' : ''}` : ''}`;
-          if (el.className !== cls) el.className = cls;
-          if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
-          const [lx, ly] = proj([a.x, (sitting(a) ? 1.45 : 1.6), a.z]);
-          el.style.transform = `translate(${(lx * k + offX) / dpr}px, ${(ly * k + offY) / dpr}px) translate(-50%, -100%)`;
+          const top = (sitting(a) ? 1.45 + SIT_LIFT : 1.6) + (sitting(a) ? (a.place.lift ?? 0) : 0);
+          label(a.agent.id, 'lbl' + (wait ? ' wait' : '') + (sel === a.agent.id ? ' sel' : ''),
+            `<i style="background:${hex(a.color)}"></i>${esc(a.agent.name)}${wait ? ` · ${STATE_TEXT.wait}${a.agent.guessed ? '?' : ''}` : ''}`,
+            [a.x, top, a.z], 'translate(-50%, -100%)');
         }
-        for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
-        // 방 이름표 — 바닥 앞 모서리에
-        ROOM_LABELS.forEach((r) => {
-          const id = `room:${r.name}`;
-          live.add(id);
-          let el = labelEls.get(id);
-          if (!el) { el = document.createElement('div'); el.className = 'rlbl'; el.textContent = r.name; labels.current.appendChild(el); labelEls.set(id, el); }
-          const [lx, ly] = proj([r.at[0], 0, r.at[1]]);
-          el.style.transform = `translate(${(lx * k + offX) / dpr}px, ${(ly * k + offY) / dpr}px) translate(-50%, -50%)`;
+        // 휴게실 잡담 — 같은 무리(카페 탁자·소파)에 둘 이상 있으면 돌아가며 말풍선, 커피 머신 앞 혼자면 가끔 ☕
+        const groups = new Map<string, Actor[]>();
+        for (const d of draws) {
+          const { a } = d;
+          if (a.moving || a.leaving || a.agent.activity !== 'idle' || !a.place.group) continue;
+          const g = groups.get(a.place.group) ?? [];
+          g.push(a);
+          groups.set(a.place.group, g);
+        }
+        groups.forEach((members, name) => {
+          if (RM) return;
+          members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
+          const seed = name.length * 7 + name.charCodeAt(name.length - 1);
+          const slot = Math.floor(T / CHAT_EVERY + seed);
+          if ((T + seed * CHAT_EVERY) % CHAT_EVERY >= CHAT_EVERY * 0.75) return;
+          let who = -1, text = '';
+          if (members.length >= 2) { who = slot % members.length; text = CHAT[(slot * 7 + seed) % CHAT.length]; }
+          else if (name === 'coffee' && slot % 3 === 0) { who = 0; text = '☕'; }
+          if (who < 0) return;
+          const a = members[who];
+          live.add(`bubble:${a.agent.id}`);
+          label(`bubble:${a.agent.id}`, 'bubble', esc(text), [a.x, 2.05 + (a.place.lift ?? 0), a.z], 'translate(-50%, -100%)');
         });
+        // 방 이름표 — 바닥 앞 모서리에, 프로젝트 사무실은 굵게
+        for (const r of w.labels) {
+          const id = `room:${r.name}:${r.at.join(',')}`;
+          live.add(id);
+          label(id, r.project ? 'rlbl proj' : 'rlbl', esc(r.name), [r.at[0], 0, r.at[1]], 'translate(0, -50%)');
+        }
         // 터미널 이름표
-        terms.slice(0, 4).forEach((t, i) => {
+        terms.slice(0, w.terminals.length).forEach((t, i) => {
           const id = `tmux:${t.name}`;
           live.add(id);
-          let el = labelEls.get(id);
-          if (!el) { el = document.createElement('div'); el.className = 'tlbl'; labels.current.appendChild(el); labelEls.set(id, el); }
-          el.textContent = t.name;
-          const [lx, ly] = proj([0.03, 1.4, 1.7 + i * 1.15]);
-          el.style.transform = `translate(${(lx * k + offX) / dpr}px, ${(ly * k + offY) / dpr}px) translate(-50%, 0)`;
+          const { x, z } = w.terminals[i];
+          label(id, 'tlbl', esc(t.name), [x, 1.42, z], 'translate(-50%, 0)');
         });
+        for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
 
         raf = requestAnimationFrame(frame);
       };
@@ -221,7 +269,7 @@ export function Stage({ agents, terminals, selected, onSelect }: {
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
         const z0 = view.zoom;
-        view.zoom = Math.min(4, Math.max(0.6, z0 * Math.exp(-e.deltaY * 0.0015)));
+        view.zoom = Math.min(5, Math.max(0.6, z0 * Math.exp(-e.deltaY * 0.0015)));
         const rect = el.getBoundingClientRect();
         const mx = e.clientX - rect.left - rect.width / 2, my = e.clientY - rect.top - rect.height / 2;
         view.panX = mx - (mx - view.panX) * (view.zoom / z0);
@@ -263,7 +311,6 @@ export function Stage({ agents, terminals, selected, onSelect }: {
       labels.current.innerHTML = `<p class="err">그림을 불러오지 못했다 — ${esc(String(e.message ?? e))}. npm run bake 를 돌렸나?</p>`;
     });
 
-    let cleanup = () => {};
     return () => { stop = true; cancelAnimationFrame(raf); cleanup(); labelEls.forEach((el) => el.remove()); };
   }, []);
 
