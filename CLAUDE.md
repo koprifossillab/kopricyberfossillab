@@ -50,6 +50,11 @@ docs/     시작 계획(agent-office-plan.md)과 구도 시제품(agent-office-3
 ref/      Claw3D·pixel-agents 얕은 클론 (gitignore) — 읽기만. 코드를 옮기면 MIT 고지를 남긴다
 ```
 
+## 운영 계정(paleoadmin)으로 열었을 때
+
+할 일은 nginx 길 하나다 — `sudo bash deploy/host/install.sh` (HANDOFF §0). 서버는 sclee 계정의 것이라 여기서 띄우지 않고,
+코드도 고치지 않는다(고침은 sclee 클론에서, 하루치 브랜치로).
+
 ## 작업 방식
 
 - **브랜치: 하루치 브랜치** `work/<YYYYMMDD>-<계정>` → 로컬 `merge --ff-only` 로 main (`.guides/workflow.md` §2).

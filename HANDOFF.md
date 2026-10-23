@@ -8,9 +8,27 @@ paleo-server 의 sclee 계정에서 `npm start` 가 tmux 세션 `fl` 에 떠 있
 계획은 [P02](devlog/20261023_wetherilli_P02_isometric_sprites.md)·[P01](devlog/20261023_wetherilli_P01_initial_build.md), 시작 문서·시제품은 `docs/`.
 이어서 할 사람은 여기부터.
 
-## 0. 사람이 정할 것
+## 0. 운영 계정(paleoadmin)이 할 일 — nginx 길 한 번
 
-- **`sudo bash deploy/host/install.sh`** — nginx 길. 사내망에 내기로 2026-10-23 사용자가 정했다
+sclee 는 sudo 가 비밀번호를 물어 못 한다. **paleoadmin 으로 이 저장소를 열어서 이것만** 한다:
+
+```bash
+git clone https://github.com/koprifossillab/kopricyberfossillab.git ~/projects/kopricyberfossillab   # 없으면 (public)
+cd ~/projects/kopricyberfossillab && git pull
+sudo bash deploy/host/install.sh
+```
+
+- 하는 일: 조각을 `/etc/nginx/snippets/kopricyberfossillab-subpath.conf` 에 깔고, `sites-enabled/phyloserver` 의
+  `include snippets/Cropobite-subpath.conf;` 바로 아래에 include 한 줄(사본 `/etc/nginx/phyloserver.bak-kopricyberfossillab-<시각>`).
+  `nginx -t` 가 실패하면 되돌리고 멈춘다. 몇 번 돌려도 같다.
+- 끝에 `/kopricyberfossillab/healthz → 200` 이면 끝. **502 면 sclee 의 서버(tmux `fl`)가 내려간 것** — sclee 가 `workon fl && npm start`.
+- **서버(npm start)는 paleoadmin 이 띄우지 않는다** — sclee 의 `~/.claude` 를 읽어야 해서 sclee 계정으로 돈다.
+  paleoadmin 클론에서는 `npm install` 도 필요 없다(설치 스크립트는 bash·python3 만 쓴다).
+- 미리 본 것(2026-10-23, sclee): 같은 include 삽입을 사본에 해 본 diff, 조각을 시험 nginx(:18098)에 얹어
+  healthz·첫 화면·sprites 200, `/kopricyberfossillab` → 301, SSE 가 흐르는 것.
+
+## 0-1. 사람이 정할 것
+
 - **라이선스** — `LICENSE` 가 없다(`.guides/branding.md` §3). Claw3D·pixel-agents 는 MIT 이고 코드는 옮기지 않았다
 - **화면 제목** — 지금 `KOPRI Cyber Fossil Lab`
 
