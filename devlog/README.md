@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261023_wetherilli_013](20261023_wetherilli_013_icon.md) | 아이콘 — 등각 연구실 한 칸 + 빛나는 삼엽충·회로선, logokit icon_set, web/public/icons/ |
 | [20261023_wetherilli_010](20261023_wetherilli_010_dino_room_plaques.md) | 공룡 방(콤프소그나투스·먹이 주기), 벽·소품 그리는 차례(등각 위상 정렬·잘라 다시 칠하기), 벽 명판, 말풍선 시간 |
 | [20261023_wetherilli_009](20261023_wetherilli_009_lounge_chatter.md) | 휴게실 잡담 — 대화 서른여섯, 들쭉날쭉한 박자, 말풍선에 이름(이름표 숨김) |
 | [20261023_wetherilli_008](20261023_wetherilli_008_autostart_service.md) | 재부팅 뒤 자동 시작 — systemd 유닛(User=sclee)과 install-service.sh |
