@@ -16,9 +16,11 @@ sclee 는 sudo 가 비밀번호를 물어 못 한다. **paleoadmin 으로 이 �
 git clone https://github.com/koprifossillab/kopricyberfossillab.git ~/projects/kopricyberfossillab   # 없으면 (public)
 cd ~/projects/kopricyberfossillab && git pull
 sudo bash deploy/host/install.sh
+bash deploy/host/add-workon.sh && source ~/.bashrc   # workon fl (sudo 없음)
 ```
 
-- 하는 일: 조각을 `/etc/nginx/snippets/kopricyberfossillab-subpath.conf` 에 깔고, `sites-enabled/phyloserver` 의
+- `add-workon.sh` 는 그 계정의 `~/.bashrc` 에 `[fl]` 과 venv 없는 항목(`-`) 갈래를 넣는다(사본을 뜬다). paleoadmin 의 workon 은 venv 가 없으면 멈추는 꼴이라서.
+- install.sh 가 하는 일: 조각을 `/etc/nginx/snippets/kopricyberfossillab-subpath.conf` 에 깔고, `sites-enabled/phyloserver` 의
   `include snippets/Cropobite-subpath.conf;` 바로 아래에 include 한 줄(사본 `/etc/nginx/phyloserver.bak-kopricyberfossillab-<시각>`).
   `nginx -t` 가 실패하면 되돌리고 멈춘다. 몇 번 돌려도 같다.
 - 끝에 `/kopricyberfossillab/healthz → 200` 이면 끝. **502 면 sclee 의 서버(tmux `fl`)가 내려간 것** — sclee 가 `workon fl && npm start`.
