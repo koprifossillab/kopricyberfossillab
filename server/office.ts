@@ -7,6 +7,7 @@ import { SESSIONS_DIR, JOBS_DIR, PROJECTS_DIR } from './paths.ts';
 import { Transcript } from './transcript.ts';
 import { resolve, type Busy } from './latches.ts';
 import { alive, tmuxSessions, foreignClaudes } from './system.ts';
+import { readLimits } from './limits.ts';
 import type { Agent, Snapshot, Terminal } from './model.ts';
 
 const SUBAGENT_FRESH_MS = 60_000;   // 하위 에이전트 기록이 이만큼 조용하면 끝난 것으로 본다
@@ -167,6 +168,6 @@ export class Office {
     agents.sort((a, b) => a.startedAt - b.startedAt);
     const claudeTmux = new Set(agents.map((a) => a.tmux).filter(Boolean));
     const terminals: Terminal[] = tmuxSessions().map((s) => ({ ...s, claude: claudeTmux.has(s.name) }));
-    return { version: this.version, host: os.hostname(), at: now, agents, terminals };
+    return { version: this.version, host: os.hostname(), at: now, agents, terminals, limits: readLimits(now) };
   }
 }

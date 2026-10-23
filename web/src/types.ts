@@ -51,4 +51,17 @@ export interface Snapshot {
   at: number;
   agents: Agent[];
   terminals: Terminal[];
+  limits?: Limits;          // Claude 사용 한도 — statusLine 이 남긴 파일에서. 없으면 모른다
+}
+
+// 한도 창 하나 (5시간·주간)
+export interface LimitWindow {
+  usedPct: number;          // 0–100
+  resetsAt: number;         // ms
+}
+
+export interface Limits {
+  fiveHour?: LimitWindow;
+  sevenDay?: LimitWindow;
+  seenAt: number;           // 값을 받은 때 (파일 mtime, ms) — 세션이 응답할 때만 새로 쓰인다
 }

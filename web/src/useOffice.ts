@@ -45,7 +45,8 @@ function demo(set: (s: Snapshot) => void): () => void {
     agents.push({ id: 'foreign/paleoadmin/1', kind: 'foreign', name: 'paleoadmin', project: '', activity: Math.random() < 0.5 ? 'think' : 'idle',
       label: '다른 계정 — 기록은 읽지 않는다', room: 'office', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
     set({ version: 'demo', host: 'demo', at: Date.now(), agents,
-      terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true }, { name: 'build', attached: 1, windows: 2, claude: false }] });
+      terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true }, { name: 'build', attached: 1, windows: 2, claude: false }],
+      limits: { fiveHour: { usedPct: 73, resetsAt: t0 + 2 * 3600_000 + 14 * 60_000 }, sevenDay: { usedPct: 41, resetsAt: t0 + 3 * 86400_000 + 5 * 3600_000 }, seenAt: Date.now() - 30_000 } });
   };
   tick();
   const h = setInterval(tick, 4000);
