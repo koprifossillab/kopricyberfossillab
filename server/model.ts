@@ -35,6 +35,7 @@ export interface Agent {
   guessed?: boolean;        // wait 가 기록이 아니라 시간으로 추정한 것
   label: string;            // 지금 도구 한 줄 (파일 이름·명령 설명 — 대화 본문은 보내지 않는다)
   room: Room;
+  role?: 'boss';            // 다른 세션에 일을 나눠 주고 거두는 세션(판 세션 등) — 부장실·본부장실에 앉는다
   parentId?: string;
   tmux?: string;            // 세션이 도는 tmux 자리 (예: pan)
   slot?: number;            // terminal 의 벽 모니터 번호 (Snapshot.terminals 의 차례)

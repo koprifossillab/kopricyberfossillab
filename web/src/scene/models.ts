@@ -124,11 +124,67 @@ function coffee(x: number, z: number): THREE.Group {
   return g;
 }
 
-function plant(x: number, z: number, h: number): THREE.Group {
+// 화분 나무 — 갈래(variant): pine(시제품의 원뿔) · ficus(고무나무) · palm(야자) · monstera · bamboo(대나무) · cactus(선인장) · topiary(둥근 정원수)
+export type Tree = 'pine' | 'ficus' | 'palm' | 'monstera' | 'bamboo' | 'cactus' | 'topiary';
+function plant(x: number, z: number, h: number, variant: Tree = 'pine'): THREE.Group {
   const g = new THREE.Group();
-  bx(g, 0.6, 0.5, 0.6, 0xd85a30, x, 0.25, z);
-  mesh(g, new THREE.ConeGeometry(0.5, h, 6), 0x639922, x, 0.5 + h / 2, z);
-  mesh(g, new THREE.ConeGeometry(0.38, h * 0.7, 6), 0x3b6d11, x, 0.5 + h * 0.75, z);
+  const potC = { pine: 0xd85a30, ficus: 0xe8e6df, palm: 0x8a6a4a, monstera: 0x2c2c2a, bamboo: 0x6f6a8a, cactus: 0xc98b5a, topiary: 0x5f5e5a }[variant];
+  mesh(g, new THREE.CylinderGeometry(0.3, 0.24, 0.5, 8), potC, x, 0.25, z);
+  mesh(g, new THREE.CylinderGeometry(0.27, 0.27, 0.03, 8), 0x5c4433, x, 0.5, z);   // 흙
+  const top = 0.5;
+  switch (variant) {
+    case 'pine':
+      mesh(g, new THREE.ConeGeometry(0.5, h, 6), 0x639922, x, top + h / 2, z);
+      mesh(g, new THREE.ConeGeometry(0.38, h * 0.7, 6), 0x3b6d11, x, top + h * 0.75, z);
+      break;
+    case 'ficus':   // 줄기 하나에 둥근 잎 뭉치 여럿
+      mesh(g, new THREE.CylinderGeometry(0.04, 0.06, h * 0.8, 6), 0x6b4f35, x, top + h * 0.4, z);
+      [[0, 0.85, 0, 0.32], [-0.2, 0.62, 0.1, 0.24], [0.22, 0.68, -0.08, 0.26], [0.05, 1.02, 0.12, 0.2]].forEach(([dx, fy, dz, r]) =>
+        mesh(g, new THREE.IcosahedronGeometry(r, 0), 0x2f7a3a, x + dx, top + h * fy, z + dz));
+      break;
+    case 'palm': {   // 굽은 줄기, 끝에 잎 여섯
+      const trunk = mesh(g, new THREE.CylinderGeometry(0.05, 0.08, h, 6), 0x9a7b55, x + 0.05, top + h / 2, z);
+      trunk.rotation.z = -0.08;
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        const leaf = mesh(g, new THREE.BoxGeometry(0.12, 0.02, 0.7), k % 2 ? 0x4f8f2f : 0x3b7a25, x + 0.12 + Math.sin(a) * 0.3, top + h - 0.05, z + Math.cos(a) * 0.3);
+        leaf.rotation.set(Math.cos(a) * 0.45, a, -Math.sin(a) * 0.45);
+      }
+      break;
+    }
+    case 'monstera':   // 크고 납작한 잎이 사방으로
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2 + 0.3;
+        const lh = top + 0.25 + (k % 3) * h * 0.18;
+        const leaf = mesh(g, new THREE.CylinderGeometry(0.22, 0.22, 0.02, 7), k % 2 ? 0x2f6b2f : 0x3b8a3b, x + Math.sin(a) * 0.25, lh, z + Math.cos(a) * 0.25);
+        leaf.rotation.set(Math.cos(a) * 0.9, 0, -Math.sin(a) * 0.9);
+      }
+      break;
+    case 'bamboo':   // 마디 있는 줄기 셋, 끝에 가는 잎
+      [[-0.1, 0], [0.1, 0.05], [0, -0.1]].forEach(([dx, dz], i) => {
+        const hh = h * (0.85 + i * 0.12);
+        for (let s = 0; s < 4; s++) mesh(g, new THREE.CylinderGeometry(0.03, 0.03, hh / 4 - 0.02, 6), 0x7fae4a, x + dx, top + hh / 8 + (s * hh) / 4, z + dz);
+        for (let k = 0; k < 3; k++) {
+          const leaf = mesh(g, new THREE.BoxGeometry(0.05, 0.01, 0.3), 0x5f9a35, x + dx + 0.1, top + hh * (0.6 + k * 0.15), z + dz);
+          leaf.rotation.y = k * 2 + i;
+        }
+      });
+      break;
+    case 'cactus':   // 기둥 하나에 팔 둘
+      mesh(g, new THREE.CylinderGeometry(0.12, 0.13, h * 0.7, 8), 0x4f8a4a, x, top + h * 0.35, z);
+      mesh(g, new THREE.SphereGeometry(0.12, 8, 6), 0x4f8a4a, x, top + h * 0.7, z);
+      for (const sx of [-1, 1]) {
+        mesh(g, new THREE.CylinderGeometry(0.06, 0.06, 0.16, 6), 0x4f8a4a, x + sx * 0.15, top + h * 0.35, z).rotation.z = Math.PI / 2;
+        mesh(g, new THREE.CylinderGeometry(0.06, 0.06, 0.28, 6), 0x4f8a4a, x + sx * 0.22, top + h * 0.35 + 0.14, z);
+      }
+      mesh(g, new THREE.SphereGeometry(0.04, 6, 4), 0xd4537e, x, top + h * 0.7 + 0.12, z);   // 꽃
+      break;
+    case 'topiary':   // 둥글게 다듬은 정원수 둘
+      mesh(g, new THREE.CylinderGeometry(0.035, 0.035, h * 0.9, 6), 0x6b4f35, x, top + h * 0.45, z);
+      mesh(g, new THREE.IcosahedronGeometry(0.32, 1), 0x4a8a3a, x, top + h * 0.55, z);
+      mesh(g, new THREE.IcosahedronGeometry(0.22, 1), 0x5a9a45, x, top + h * 0.95, z);
+      break;
+  }
   return g;
 }
 
@@ -285,6 +341,120 @@ function doorway(x: number, z: number, span: number, rot: number): THREE.Group {
   return g;
 }
 
+// 임원 책상 — 짙은 나무 큰 상판, 앞 가림판, 모니터, 이름패, 스탠드
+function bossDesk(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  bx(g, 2.3, 0.1, 1.05, 0x5c3a24, x, 0.8, z);
+  bx(g, 2.2, 0.7, 0.08, 0x4a2e1c, x, 0.4, z - 0.45);                  // 앞(벽 쪽) 가림판
+  bx(g, 0.45, 0.72, 0.95, 0x4a2e1c, x - 0.85, 0.38, z);             // 서랍
+  bx(g, 0.45, 0.72, 0.95, 0x4a2e1c, x + 0.85, 0.38, z);
+  bx(g, 0.08, 0.3, 0.08, 0x2c2c2a, x, 0.98, z - 0.25);
+  bx(g, 0.8, 0.5, 0.06, 0x2c2c2a, x, 1.35, z - 0.25);
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.4), new THREE.MeshBasicMaterial({ color: SCREEN_OFF }));
+  s.position.set(x, 1.35, z - 0.215);
+  g.add(s);
+  bx(g, 0.36, 0.1, 0.06, 0xc9a46a, x + 0.6, 0.9, z + 0.3);           // 이름패
+  mesh(g, new THREE.CylinderGeometry(0.02, 0.02, 0.35, 6), 0xc9a46a, x - 0.75, 1.02, z - 0.1);
+  mesh(g, new THREE.ConeGeometry(0.12, 0.14, 8), 0x1d9e75, x - 0.75, 1.22, z - 0.1);   // 스탠드 갓
+  return g;
+}
+
+// 가죽 의자 — 높은 등받이
+function bossChair(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  bx(g, 0.66, 0.12, 0.62, 0x2c2c2a, x, 0.5, z);
+  bx(g, 0.66, 0.85, 0.12, 0x2c2c2a, x, 0.95, z + 0.3);
+  bx(g, 0.08, 0.2, 0.5, 0x2c2c2a, x - 0.33, 0.65, z);
+  bx(g, 0.08, 0.2, 0.5, 0x2c2c2a, x + 0.33, 0.65, z);
+  bx(g, 0.08, 0.44, 0.08, 0x444441, x, 0.22, z);
+  return g;
+}
+
+// 실험 테이블 — 검은 상판, 시험관 꽂이 둘, 삼각 플라스크·비커·둥근 플라스크(색 액체), 알코올 램프
+const LIQ = [0x38bdf8, 0x9fe1cb, 0xef9f27, 0xd4537e, 0x7f77dd, 0x639922];
+function labTable(x: number, z: number, w: number, d: number): THREE.Group {
+  const g = new THREE.Group();
+  bx(g, w, 0.08, d, 0x2c2c2a, x, 0.86, z);
+  bx(g, w - 0.1, 0.78, d - 0.1, 0xe8e6df, x, 0.41, z);
+  const top = 0.9;
+  // 시험관 꽂이 (관 다섯씩)
+  for (const [rx, rz] of [[-0.85, -0.2], [0.55, 0.22]]) {
+    bx(g, 0.62, 0.06, 0.16, 0xb07a48, x + rx, top + 0.15, z + rz);
+    for (let k = 0; k < 5; k++) {
+      mesh(g, new THREE.CylinderGeometry(0.03, 0.03, 0.26, 6), 0xf4f7f8, x + rx - 0.24 + k * 0.12, top + 0.13, z + rz);
+      mesh(g, new THREE.CylinderGeometry(0.026, 0.026, 0.1, 6), LIQ[(k + (rx > 0 ? 2 : 0)) % LIQ.length], x + rx - 0.24 + k * 0.12, top + 0.06, z + rz);
+    }
+  }
+  // 삼각 플라스크 셋
+  [[-0.2, -0.25, 1], [0.05, 0.2, 3], [1.0, -0.18, 0]].forEach(([fx, fz, c]) => {
+    mesh(g, new THREE.ConeGeometry(0.12, 0.2, 10), 0xeef6f8, x + fx, top + 0.1, z + fz);
+    mesh(g, new THREE.ConeGeometry(0.1, 0.12, 10), LIQ[c], x + fx, top + 0.06, z + fz);
+    mesh(g, new THREE.CylinderGeometry(0.03, 0.03, 0.12, 8), 0xeef6f8, x + fx, top + 0.25, z + fz);
+  });
+  // 비커 둘과 둥근 플라스크
+  mesh(g, new THREE.CylinderGeometry(0.08, 0.08, 0.16, 10), 0xeef6f8, x - 0.45, top + 0.08, z + 0.25);
+  mesh(g, new THREE.CylinderGeometry(0.075, 0.075, 0.09, 10), LIQ[4], x - 0.45, top + 0.045, z + 0.25);
+  mesh(g, new THREE.SphereGeometry(0.1, 10, 8), LIQ[5], x + 0.35, top + 0.1, z - 0.2);
+  mesh(g, new THREE.CylinderGeometry(0.025, 0.025, 0.14, 6), 0xeef6f8, x + 0.35, top + 0.25, z - 0.2);
+  // 알코올 램프
+  mesh(g, new THREE.CylinderGeometry(0.06, 0.07, 0.08, 8), 0x888780, x + 1.05, top + 0.04, z + 0.25);
+  mesh(g, new THREE.ConeGeometry(0.025, 0.07, 6), 0xef9f27, x + 1.05, top + 0.12, z + 0.25);
+  return g;
+}
+
+// ---- 테라스
+const GLASS_MAT = new THREE.MeshLambertMaterial({ color: 0xcfe8f0, transparent: true, opacity: 0.3, depthWrite: false });
+// 건물 앞 낮은 유리창 — 아래 틀, 유리, 위 틀
+function glassWall([x0, z0, x1, z1]: Item['box']): THREE.Group {
+  const g = new THREE.Group();
+  const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  bx(g, w, 0.12, d + 0.02, 0x6f6a8a, cx, 0.06, cz);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(w, 0.8, Math.max(0.03, d * 0.4)), GLASS_MAT);
+  glass.position.set(cx, 0.52, cz);
+  g.add(glass);
+  bx(g, w, 0.05, d + 0.02, 0x6f6a8a, cx, 0.94, cz, false);
+  const n = Math.max(1, Math.round(w / 1.5));
+  for (let i = 0; i <= n; i++) bx(g, 0.05, 0.86, d + 0.02, 0x6f6a8a, x0 + (w * i) / n, 0.5, cz, false);
+  return g;
+}
+// 바깥 난간 — 금속 기둥, 손잡이, 유리 판
+function railing([x0, z0, x1, z1]: Item['box']): THREE.Group {
+  const g = new THREE.Group();
+  const along = x1 - x0 > z1 - z0, len = along ? x1 - x0 : z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const n = Math.max(1, Math.round(len / 1.2));
+  for (let i = 0; i <= n; i++) {
+    const t = -len / 2 + (len * i) / n;
+    bx(g, 0.05, 0.95, 0.05, 0x9aa3b5, along ? cx + t : cx, 0.47, along ? cz : cz + t);
+  }
+  bx(g, along ? len : 0.07, 0.05, along ? 0.07 : len, 0x9aa3b5, cx, 0.96, cz);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(along ? len : 0.02, 0.7, along ? 0.02 : len), GLASS_MAT);
+  glass.position.set(cx, 0.5, cz);
+  g.add(glass);
+  return g;
+}
+// 파라솔 탁자 — 둥근 탁자, 기둥, 여덟모 차양 (색 둘)
+function parasol(x: number, z: number, i: number): THREE.Group {
+  const g = new THREE.Group();
+  mesh(g, new THREE.CylinderGeometry(0.42, 0.42, 0.05, 14), 0xf4efe6, x, 0.72, z);
+  mesh(g, new THREE.CylinderGeometry(0.04, 0.04, 2.1, 6), 0xd4d1c7, x, 1.05, z);
+  mesh(g, new THREE.CylinderGeometry(0.22, 0.26, 0.04, 10), 0x6f6a8a, x, 0.02, z);
+  const top = mesh(g, new THREE.ConeGeometry(1.15, 0.38, 8), i % 2 ? 0x1d9e75 : 0xd85a30, x, 2.05, z);
+  top.castShadow = true;
+  mesh(g, new THREE.ConeGeometry(1.0, 0.3, 8), 0xf4efe6, x, 1.99, z).rotation.y = Math.PI / 8;
+  cup(g, x + 0.12, 0.745, z - 0.1);
+  return g;
+}
+// 데크 의자 — 나무 방석과 등받이 (rot 은 앉은 사람이 보는 쪽)
+function deckChair(x: number, z: number, rot: number): THREE.Group {
+  const g = new THREE.Group();
+  bx(g, 0.42, 0.05, 0.42, 0x8a6a4a, 0, 0.45, 0);
+  bx(g, 0.42, 0.45, 0.05, 0x8a6a4a, 0, 0.7, -0.2);
+  for (const [dx, dz] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]]) bx(g, 0.04, 0.44, 0.04, 0x6b4f35, dx, 0.22, dz);
+  g.position.set(x, 0, z);
+  g.rotation.y = rot;
+  return g;
+}
+
 // ---- 공룡 방
 // 나무 울타리 — 기둥을 0.9 마다, 가로대 둘
 function fence([x0, z0, x1, z1]: Item['box']): THREE.Group {
@@ -425,7 +595,7 @@ export function buildItem(it: Item): THREE.Group {
     case 'core': return coreRack(x, z, len);
     case 'bench': return bench(x, z, len);
     case 'shelf': return shelf(x, z);
-    case 'plant': return plant(x, z, it.h ?? 1.3);
+    case 'plant': return plant(x, z, it.h ?? 1.3, (it.prop as Tree | undefined) ?? 'pine');
     case 'cabinet': return cabinet(x, z);
     case 'boxes': return boxes(x, z, Number(it.id.slice(5)));
     case 'deadplant': return deadPlant(x, z);
@@ -433,6 +603,13 @@ export function buildItem(it: Item): THREE.Group {
     case 'prop': return PROPS[it.prop as keyof typeof PROPS].build(x, z, it.rot ?? 0);
     case 'mapboard': return mapBoard(x, z, Number(it.id.slice(3)));
     case 'door': return doorway(x, z, it.h ?? 1.4, it.rot ?? 0);
+    case 'glasswall': return glassWall(it.box);
+    case 'bossdesk': return bossDesk(x, z);
+    case 'bosschair': return bossChair(x, z);
+    case 'labtable': return labTable(x, z, it.box[2] - it.box[0], it.box[3] - it.box[1]);
+    case 'railing': return railing(it.box);
+    case 'parasol': return parasol(x, z, Number(it.id.slice(7)));
+    case 'deckchair': return deckChair(x, z, it.rot ?? 0);
     case 'fence': return fence(it.box);
     case 'feeder': return feeder(x, z);
     case 'fern': return fern(x, z, Number(it.id.slice(4)));
@@ -456,12 +633,16 @@ export function buildFloor(type: ModuleType): THREE.Group {
   const g = new THREE.Group();
   const def = MODULES[type];
   const pts: number[] = [];
-  for (const f of def.floors) {
+  def.floors.forEach((f, i) => {
     const [x0, z0, x1, z1] = f.rect;
-    bx(g, x1 - x0, 0.5, z1 - z0, f.color, (x0 + x1) / 2, -0.25, (z0 + z1) / 2, false);
+    // 첫 바닥만 두꺼운 판. 그 위에 겹치는 바닥(잔디·돌바닥)은 얇게 조금씩 위로 — 같은 높이에 겹치면 윗면이 서로 다투어
+    // 타일이 깨진 것처럼 얼룩졌다 (사용자: 「수족관이랑 공룡방 바닥 타일이 깨져 보여」)
+    if (i === 0) bx(g, x1 - x0, 0.5, z1 - z0, f.color, (x0 + x1) / 2, -0.25, (z0 + z1) / 2, false);
+    else bx(g, x1 - x0, 0.01, z1 - z0, f.color, (x0 + x1) / 2, 0.008 + i * 0.004, (z0 + z1) / 2, false);
+    if (i > 0) return;   // 격자는 첫 바닥에만 (겹친 바닥 위로 비치지 않게)
     for (let x = Math.ceil(x0); x <= x1; x++) pts.push(x, 0.005, z0, x, 0.005, z1);
     for (let z = Math.ceil(z0); z <= z1; z++) pts.push(x0, 0.005, z, x1, 0.005, z);
-  }
+  });
   if (pts.length) {
     g.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
       new THREE.LineBasicMaterial({ color: 0xb4b2a9, transparent: true, opacity: 0.45 })));

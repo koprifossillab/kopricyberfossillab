@@ -74,7 +74,9 @@ export class Cast {
       if (a.path.length) {
         const [px, pz] = a.path[0];
         const dx = px - a.x, dz = pz - a.z, d = Math.hypot(dx, dz), sp = SPEED * dt;
-        if (d <= sp) { a.x = px; a.z = pz; a.path.shift(); }
+        // 꺾이는 점에 닿은 프레임도 아직 갈 길이 남았으면 걷는 중이다 — 이 한 프레임을 멈춤으로 치면 이름표가 숨었다 나오고
+        // 책상으로 가는 사람은 앉은 그림으로 바뀌어 깜빡였다 (사용자: 「돌아다닐 때 계속 이름표가 깜빡거린다」)
+        if (d <= sp) { a.x = px; a.z = pz; a.path.shift(); a.moving = a.path.length > 0; }
         else { a.x += (dx / d) * sp; a.z += (dz / d) * sp; a.moving = true; a.rot = Math.atan2(dx, dz); }
         if (!a.path.length && a.leaving) this.actors.delete(id);
       } else {

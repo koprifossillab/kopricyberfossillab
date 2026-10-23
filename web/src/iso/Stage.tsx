@@ -354,6 +354,18 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const id = `room:${r.name}:${r.at.join(',')}`;
           live.add(id);
           label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), esc(r.name), [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)`);
+          // 가로 길이를 문틀 폭에 — 화면에서 그 폭이 차지하는 가로 픽셀만큼, 글자는 그 안에 들어가게
+          if (r.span) {
+            const el = labelEls.get(id)!;
+            const [u0] = proj([0, 0, 0]);
+            const [u1] = proj(r.axis === 'x' ? [r.span, 0, 0] : [0, 0, r.span]);
+            const px = Math.abs(u1 - u0) * k / dpr;
+            const ems = [...r.name].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 1 : 0.62), 0) + 0.8;
+            const fs = Math.max(6, Math.min(15, (px - 6) / ems));
+            const wpx = `${Math.round(px)}px`, fpx = `${fs.toFixed(1)}px`;
+            if (el.style.width !== wpx) el.style.width = wpx;
+            if (el.style.fontSize !== fpx) el.style.fontSize = fpx;
+          }
         }
         for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
 

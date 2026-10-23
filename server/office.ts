@@ -127,6 +127,7 @@ export class Office {
         project: path.basename(r.cwd) || r.cwd,
         ...st,
         room: roomOf(r.cwd, t),
+        ...(t?.boss() || /^(pan|판)\b/i.test(r.name ?? '') || r.tmux?.startsWith('pan:') ? { role: 'boss' as const } : {}),
         tmux: r.tmux?.split(':')[0],
         startedAt: r.startedAt,
         changedAt: now,

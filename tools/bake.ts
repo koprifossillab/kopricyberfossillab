@@ -18,6 +18,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 try {
   const page = await browser.newPage();
   page.on('pageerror', (e) => console.error('pageerror', e.message));
+  page.on('console', (m) => { if (m.type() === 'warning' && /빈 그림/.test(m.text())) console.warn(m.text()); });
   await page.goto(url);
   await page.waitForFunction(() => (window as any).__ready === true, null, { timeout: 60_000 });
   const t0 = Date.now();

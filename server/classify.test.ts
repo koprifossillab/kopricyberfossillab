@@ -83,3 +83,14 @@ test('프로젝트는 ~/projects 아래 첫 폴더, worktree 꼬리는 뗀다', 
   assert.equal(projectOf(h), null);
   assert.equal(projectOf('/srv/Cropobite'), null);
 });
+
+test('다른 세션에 일을 둘 이상 보내면 부장', () => {
+  const t = new Transcript('/없음');
+  const call = (name: string, i: number) => t.feed(line({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `u${i}`, name, input: {} }] } }));
+  call('Bash', 0); call('SendMessage', 1);
+  assert.equal(t.boss(), false);
+  call('SendMessage', 2);
+  assert.equal(t.boss(), true);
+  for (let i = 0; i < 40; i++) call('Read', 10 + i);
+  assert.equal(t.boss(), false);                       // 창은 최근 40 개
+});

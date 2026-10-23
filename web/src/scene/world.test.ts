@@ -100,3 +100,12 @@ test('사람 이름 — 늘 같고, 생김새 성별대로, 유명인 이름은 
   // 걸리는 이름이 실제로 걸러지는지 — 목록의 이름을 만드는 id 를 찾아 그 id 로 다시 지으면 다른 이름이 나와야 한다
   assert.ok(FAMOUS_NAMES.has('김수현'));
 });
+
+test('모듈 안의 가구 id 는 겹치지 않는다 (겹치면 그림 조각·앉는 자리가 엇갈린다)', async () => {
+  const { MODULES } = await import('./modules.ts');
+  for (const [type, def] of Object.entries(MODULES)) {
+    const ids = def.items.map((it) => it.id);
+    const dup = ids.filter((id, i) => ids.indexOf(id) !== i);
+    assert.deepEqual(dup, [], type);
+  }
+});

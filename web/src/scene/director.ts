@@ -28,6 +28,7 @@ function trip(id: string, now: number, window: number, odds: number, stay: [numb
 }
 const FEED_WINDOW = 120, FEED_ODDS = 6;   // 2분 창마다 6분의 1, 25~40초 — 공룡 먹이 주기
 const AQUA_WINDOW = 150, AQUA_ODDS = 5;   // 2분 반 창마다 5분의 1, 30~50초 — 수족관 구경
+const BREEZE_WINDOW = 100, BREEZE_ODDS = 6;   // 100초 창마다 6분의 1, 20~40초 — 테라스 난간에서 바람 쐬기
 function restroomTrip(id: string, now: number): boolean {
   const slot = Math.floor(now / 1000 / TRIP_WINDOW);
   let h = slot;
@@ -80,10 +81,14 @@ function assignDesks(w: World, agents: Agent[]): void {
   for (const a of agents) {
     if (a.kind !== 'session' && a.kind !== 'job' && a.kind !== 'terminal' && a.kind !== 'desk') continue;
     if (a.kind === 'terminal' && a.activity === 'idle') { deskOf.delete(a.id); continue; }   // tmux 는 명령이 돌 때만 책상에
+    // 부장은 그 프로젝트의 부장실, 없으면 본부장실, 그것도 차면 제 방
+    const want = a.role === 'boss'
+      ? [`boss:${a.room}`, 'boss:hq', a.room].find((r) => w.desks.some((d, i) => d.room === r && (!taken.has(i) || deskOf.get(a.id) === i))) ?? a.room
+      : a.room;
     const has = deskOf.get(a.id);
-    if (has !== undefined && room(has) === a.room) continue;
+    if (has !== undefined && room(has) === want) continue;
     // 방이 바뀌었으면 그 방에 빈 책상이 있을 때만 옮긴다 (없으면 있던 책상에 그대로)
-    const free = w.desks.findIndex((_, i) => !taken.has(i) && room(i) === a.room);
+    const free = w.desks.findIndex((_, i) => !taken.has(i) && room(i) === want);
     if (free < 0) {
       if (has === undefined) {
         // 그 방이 꽉 찼거나 없으면 공용실 → 고객센터 차례로 (tmux 는 공용실에만)
@@ -138,7 +143,8 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
   assignSeats(w, agents);
 
   const out = new Map<string, Placement>();
-  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0, feed: 0, aqua: 0 };
+  const testTaken = new Set<number>();
+  const queue = { core: 0, bench: 0, board: 0, extra: 0, search: 0, male: 0, female: 0, feed: 0, aqua: 0, breeze: 0 };
   const CORE_SPOTS = w.core, BENCH_SPOTS = w.bench, BOARD_SPOTS = w.stand;
   const children = new Map<string, number>();
   const spot = (list: [number, number][], key: keyof typeof queue): [number, number] => {
@@ -185,6 +191,11 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
         out.set(a.id, { target: v.at, pose: v.pose, face: v.face, desk: null, on: v.on, lift: v.lift, group: 'aqua' });
         continue;
       }
+      if (queue.breeze < w.breeze.length && trip(a.id, now, BREEZE_WINDOW, BREEZE_ODDS, [20, 40], 404)) {
+        const b = w.breeze[queue.breeze++];
+        out.set(a.id, { target: b.at, pose: 'stand', face: b.face, desk: null, group: 'breeze' });
+        continue;
+      }
       out.set(a.id, lounge(a));
       continue;
     }
@@ -203,9 +214,19 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
       case 'git':
         out.set(a.id, { target: spot(CORE_SPOTS, 'core'), pose: 'stand', face: -Math.PI / 2, desk: null });
         break;
-      case 'test':
-        out.set(a.id, { target: spot(BENCH_SPOTS, 'bench'), pose: 'stand', face: Math.PI / 2, desk: null });
+      case 'test': {
+        // 시험 자리를 옮겨 다닌다 — 사람마다 10초 남짓(9~13초)마다 다음 자리, 남이 선 자리는 건너뛴다
+        const n = BENCH_SPOTS.length;
+        const period = 9 + (seatHash(a.id, 5) % 5);
+        let i = (seatHash(a.id, 6) + Math.floor(now / 1000 / period)) % n;
+        for (let k = 0; k < n && testTaken.has(i); k++) i = (i + 1) % n;
+        testTaken.add(i);
+        const [tx, tz] = BENCH_SPOTS[i];
+        // 현미경 앞이면 칸막이 쪽(+x), 테이블 뒤쪽 줄은 +z, 앞쪽 줄은 −z 를 본다 (모듈 안 좌표가 아니라 세계 좌표라 줄은 테이블 z 로 가른다)
+        const tableZ = (BENCH_SPOTS[3][1] + BENCH_SPOTS[6][1]) / 2;
+        out.set(a.id, { target: [tx, tz], pose: 'stand', face: i < 3 ? Math.PI / 2 : (tz < tableZ ? 0 : Math.PI), desk: null });
         break;
+      }
       case 'wait':
         out.set(a.id, desk !== null
           ? { target: waitSpotOf(w.desks[desk].at), pose: 'stand', face: Math.PI * 0.75, desk: null }

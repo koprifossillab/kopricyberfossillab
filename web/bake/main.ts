@@ -65,6 +65,7 @@ function shoot(obj: THREE.Object3D, anchor: THREE.Vector3, bounds: THREE.Object3
   }
   u0 = Math.floor(u0) - PAD; v0 = Math.floor(v0) - PAD; u1 = Math.ceil(u1) + PAD; v1 = Math.ceil(v1) + PAD;
   const w = u1 - u0, h = v1 - v0;
+  if (!(w > 0 && h > 0) || !Number.isFinite(w + h)) { console.warn('빈 그림', obj.name || obj.type, box.min.toArray(), box.max.toArray()); scene.remove(obj); dispose(obj); return null; }
   renderer.setSize(w, h, false);
   cam.position.copy(anchor).add(VIEW);
   cam.lookAt(anchor);
@@ -131,7 +132,8 @@ async function bake() {
     if (so) { const name = `m-${type}-objects.webp`; files[name] = so.canvas.toDataURL('image/webp', 0.92); ms.objects = single(so, name); }
     // 가구 조각 — 캐릭터 앞에 다시 그릴 것
     for (const it of def.items) {
-      const s = shoot(buildItem(it), origin);
+      const g0 = buildItem(it); g0.name = `${type}:${it.id}:${it.kind}`;
+      const s = shoot(g0, origin);
       if (s) items.set(`${type}:${it.id}`, s);
     }
     modules[type] = ms;

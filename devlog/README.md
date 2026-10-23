@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261023_wetherilli_015](20261023_wetherilli_015_terrace_boss_lab.md) | 테라스, 부장실·본부장실, 실험실, 나무, 명판 폭, 이름표 깜빡임, 아이콘·메신저·부서 상자 합치기 |
 | [20261023_wetherilli_014](20261023_wetherilli_014_messenger_chat.md) | 상담원 대화창을 메신저처럼 — 머리·말풍선·날짜 줄·입력 중 점·알약 입력 |
 | [20261023_wetherilli_013](20261023_wetherilli_013_icon.md) | 아이콘 — 등각 연구실 한 칸 + 빛나는 삼엽충·회로선, logokit icon_set, web/public/icons/ |
 | [20261023_wetherilli_012](20261023_wetherilli_012_desk_theme_names.md) | 상담원 대화창(도구 없음·본인만), 남색 테마, 문틀, 설정·판 이력, 사람 이름(유명인 피함), 실험대, 수족관 붙이기 |

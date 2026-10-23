@@ -57,6 +57,7 @@ export const AQUA_DIALOGS: string[][] = [
   ['먹이는 누가 줘요?', '아침에 누가 주더라고요', '공룡 먹이랑 헷갈리면 안 되는데 ㅋㅋ'],
   ['남극 바다에도 이런 애들 있어요?', '훨씬 칙칙하대요', '그래도 보고 싶다'],
 ];
+export const BREEZE: string[] = ['바람 좋다', '하아~', '하늘 맑네', '잠깐 머리 식히자', '밖이 낫다', '햇빛 좋다', '기지개 한 번', '오늘 노을 예쁘겠다'];
 export const COFFEE: string[] = ['☕', '커피 향 좋다', '샷 추가할까', '아 뜨거', '디카페인은 없나', '한 잔 더?', '설탕 어디 있지'];
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -91,7 +92,7 @@ export class Chatter {
     if (t.solo) {
       // 혼자면 드문드문
       const feeding = group.startsWith('feed');
-      t.text = feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
+      t.text = feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'breeze' ? pick(BREEZE) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
       t.who = members[0];
       t.until = now + lineTime(t.text);
       t.next = t.until + (feeding ? rand(3, 8) : rand(12, 35));

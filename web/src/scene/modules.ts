@@ -10,6 +10,9 @@ export type ItemKind =
   | 'cabinet' | 'boxes' | 'deadplant' | 'doorframe'
   | 'stall' | 'sink' | 'sign-m' | 'sign-f' | 'rack' | 'bucket' | 'ladder'
   | 'mapboard' | 'maptable'
+  | 'railing' | 'glasswall' | 'parasol' | 'deckchair'   // 테라스
+  | 'labtable'   // 실험 테이블
+  | 'bossdesk' | 'bosschair'   // 부장실 — 임원 책상과 가죽 의자
   | 'door'   // 출입구 문틀 — 기둥 둘과 가로대. 명판은 가로대에 건다 (h = 출입구 폭, rot 0 이면 x 로 뻗는다)
   | 'fence' | 'feeder' | 'fern' | 'rock' | 'nest' | 'dinosign'
   | AquaKind   // 수족관 (aquarium.ts, wetherilli 011)
@@ -17,10 +20,11 @@ export type ItemKind =
 
 export interface Item { id: string; kind: ItemKind; at: [number, number]; box: Rect; h?: number; rot?: number; prop?: string }
 
-export type DeskKind = 'desk' | 'call' | 'rashdesk';
-export type Slot = 'project' | 'center' | 'general';   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
+export type DeskKind = 'desk' | 'call' | 'rashdesk' | 'bossdesk';
+export type Slot = 'project' | 'center' | 'general' | 'boss';   // boss: 부장실(프로젝트 붙은 것은 그 프로젝트, 아니면 본부장실)   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
 
-export interface Plaque { name: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' }
+// span — 명판 가로 길이(세계 단위). 문틀 폭에 맞춘다 (사용자: 「이름판이 문틀보다 커서 이상하다」)
+export interface Plaque { name: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss'; span?: number }
 
 export interface Seat { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; group: string; lift: number }
 
@@ -37,6 +41,7 @@ export interface ModuleDef {
   restroom?: { male: [number, number][]; female: [number, number][] };   // 휴게실에서 가끔 들르는 곳
   search?: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];   // 자료 검색할 때 가는 곳
   aqua?: { view: typeof AQUA_VIEW; tanks: typeof TANKS };   // 수족관 관람 자리와 수조(물고기가 다니는 곳)
+  breeze?: { at: [number, number]; face: number }[];   // 테라스 난간 — 바람 쐬러 서는 곳
   pen?: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] };   // 공룡 울타리
   // 방 이름 명판 — 벽에 붙인다. at 은 벽 위의 바닥 자리, y 는 높이, axis 는 벽이 뻗은 방향(x: +z 를 보는 벽, z: +x 를 보는 벽)
   labels?: Plaque[];
@@ -47,10 +52,10 @@ export interface ModuleDef {
 const T = 0.12;                    // 칸막이 두께
 // 책상 앞 의자 — 따로 그린다(앉은 사람의 등을 의자 등받이가 가린다). 앉는 자리는 의자 위
 export const CHAIR_DZ = 0.85;
-export const SEAT_LIFT: Record<DeskKind, number> = { desk: 0.29, call: 0.29, rashdesk: 0.26 };   // 의자 방석 높이에 맞춘다
+export const SEAT_LIFT: Record<DeskKind, number> = { desk: 0.29, call: 0.29, rashdesk: 0.26, bossdesk: 0.33 };   // 의자 방석 높이에 맞춘다
 const deskItems = (list: [number, number][], prefix: string, kind: DeskKind): Item[] => list.flatMap(([x, z], i) => [
   { id: `${prefix}${i}`, kind, at: [x, z] as [number, number], box: [x - 1.05, z - 0.5, x + 1.05, z + 0.5] as Rect },
-  { id: `${prefix}chair${i}`, kind: kind === 'rashdesk' ? 'rashchair' as const : 'chair' as const, at: [x, z + CHAIR_DZ] as [number, number],
+  { id: `${prefix}chair${i}`, kind: kind === 'rashdesk' ? 'rashchair' as const : kind === 'bossdesk' ? 'bosschair' as const : 'chair' as const, at: [x, z + CHAIR_DZ] as [number, number],
     box: [x - 0.32, z + CHAIR_DZ - 0.32, x + 0.32, z + CHAIR_DZ + 0.35] as Rect },
 ]);
 export const OFFICE_W = 7;
@@ -117,7 +122,11 @@ function office(rash: boolean, size: 's' | 'm' | 'l' = 'm', theme?: 'gsm'): Modu
     );
     blocks.push(box(6.45, 0.45, 0.4, 0.4), box(0.85, 6.4, 0.75, 0.4), box(6.4, 6.35, 0.3, 0.3));
   } else {
-    items.push({ id: 'plant', kind: 'plant', at: [R - 0.55, 0.5], box: box(R - 0.55, 0.5, 0.3, 0.3), h: 1.4 });
+    // 나무는 사무실마다 다르게 (사용자: 「나무 종류 다양하게」) — 큰 사무실은 야자, GSM 은 원뿔 나무, 보통은 고무나무. 앞 구석에 하나 더
+    const tree = theme === 'gsm' ? 'pine' : size === 'l' ? 'palm' : 'ficus';
+    items.push({ id: 'plant', kind: 'plant', prop: tree, at: [R - 0.55, 0.5], box: box(R - 0.55, 0.5, 0.3, 0.3), h: 1.4 });
+    items.push({ id: 'plant2', kind: 'plant', prop: size === 'l' ? 'monstera' : 'bamboo', at: [0.45, 4.6], box: box(0.45, 4.6, 0.3, 0.3), h: 1.3 });
+    blocks.push(box(0.45, 4.6, 0.35, 0.35));
     blocks.push(box(R - 0.55, 0.5, 0.35, 0.35));
     addProps(items, blocks, [
       prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
@@ -158,7 +167,7 @@ function front(): ModuleDef {
     [8 - T / 2, T / 2, 8 + T / 2, D], [17 - T / 2, T / 2, 17 + T / 2, D],                                       // 방 사이
   ];
   // 공용실: 일반 책상 둘, 코어 보관대(왼쪽 벽), 현미경 책상
-  const gen: [number, number][] = [[4.0, 1.6], [4.0, 4.6]];
+  const gen: [number, number][] = [[2.0, 1.4], [4.6, 1.4]];   // 위쪽 한 줄 — 가운데를 실험 테이블에 내준다
   // 고객센터: 상담 책상 넷
   const call: [number, number][] = [[10.3, 1.6], [14.6, 1.6], [10.3, 4.6], [14.6, 4.6]];
   // 휴게실: 소파 둘이 낮은 탁자를 사이에 두고 마주 보고, 카페 탁자 넷(의자 넷씩), 커피 머신
@@ -169,8 +178,9 @@ function front(): ModuleDef {
   const stools = cafe.flatMap(([x, z], t) => stoolOff.map(([dx, dz], k) => ({ at: [x + dx, z + dz] as [number, number], t, k })));
   const coffee: [number, number] = [30.3, 0.6];
   const core = { x: 0.45, z: 5.8, len: 3.2 };
-  const bench = { x: 7.35, z: 3.8, len: 5.6 };   // 시험 — 오른쪽 칸막이를 따라 길게 (시험 중인 세션이 몰려서 넓혔다)
-  const plants: [number, number, number][] = [[17.6, 7.4, 1.0], [30.5, 7.4, 1.1], [0.6, 7.5, 1.2]];
+  const bench = { x: 7.35, z: 4.6, len: 3.0 };   // 현미경 실험대 — 오른쪽 칸막이를 따라
+  const lab = { x: 4.0, z: 5.1, w: 2.6, d: 1.0 };   // 실험 테이블 — 시험관·플라스크·비커 (사용자: 「현미경 앞에서만 하니 밋밋하다」)
+  const plants: [number, number, number, string][] = [[17.6, 7.4, 1.0, 'topiary'], [30.5, 7.4, 1.1, 'monstera'], [0.6, 7.5, 1.2, 'palm']];
 
   const items: Item[] = [
     ...deskItems(gen, 'gen', 'desk'),
@@ -178,19 +188,21 @@ function front(): ModuleDef {
     ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
     door('door0', 6.3, 0, 1.4, 'x'), door('door1', 12.45, 0, 1.3, 'x'), door('door2', 22.9, 0, 1.4, 'x'),
     { id: 'core', kind: 'core', at: [core.x, core.z], box: [0, core.z - core.len / 2, 0.85, core.z + core.len / 2] },
+    { id: 'lab', kind: 'labtable', at: [lab.x, lab.z], box: box(lab.x, lab.z, lab.w / 2, lab.d / 2), h: lab.w },
     { id: 'bench', kind: 'bench', at: [bench.x, bench.z], box: [bench.x - 0.4, bench.z - bench.len / 2, bench.x + 0.4, bench.z + bench.len / 2] },
     ...sofas.map(({ at, rot }, i) => ({ id: `sofa${i}`, kind: 'sofa' as const, at, rot, box: box(at[0], at[1], 1, 0.45) })),
     { id: 'table0', kind: 'table', at: low, box: box(low[0], low[1], 0.8, 0.35) },
     ...cafe.map(([x, z], i) => ({ id: `cafe${i}`, kind: 'cafe' as const, at: [x, z] as [number, number], box: box(x, z, 0.5, 0.5) })),
     ...stools.map(({ at, t, k }) => ({ id: `stool${t}_${k}`, kind: 'stool' as const, at, box: box(at[0], at[1], 0.2, 0.2) })),
     { id: 'coffee', kind: 'coffee', at: coffee, box: [coffee[0] - 0.45, coffee[1] - 0.3, coffee[0] + 0.45, coffee[1] + 0.45] },
-    ...plants.map(([x, z, h], i) => ({ id: `plant${i}`, kind: 'plant' as const, at: [x, z] as [number, number], box: box(x, z, 0.3, 0.3), h })),
+    ...plants.map(([x, z, h, v], i) => ({ id: `plant${i}`, kind: 'plant' as const, prop: v, at: [x, z] as [number, number], box: box(x, z, 0.3, 0.3), h })),
   ];
   const blocks: Rect[] = [
     ...walls.map((r) => pad(r)),
     ...[...gen, ...call].map(([x, z]) => box(x, z, 1.05, 0.5)),
     [0, core.z - core.len / 2, 0.9, core.z + core.len / 2],
     box(bench.x, bench.z, 0.45, bench.len / 2),
+    box(lab.x, lab.z, lab.w / 2 + 0.05, lab.d / 2 + 0.05),
     ...sofas.map(({ at }) => box(at[0], at[1], 1, 0.45)),
     box(low[0], low[1], 0.85, 0.4),
     ...cafe.map(([x, z]) => box(x, z, 0.5, 0.5)),
@@ -240,12 +252,17 @@ function front(): ModuleDef {
       { at: [30.4, 5.2], pose: 'stand', face: -Math.PI / 2, group: 'cafe3', lift: 0 },
     ],
     core: [[1.5, 4.8], [1.5, 5.8], [1.5, 6.8]],
-    bench: [1.3, 2.3, 3.3, 4.3, 5.3, 6.3].map((z) => [6.6, z] as [number, number]),
-    stand: [[3.6, 7.0], [4.4, 7.0], [5.2, 7.0], [3.6, 6.4]],
+    // 시험 자리 — 현미경 앞 셋과 실험 테이블 둘레 여섯. 시험 중인 사람은 10초쯤마다 옮겨 다닌다(director)
+    bench: [
+      ...[3.6, 4.6, 5.6].map((z) => [6.6, z] as [number, number]),
+      ...[2.9, 4.0, 5.1].map((x) => [x, lab.z - 0.95] as [number, number]),
+      ...[2.9, 4.0, 5.1].map((x) => [x, lab.z + 0.95] as [number, number]),
+    ],
+    stand: [[3.6, 7.2], [4.4, 7.2], [5.2, 7.2], [2.8, 7.2]],
     // 복도 쪽 칸막이의 문 위에
     // 문틀 가로대에 (휴게실은 이름 없이 — 사용자)
     labels: [
-      { name: '공용실', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x' }, { name: '고객센터', at: [12.45, 0], y: DOOR_TOP + 0.12, axis: 'x' },
+      { name: '공용실', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4 }, { name: '고객센터', at: [12.45, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.3 },
     ],
     flats: ['rug'],
     tall: ['leftwall'],
@@ -282,7 +299,7 @@ function library(): ModuleDef {
       { at: [2.8, 5.6], pose: 'stand', face: Math.PI / 2 },
       { at: [1.4, 5.6], pose: 'stand', face: Math.PI / 2 },
     ],
-    labels: [{ name: '자료실', at: [0, 5.0], y: DOOR_TOP + 0.12, axis: 'z' }],   // 통로 쪽 문틀
+    labels: [{ name: '자료실', at: [0, 5.0], y: DOOR_TOP + 0.12, axis: 'z', span: 1.2 }],   // 통로 쪽 문틀
   };
 }
 
@@ -416,10 +433,126 @@ function garden(): ModuleDef {
   return { size: [7, 6], floors: [{ rect: [0, 0, 7, 6], color: 0xd2d6c4 }], items, blocks, desks: [] };
 }
 
+// ---- 부장실 (3.5×7) — 큰 프로젝트 사무실 옆에 붙는 작은 방, 임원 책상 하나 (사용자: 「판 세션·대화 세션 같은 애들은 부장 격…
+// 위계상 수합 같은 일을 처리하는 세션은 별도의 사무실… GSM 정도 규모면」). 본부장실(7×7)은 프로젝트 없는 부장들의 방 — 첫 줄 맨 앞
+export const BOSS_W = 3.5;
+function bossRoom(hq: boolean): ModuleDef {
+  const W = hq ? 7 : BOSS_W, D = OFFICE_D;
+  const deskAt: [number, number][] = hq ? [[1.9, 1.5], [5.1, 1.5]] : [[1.75, 1.5]];
+  const door_: [number, number] = [W / 2 - 0.7, W / 2 + 0.7];
+  const walls: Rect[] = [
+    [0, D - T / 2, door_[0], D + T / 2], [door_[1], D - T / 2, W, D + T / 2],
+    [W - T / 2, 0, W + T / 2, D - T / 2],
+  ];
+  const items: Item[] = [
+    ...deskItems(deskAt, 'boss', 'bossdesk'),
+    ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
+    door('door', W / 2, D, door_[1] - door_[0], 'x'),
+    { id: 'plant', kind: 'plant', prop: hq ? 'palm' : 'ficus', at: [W - 0.5, 0.5], box: box(W - 0.5, 0.5, 0.3, 0.3), h: 1.5 },
+  ];
+  const blocks: Rect[] = [...deskAt.map(([x, z]) => box(x, z, 1.15, 0.55)), ...walls.map((r) => pad(r)), box(W - 0.5, 0.5, 0.35, 0.35)];
+  // 손님 의자 (책상 맞은편, 앉지는 않는다)
+  if (hq) {
+    items.push({ id: 'cafe0', kind: 'cafe', at: [3.5, 4.9], box: box(3.5, 4.9, 0.5, 0.5) });
+    blocks.push(box(3.5, 4.9, 0.5, 0.5));
+    [[-0.85, 0], [0.85, 0], [0, -0.85], [0, 0.85]].forEach(([dx, dz], k) => {
+      const at: [number, number] = [3.5 + dx, 4.9 + dz];
+      items.push({ id: `chair${k}`, kind: 'deckchair', at, rot: faceTo(at, [3.5, 4.9]), box: box(at[0], at[1], 0.22, 0.22) });
+      blocks.push(box(at[0], at[1], 0.22, 0.22));
+    });
+    addProps(items, blocks, [
+      prop('shelf0', 'bookshelf', 3.5, 0.3), prop('globe', 'globe', 0.45, 4.0), prop('easel', 'whiteboard_easel', 0.8, 6.2),
+      prop('fossil', 'fossil_cabinet', 5.9, 6.4),
+    ]);
+  } else {
+    addProps(items, blocks, [prop('shelf0', 'bookshelf', 1.75, 0.25), prop('coat', 'coat_rack', 0.35, 4.6), prop('lamp', 'floor_lamp', W - 0.4, 4.6)]);
+    [[1.3, 3.0], [2.2, 3.0]].forEach(([x, z], k) => {
+      items.push({ id: `guest${k}`, kind: 'deckchair', at: [x, z + 1.6], rot: Math.PI, box: box(x, z + 1.6, 0.22, 0.22) });
+      blocks.push(box(x, z + 1.6, 0.25, 0.25));
+    });
+  }
+  return {
+    size: [W, D],
+    floors: [{ rect: [0, 0, W, D], color: hq ? 0x8c6f56 : 0xa0846a }],   // 짙은 마루
+    items, blocks,
+    desks: deskAt.map((at, i) => ({ at, kind: 'bossdesk' as const, slot: 'boss' as const, item: `boss${i}` })),
+    stand: [[W / 2, 6.2]],
+  };
+}
+
+// ---- 테라스 (31×7) — 앞 블록 앞의 야외. 사람들이 바람 쐬러 나오는 곳 (사용자: 「수족관이랑 공룡 방은 사무실 테라스에… 야외에」)
+// 수족관(wetherilli 011)·공룡 울타리(010)를 벽 없이 옮겨 오고, 나무 데크·파라솔 탁자·화분, 바깥 세 면에 유리 난간,
+// 건물 쪽은 낮은 유리창에 문 둘(공용실·휴게실). 쉬는 사람은 난간에 기대 밖을 보거나(breeze) 파라솔에 앉는다
+export const TERRACE_W = 31, TERRACE_D = 7;
+const AQUA_X = 7.5, PEN_X = 17;
+function terrace(): ModuleDef {
+  const W = TERRACE_W, D = TERRACE_D;
+  const items: Item[] = [], blocks: Rect[] = [];
+  const shift = (it: Item, dx: number, dz: number, id: string): Item =>
+    ({ ...it, id, at: [it.at[0] + dx, it.at[1] + dz], box: [it.box[0] + dx, it.box[1] + dz, it.box[2] + dx, it.box[3] + dz] });
+  const shiftR = (r: Rect, dx: number, dz: number): Rect => [r[0] + dx, r[1] + dz, r[2] + dx, r[3] + dz];
+  // 건물 쪽 유리창 (z=0) — 문: 공용실 앞 x 3.0..4.4, 휴게실 앞 x 18.0..19.4 · 28.6..30.0
+  const glass: Rect[] = [[0, -T / 2, 3.0, T / 2], [4.4, -T / 2, 18.0, T / 2], [19.4, -T / 2, 28.6, T / 2], [30.0, -T / 2, W, T / 2]];
+  glass.forEach((r, i) => { items.push({ id: `glass${i}`, kind: 'glasswall', at: [(r[0] + r[2]) / 2, 0], box: r }); blocks.push(pad(r)); });
+  items.push(door('door0', 3.7, 0, 1.4, 'x'), door('door1', 18.7, 0, 1.4, 'x'), door('door2', 29.3, 0, 1.4, 'x'));
+  // 바깥 난간 — 앞(z=D)·왼쪽(x=0)·오른쪽(x=W)
+  const rails: Rect[] = [[0, D - T / 2, W, D + T / 2], [-T / 2, T / 2, T / 2, D], [W - T / 2, T / 2, W + T / 2, D]];
+  rails.forEach((r, i) => { items.push({ id: `rail${i}`, kind: 'railing', at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], box: r }); blocks.push(pad(r)); });
+  // 수족관 — 벽·문틀은 빼고 수조·벤치·장식만
+  const aq = aquariumModule();
+  // id 는 그대로 둔다 — 그리는 쪽이 id 끝 숫자로 무늬를 고른다(tank0·fern1 …). 겹치는 것(sign·bench0)만 공룡 쪽에 pen 을 붙인다
+  for (const it of aq.items) if (it.kind !== 'partition' && it.kind !== 'door') items.push(shift(it, AQUA_X, 0.3, it.id));
+  for (const b of aq.blocks) blocks.push(shiftR(b, AQUA_X, 0.3));
+  // 공룡 울타리 — 방 벽·문은 빼고
+  const dn = dinoRoom();
+  const taken = new Set(items.map((it) => it.id));
+  for (const it of dn.items) if (it.kind !== 'partition' && it.kind !== 'door') items.push(shift(it, PEN_X, 0.3, taken.has(it.id) ? `pen${it.id}` : it.id));
+  const penRect = shiftR(dn.pen!.rect, PEN_X, 0.3);
+  blocks.push([penRect[0] - 0.15, penRect[1] - 0.15, penRect[2] + 0.15, penRect[3] + 0.15], ...[[2.6, 0.45, 0.35, 0.15]].map(([x, z, hw, hd]) => box(x + PEN_X, z + 0.3, hw, hd)));
+  // 파라솔 탁자 둘 (의자 셋씩) — 공용실 앞 데크
+  const parasols: [number, number][] = [[2.0, 3.6], [5.0, 5.2]];
+  const terraceSeats: Seat[] = [];
+  parasols.forEach(([x, z], t) => {
+    items.push({ id: `parasol${t}`, kind: 'parasol', at: [x, z], box: box(x, z, 0.45, 0.45) });
+    blocks.push(box(x, z, 0.5, 0.5));
+    [[-0.85, 0], [0.85, 0], [0, 0.85]].forEach(([dx, dz], k) => {
+      const at: [number, number] = [x + dx, z + dz];
+      items.push({ id: `chair${t}_${k}`, kind: 'deckchair', at, rot: faceTo(at, [x, z]), box: box(at[0], at[1], 0.22, 0.22) });
+      terraceSeats.push({ at, pose: 'sit', face: faceTo(at, [x, z]), on: `chair${t}_${k}`, group: `parasol${t}`, lift: 0.22 });
+    });
+  });
+  addProps(items, blocks, [
+    prop('tall0', 'plant_tall', 0.55, 6.4), prop('bush0', 'plant_bush', 6.6, 6.4), prop('bush1', 'plant_bush', 16.4, 6.4),
+    prop('tall1', 'plant_tall', 30.4, 6.4), prop('succ0', 'plant_succulent', 0.5, 0.55), prop('lamp0', 'floor_lamp', 6.6, 0.5),
+  ]);
+  return {
+    size: [W, D],
+    floors: [
+      { rect: [0, 0, W, D], color: 0xb48d63 },                                  // 나무 데크
+      { rect: [AQUA_X - 0.2, 0.15, AQUA_X + 9.5, D - 0.15], color: 0xc9d3d6 },  // 수족관 돌바닥
+      { rect: penRect, color: 0x9cbf6e },                                        // 잔디 (울타리 안)
+    ],
+    items, blocks, desks: [],
+    lounge: terraceSeats,
+    aqua: {
+      view: AQUA_VIEW.map((v) => ({ ...v, at: [v.at[0] + AQUA_X, v.at[1] + 0.3] as [number, number], on: v.on })),
+      tanks: TANKS.map((t) => ({ ...t, box: shiftR(t.box, AQUA_X, 0.3) })),
+    },
+    pen: {
+      rect: penRect, feeder: [dn.pen!.feeder[0] + PEN_X, dn.pen!.feeder[1] + 0.3],
+      feed: dn.pen!.feed.map((f) => ({ at: [f.at[0] + PEN_X, f.at[1] + 0.3] as [number, number], face: f.face, dino: [f.dino[0] + PEN_X, f.dino[1] + 0.3] as [number, number] })),
+    },
+    breeze: [[1.2, 6.55], [3.4, 6.55], [5.6, 6.55], [15.2, 6.55], [0.55, 2.5], [30.45, 2.5]].map(([x, z], i) => ({
+      at: [x, z] as [number, number], face: i < 4 ? 0 : i === 4 ? -Math.PI / 2 : Math.PI / 2,
+    })),
+  };
+}
+
 export const MODULES = {
-  aquarium: aquarium(),
-  garden: garden(),
-  dino: dinoRoom(),
+  boss: bossRoom(false),
+  hq: bossRoom(true),
+  'backwall-boss': { size: [BOSS_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
+  terrace: terrace(),
   library: library(),
   'backwall-library': { size: [LIBRARY_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
   service: service(),

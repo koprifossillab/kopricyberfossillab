@@ -15,7 +15,7 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <h1>KOPRI Cyber Fossil Lab</h1>
+        <h1><img src="./icons/icon-96.png" alt="" width="28" height="28" />KOPRI Cyber Fossil Lab</h1>
         <span className="host">{snap?.host ?? 'paleo-server'} · v{__VERSION__}</span>
         <Limits limits={snap?.limits} />
         <button className="gear" onClick={() => setSettings(true)} aria-label="설정" title="설정 · 판 이력">⚙</button>

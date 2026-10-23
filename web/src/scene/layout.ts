@@ -6,7 +6,7 @@ export const PARTITION_H = 0.7;
 export const RASH_WALL_H = 1.0;
 
 // 모니터 화면 (책상 앞, +z 를 본다) — 화면이 활동 색으로 칠한다
-export const screenQuad = (x: number, z: number, kind: 'desk' | 'call' | 'rashdesk') => kind === 'rashdesk'
+export const screenQuad = (x: number, z: number, kind: 'desk' | 'call' | 'rashdesk' | 'bossdesk') => kind === 'rashdesk'
   ? { c: [x, 1.12, z + 0.16] as [number, number, number], w: 0.46, h: 0.36 }     // 배불뚝이 모니터
   : { c: [x, 1.35, z - 0.215] as [number, number, number], w: 0.7, h: 0.4 };
 export const PHOSPHOR = 0x8fd18f;   // rash 방 모니터는 활동과 상관없이 초록 형광

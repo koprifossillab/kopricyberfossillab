@@ -6,6 +6,7 @@ import type { Activity } from './model.ts';
 
 const TAIL_BYTES = 512 * 1024;
 export const ROLE_WINDOW = 8;   // 방을 정할 때 보는 최근 말의 수
+export const TOOL_WINDOW = 40;  // 부장을 가를 때 보는 최근 도구 호출의 수
 
 export interface ToolCall {
   name: string;
@@ -24,7 +25,8 @@ export class Transcript {
   lastLineAt = 0;                          // 마지막 줄의 시각
   ended = false;                           // 마지막 assistant 가 end_turn 으로 끝났고 열린 호출이 없다
   permissionMode = '';
-  origins: string[] = [];                  // 최근에 받은 말의 출처 (human·peer), 오래된 것부터 ROLE_WINDOW 개
+  origins: string[] = [];
+  tools: string[] = [];                    // 최근 도구 호출 이름 TOOL_WINDOW 개 — 부장(SendMessage 를 쓰는 세션)을 가른다                  // 최근에 받은 말의 출처 (human·peer), 오래된 것부터 ROLE_WINDOW 개
   title = '';
   mtime = 0;
 
@@ -79,6 +81,8 @@ export class Transcript {
         const call = { name: String(b.name), ...c, at };
         this.pending.set(String(b.id), call);
         this.last = call;
+        this.tools.push(call.name);
+        if (this.tools.length > TOOL_WINDOW) this.tools.shift();
       } else if (b?.type === 'text' || b?.type === 'thinking') {
         this.lastTextAt = at;
       }
@@ -104,6 +108,11 @@ export class Transcript {
   room(): 'office' | 'center' {
     const peer = this.origins.filter((o) => o === 'peer').length;
     return this.origins.length > 0 && peer * 2 >= this.origins.length ? 'center' : 'office';
+  }
+
+  // 부장 — 최근 도구 호출 가운데 다른 세션에 일을 보낸 것(SendMessage)이 둘 이상
+  boss(): boolean {
+    return this.tools.filter((n) => n === 'SendMessage').length >= 2;
   }
 
   // 가장 최근에 열린 호출
