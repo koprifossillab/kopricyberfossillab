@@ -1,13 +1,14 @@
 // 오른쪽 목록 — 에이전트(하위 에이전트는 부모 아래로)와 터미널
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Agent, Snapshot } from './types.ts';
 import { loadAtlas, headKey, bodyKey } from './iso/atlas.ts';
 import { appearanceOf } from './scene/appearance.ts';
 import { personName, subtitle } from './scene/names.ts';
-import { STATE_TEXT } from './scene/layout.ts';
+import { STATE_TEXT, PALETTE, FOREIGN_COLOR } from './scene/layout.ts';
 import { colorOf } from './scene/director.ts';
 import type { Link } from './useOffice.ts';
 import { Desk } from './Desk.tsx';
+import './agentlist.css';
 
 const KIND: Record<Agent['kind'], string> = { session: '터미널', job: '백그라운드', subagent: '하위', foreign: '다른 계정', terminal: 'tmux', desk: '상담원' };
 const WORK = new Set(['code', 'read', 'search', 'run', 'think', 'spawn', 'git', 'test']);
@@ -75,24 +76,82 @@ function clock(ms: number): string {
 }
 
 // 왼쪽 칸 — 에이전트 목록 (하위 에이전트는 부모 아래로)
+// 부서 상자 — 묶는 열쇠: 프로젝트 이름(그 부서), center(고객센터 + 상담원), general(공용실 + tmux 사람), foreign(다른 계정)
+// 하위 에이전트는 부모의 상자 안, 부모 아래. 차례는 프로젝트 부서(이름 차례) → 고객센터 → 공용실 → 다른 계정
+const KEY_COLLAPSED = 'kopricyberfossillab.groupsCollapsed';
+const groupOf = (a: Agent): string => a.kind === 'foreign' ? 'foreign' : a.kind === 'desk' ? 'center' : a.kind === 'terminal' ? 'general' : a.room;
+const GROUP_NAME = (g: string) => g === 'center' ? '고객센터' : g === 'general' ? '공용실' : g === 'foreign' ? '다른 계정' : `${g} 부서`;
+const GROUP_RANK = (g: string) => g === 'center' ? 1 : g === 'general' ? 2 : g === 'foreign' ? 3 : 0;
+function nameHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+// 띠 색 — 프로젝트는 이름으로 PALETTE 에서, 나머지 셋은 정해 둔 것
+const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+const GROUP_COLOR = (g: string) => g === 'center' ? 'var(--accent)' : g === 'general' ? 'var(--muted)' : g === 'foreign' ? hex(FOREIGN_COLOR) : hex(PALETTE[nameHash(g) % PALETTE.length]);
+
+function loadCollapsed(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(KEY_COLLAPSED) ?? '[]') as string[]); } catch { return new Set(); }
+}
+
 export function AgentList({ snap, link, selected, onSelect }: {
   snap: Snapshot | null; link: Link; selected: string | null; onSelect: (id: string) => void;
 }) {
   const agents = snap?.agents ?? [];
-  const top = agents.filter((a) => !a.parentId);
+  const top = agents.filter((a) => !a.parentId || !agents.some((p) => p.id === a.parentId));
   const kids = (id: string) => agents.filter((a) => a.parentId === id);
   const waiting = agents.filter((a) => a.activity === 'wait').length;
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  const toggle = (g: string) => setCollapsed((c) => {
+    const n = new Set(c);
+    if (n.has(g)) n.delete(g); else n.add(g);
+    try { localStorage.setItem(KEY_COLLAPSED, JSON.stringify([...n])); } catch { /* 저장이 막힌 브라우저 — 이번만 */ }
+    return n;
+  });
+  const groups = new Map<string, Agent[]>();
+  for (const a of top) {
+    const g = groupOf(a);
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g)!.push(a);
+  }
+  const order = [...groups.keys()].sort((x, y) => GROUP_RANK(x) - GROUP_RANK(y) || x.localeCompare(y));
   return (
     <aside className="side left">
       <h2>에이전트 {agents.length}<span className={link === 'lost' ? 'bad' : ''}>{LINK[link]}</span></h2>
       {waiting > 0 && <p className="alert">확인을 기다리는 세션 {waiting}</p>}
-      <div className="list">
-        {top.map((a) => (
-          <div key={a.id}>
-            <Row a={a} all={agents} selected={selected === a.id} onSelect={onSelect} />
-            {kids(a.id).map((k) => <Row key={k.id} a={k} all={agents} selected={selected === k.id} onSelect={onSelect} />)}
-          </div>
-        ))}
+      <div className="list groups">
+        {order.map((g) => {
+          const heads = groups.get(g)!;
+          const members = heads.flatMap((a) => [a, ...kids(a.id)]);
+          const work = members.filter((a) => WORK.has(a.activity)).length;
+          const wait = members.filter((a) => a.activity === 'wait').length;
+          const shut = collapsed.has(g);
+          return (
+            <section key={g} className={`grp${wait ? ' has-wait' : ''}${shut ? ' shut' : ''}`} style={{ '--grp': GROUP_COLOR(g) } as CSSProperties}>
+              <button type="button" className="grp-head" aria-expanded={!shut} onClick={() => toggle(g)}>
+                <span className="grp-caret" aria-hidden="true">▾</span>
+                <b>{GROUP_NAME(g)}</b>
+                <span className="grp-n">{members.length}명</span>
+                <span className="grp-sum">
+                  {work > 0 && <span>일하는 중 {work}</span>}
+                  {wait > 0 && <span className="w">확인 필요 {wait}</span>}
+                  {!work && !wait && <span>쉬는 중</span>}
+                </span>
+              </button>
+              {!shut && (
+                <div className="grp-body">
+                  {heads.map((a) => (
+                    <div key={a.id}>
+                      <Row a={a} all={agents} selected={selected === a.id} onSelect={onSelect} />
+                      {kids(a.id).map((k) => <Row key={k.id} a={k} all={agents} selected={selected === k.id} onSelect={onSelect} />)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })}
         {!agents.length && <p className="note">돌고 있는 세션이 없다.</p>}
       </div>
     </aside>
