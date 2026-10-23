@@ -44,6 +44,29 @@ export const BLOCKS: [number, number, number, number][] = [
   ...PLANTS.map(([x, z]) => [x - 0.35, z - 0.35, x + 0.35, z + 0.35] as [number, number, number, number]),
 ];
 
+// 캐릭터를 가리는 가구 — 굽기(bake)가 조각으로 굽고, 화면이 캐릭터 앞에 다시 그린다.
+// box 는 가림 판정에 쓰는 바닥 범위 [x0, z0, x1, z1] (의자까지 포함한 책상처럼 nav 의 BLOCKS 보다 넓을 수 있다)
+export type ItemKind = 'desk' | 'sofa' | 'table' | 'coffee' | 'core' | 'bench' | 'plant' | 'shelf';
+export interface Item { id: string; kind: ItemKind; at: [number, number]; box: [number, number, number, number]; h?: number }
+export const ITEMS: Item[] = [
+  ...DESKS.map(([x, z], i) => ({ id: `desk${i}`, kind: 'desk' as const, at: [x, z] as [number, number], box: [x - 1.05, z - 0.5, x + 1.05, z + 1.25] as Item['box'] })),
+  ...SOFAS.map(([x, z], i) => ({ id: `sofa${i}`, kind: 'sofa' as const, at: [x, z] as [number, number], box: [x - 1, z - 0.45, x + 1, z + 0.45] as Item['box'] })),
+  ...TABLES.map(([x, z], i) => ({ id: `table${i}`, kind: 'table' as const, at: [x, z] as [number, number], box: [x - 0.6, z - 0.35, x + 0.6, z + 0.35] as Item['box'] })),
+  { id: 'coffee', kind: 'coffee', at: COFFEE, box: [COFFEE[0] - 0.45, COFFEE[1] - 0.45, COFFEE[0] + 0.45, COFFEE[1] + 0.3] },
+  { id: 'core', kind: 'core', at: [CORE_RACK.x, CORE_RACK.z], box: [0, CORE_RACK.z - CORE_RACK.len / 2, 0.85, CORE_RACK.z + CORE_RACK.len / 2] },
+  { id: 'bench', kind: 'bench', at: [BENCH.x, BENCH.z], box: [BENCH.x - 0.4, BENCH.z - BENCH.len / 2, BENCH.x + 0.4, BENCH.z + BENCH.len / 2] },
+  { id: 'shelf', kind: 'shelf', at: [0.6, 0.45], box: [0.15, 0.15, 1.05, 0.75] },
+  ...PLANTS.map(([x, z, h], i) => ({ id: `plant${i}`, kind: 'plant' as const, at: [x, z] as [number, number], box: [x - 0.3, z - 0.3, x + 0.3, z + 0.3] as Item['box'], h })),
+];
+
+// 모니터 화면 (책상 앞, +z 를 본다) — 화면이 활동 색으로 칠한다
+export const screenQuad = (x: number, z: number) => ({ c: [x, 1.35, z - 0.215] as [number, number, number], w: 0.7, h: 0.4 });
+
+// 캐릭터 조각의 갈래 — 굽기와 화면이 같은 목록을 쓴다
+export const HAIR = { session: 0x4a1b0c, job: 0x2c2c2a, foreign: 0x888780 } as const;
+export type Hair = keyof typeof HAIR;
+export const DIRS = 8;   // 방향 수 (rotation.y = k·2π/DIRS)
+
 // 활동별 모니터 색 (앉아 있을 때)
 export const SCREEN: Record<Activity, number> = {
   code: 0x85b7eb, read: 0x9fe1cb, run: 0xfac775, think: 0xcecbf6, spawn: 0xafa9ec,

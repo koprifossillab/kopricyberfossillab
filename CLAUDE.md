@@ -36,10 +36,15 @@ server/   Node(tsx 로 TS 를 바로) — 원천을 1초마다 읽어 Snapshot �
   latches.ts     래치·홀드 (Claw3D eventTriggers 의 생각), 확인 대기 추정
   system.ts      /proc 생존 확인, tmux, 다른 계정의 claude(ps)
   index.ts       http — /api/events(SSE) /api/snapshot /healthz + web/dist
-web/      Vite + React + React Three Fiber
-  src/scene/layout.ts    배치 좌표·색 (시제품 docs/agent-office-3d.html 에서)
+web/      Vite + React. 화면은 2.5D — 구운 그림을 Canvas 2D 로 붙인다(three 를 싣지 않는다)
+  src/scene/layout.ts    배치 좌표·색·가구 목록 (시제품 docs/agent-office-3d.html 에서)
   src/scene/director.ts  Snapshot → 캐릭터마다 갈 자리
   src/scene/nav.ts       격자 A*
+  src/scene/models.ts    로우폴리 3D 모형 — 굽기에서만 쓴다
+  src/iso/               화면: atlas.ts(구운 좌표) · cast.ts(걸음) · Stage.tsx(그리기·가림·이름표·확대)
+  bake.html, bake/       굽기 페이지 — models.ts 를 고정 시점 정사영으로 그려 조각을 만든다
+  public/sprites/        구운 그림과 atlas.json — 커밋한다
+tools/bake.ts  npm run bake — vite + chromium(playwright 1.49.1)으로 굽기 페이지를 열어 public/sprites/ 에 쓴다
 docs/     시작 계획(agent-office-plan.md)과 구도 시제품(agent-office-3d.html) — 받은 그대로 둔다
 ref/      Claw3D·pixel-agents 얕은 클론 (gitignore) — 읽기만. 코드를 옮기면 MIT 고지를 남긴다
 ```
@@ -67,6 +72,7 @@ npm install
 npm test                   # 판정 시험 (server/*.test.ts) — 고치고 나면 이것부터
 npm run typecheck
 npm run probe              # 화면 없이 지금 판정을 콘솔에 (-- --watch 로 계속)
+npm run bake               # 그림(models.ts·layout.ts)을 고쳤을 때만 — 결과(web/public/sprites/)를 커밋
 npm run build && npm start # http://127.0.0.1:8098/  (?demo 를 붙이면 예시 데이터)
 npm run dev                # 화면 개발 — http://127.0.0.1:8058/ (/api 는 8098 로 넘긴다)
 ```
@@ -74,6 +80,8 @@ npm run dev                # 화면 개발 — http://127.0.0.1:8058/ (/api 는 
 - **포트**: 8098(돌리는 것) · 8058(vite 개발). 8090~8097·8099 는 형제 앱 자리.
 - **127.0.0.1 에만 묶는다**(`FL_HOST`). 사내망에 내는 것은 nginx 서브경로(`deploy/nginx/`)로만, 사람이 정한 뒤에.
 - 이 서버의 node 는 Debian 판이라 TS 를 스스로 못 벗긴다(`ERR_NO_TYPESCRIPT`) — 그래서 `tsx`.
-- 화면 확인은 `~/tools/pw`(Playwright, 저장소 밖)의 chromium 으로 사진을 찍어 본다 — WebGL 은 swiftshader 로 뜬다.
+- 굽기·화면 확인의 chromium 은 `~/.cache/ms-playwright/chromium-1148`(playwright 1.49.1) — 판을 올리면 브라우저를 다시 받아야 한다.
+  WebGL 은 swiftshader 로 그린다. 화면 사진은 `~/tools/pw`(저장소 밖)로 찍어 본다.
+- **가구·방 배치를 고치면** `layout.ts` 의 `ITEMS`(가림 범위)·`BLOCKS`(걸음)·`models.ts` 를 함께 보고 `npm run bake`.
 - 원천의 모양(세션 등록 JSON·job state·JSONL 필드)은 Claude Code 판에 따라 바뀔 수 있다 — 깨지면 `npm run probe` 로 먼저 본다.
   2026-10-23 에 본 판은 2.1.309.

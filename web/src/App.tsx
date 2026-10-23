@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Office } from './scene/Office.tsx';
+import { Stage } from './iso/Stage.tsx';
 import { Panel } from './Panel.tsx';
 import { useOffice } from './useOffice.ts';
 
@@ -14,8 +14,8 @@ export function App() {
       </header>
       <div className="main">
         <div className="view">
-          <Office agents={snap?.agents ?? []} terminals={snap?.terminals ?? []} selected={selected} onSelect={setSelected} />
-          <div className="hint">드래그 회전 · 휠 확대 · 캐릭터를 누르면 목록에서 짚는다</div>
+          <Stage agents={snap?.agents ?? []} terminals={snap?.terminals ?? []} selected={selected} onSelect={setSelected} />
+          <div className="hint">휠 확대 · 끌어 옮기기 · 두 번 눌러 처음대로 · 캐릭터를 누르면 목록에서 짚는다</div>
         </div>
         <Panel snap={snap} link={link} selected={selected} onSelect={setSelected} />
       </div>

@@ -14,4 +14,6 @@
 | 글 | 무엇 |
 |---|---|
 | [20261023_wetherilli_P01](20261023_wetherilli_P01_initial_build.md) | 첫 판 계획 — 시작 문서(docs/agent-office-plan.md)를 이 서버의 원천에 맞춰 고침 |
+| [20261023_wetherilli_002](20261023_wetherilli_002_isometric_sprites.md) | 2.5D — 3D 를 구워 Canvas 2D 로, 가림, 굽는 데 24초 |
+| [20261023_wetherilli_P02](20261023_wetherilli_P02_isometric_sprites.md) | 2.5D 계획 — 로우폴리 유지, 굽기(갈래 A) |
 | [20261023_wetherilli_001](20261023_wetherilli_001_initial_build.md) | 첫 판 — 원천 다섯, SSE, R3F 연구실, 래치·A*, 버린 것 |

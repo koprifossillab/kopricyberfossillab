@@ -1,6 +1,6 @@
 {
   "name": "kopricyberfossillab",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "paleo-server 의 Claude Code 세션·터미널·에이전트를 3D 연구실로 보이는 화면",
@@ -10,17 +10,15 @@
     "start": "tsx server/index.ts",
     "probe": "tsx server/probe.ts",
     "test": "tsx --test server/*.test.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "bake": "tsx tools/bake.ts"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.9",
-    "@react-three/fiber": "^9.8.2",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "three": "^0.186.1"
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
@@ -28,6 +26,8 @@
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright": "1.49.1",
+    "three": "^0.186.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
