@@ -6,6 +6,7 @@ import type { Agent, Office } from '../types.ts';
 import { bodyKey, headKey, dinoKey, fishKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { FishTank } from './fish.ts';
 import { daylight, hourNow } from './daylight.ts';
+import { drawBackdrop } from './backdrop.ts';
 import { DinoPen } from './dinos.ts';
 import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
@@ -54,6 +55,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
 }) {
   const box = useRef<HTMLDivElement>(null!);
   const canvas = useRef<HTMLCanvasElement>(null!);
+  const back = useRef<HTMLCanvasElement>(null!);   // 바깥 배경(하늘·먼 도시·아래 두 층) — 밤 덮개가 닿지 않게 따로
   const labels = useRef<HTMLDivElement>(null!);
   const cast = useRef(new Cast());
   const key = offices.map((o) => `${o.name}:${o.size}`).join('\n');
@@ -85,6 +87,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
         -(p[0] * U[0] + p[1] * U[1] + p[2] * U[2]) * S,
       ];
       const ctx = canvas.current.getContext('2d')!;
+      const bctx = back.current.getContext('2d')!;
       let k = 1, offX = 0, offY = 0, dpr = 1;   // 구운 픽셀 → 캔버스 픽셀
       let fitted: World | null = null;
       let orderFor: World | null = null;
@@ -93,12 +96,6 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let tank: FishTank | null = null;
       let day = 1, lastSky = -1;
       let lamps: [number, number][] = [];
-      // 바탕 하늘 — 밤 남색 ↔ 낮 하늘색 (5c 의 배경이 붙기 전까지의 바탕)
-      const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-      const paintSky = (d: number) => {
-        const top = mix([10, 16, 36], [120, 170, 220], d), bot = mix([30, 36, 72], [200, 225, 245], d);
-        box.current.style.background = `linear-gradient(180deg, rgb(${top}) 0%, rgb(${bot}) 100%)`;
-      };
       let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
       // 건물 전체가 들어가는 구운 픽셀 범위
@@ -113,13 +110,18 @@ export function Stage({ agents, offices, selected, onSelect }: {
             x1 = Math.max(x1, ax + r.ox + r.w); y1 = Math.max(y1, ay + r.oy + r.h);
           }
         }
+        // 아래 두 층(배경이 그린다)의 앞 모서리까지 들어오게
+        for (const p of [[0, -6.9, w.d], [w.w, -6.9, w.d], [w.w, -6.9, 0]] as V3[]) {
+          const [u, v] = proj(p);
+          x0 = Math.min(x0, u); x1 = Math.max(x1, u); y1 = Math.max(y1, v);
+        }
         bounds = { x0, y0, x1, y1 };
       };
       const fit = () => {
         dpr = Math.min(2, window.devicePixelRatio || 1);
         const w = box.current.clientWidth, h = box.current.clientHeight;
-        canvas.current.width = Math.round(w * dpr);
-        canvas.current.height = Math.round(h * dpr);
+        canvas.current.width = back.current.width = Math.round(w * dpr);
+        canvas.current.height = back.current.height = Math.round(h * dpr);
         const bw = bounds.x1 - bounds.x0, bh = bounds.y1 - bounds.y0;
         const base = Math.min(w / bw, h / bh) * 0.98;
         k = base * view.zoom * dpr;
@@ -194,6 +196,13 @@ export function Stage({ agents, offices, selected, onSelect }: {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
         ctx.setTransform(k, 0, 0, k, offX, offY);
+        if (Math.floor(T * 2) !== lastSky) { lastSky = Math.floor(T * 2); day = daylight(hourNow()); }   // 낮밤은 0.5초마다
+        // 바깥 배경 (backdrop.ts, wetherilli 016) — 뒤 캔버스에, 지금 보이는 구운 픽셀 범위를 채운다
+        bctx.setTransform(1, 0, 0, 1, 0, 0);
+        bctx.clearRect(0, 0, back.current.width, back.current.height);
+        bctx.setTransform(k, 0, 0, k, offX, offY);
+        drawBackdrop(bctx, proj, { w: w.w, d: w.d },
+          { x0: -offX / k, y0: -offY / k, x1: (back.current.width - offX) / k, y1: (back.current.height - offY) / k }, RM ? 0 : T, day);
         ctx.imageSmoothingQuality = 'high';
         // 바닥 층 전부, 그다음 물건 층 (등각 차례)
         if (orderFor !== w) {
@@ -320,7 +329,6 @@ export function Stage({ agents, offices, selected, onSelect }: {
 
         // 낮밤 — 밤이면 그린 것 위에만(source-atop) 남색을 덮고, 그 위에 천장 조명 웅덩이와 켜진 모니터 빛을 더한다(lighter).
         // 낮에는 아주 조금 밝게. 바탕(하늘)은 .view 의 배경이 시각에 맞춰 바뀐다
-        if (Math.floor(T * 2) !== lastSky) { lastSky = Math.floor(T * 2); day = daylight(hourNow()); paintSky(day); }
         const night = 1 - day;
         if (night > 0.02) {
           ctx.save();
@@ -481,6 +489,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
 
   return (
     <div ref={box} className="stage">
+      <canvas ref={back} className="back" aria-hidden="true" />
       <canvas ref={canvas} />
       <div ref={labels} className="labels" />
     </div>
