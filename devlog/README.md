@@ -14,7 +14,7 @@
 | 글 | 무엇 |
 |---|---|
 | [20261026_koprifossillab_P01](20261026_koprifossillab_P01_opt_in_other_accounts.md) | 다른 계정도 보이게 — 본인이 켜는 표지(스킬)·CAP_DAC_READ_SEARCH, ACL 을 버린 까닭(0600) |
-| [20261024_wetherilli_017](20261024_wetherilli_017_rename_in_list.md) | 목록에서 이름 두 번 눌러 고치기 — localStorage, 서버는 그대로 읽기만 |
+| [20261024_wetherilli_017](20261024_wetherilli_017_rename_in_list.md) | 목록에서 이름 두 번 눌러 고치기(localStorage), 일하면서 잡담(work: 무리) |
 | [20261023_wetherilli_016](20261023_wetherilli_016_backdrop_daylight.md) | 바깥 배경 — 하늘·먼 도시·아래 두 층·땅, daylight(서울 시각)로 낮·밤 연속 |
 | [20261023_wetherilli_015](20261023_wetherilli_015_terrace_boss_lab.md) | 테라스, 부장실·본부장실, 실험실, 나무, 명판 폭, 이름표 깜빡임, 아이콘·메신저·부서 상자 합치기 |
 | [20261023_wetherilli_014](20261023_wetherilli_014_messenger_chat.md) | 상담원 대화창을 메신저처럼 — 머리·말풍선·날짜 줄·입력 중 점·알약 입력 |

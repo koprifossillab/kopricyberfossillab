@@ -400,10 +400,22 @@ export function Stage({ agents, offices, selected, onSelect }: {
           g.push(a);
           groups.set(a.place.group, g);
         }
+        // 일하면서도 — 책상에 앉은 사람은 같은 사무실끼리, 그 밖(코어 보관대·실험대·자료실)은 같은 일끼리.
+        // 확인 대기(빨간 링·이름표)와 하위 에이전트·상담원은 빼고, 말하는 동안은 이름표 대신 말풍선
+        for (const d of draws) {
+          const { a } = d;
+          const act = a.agent.activity;
+          if (a.moving || a.leaving || act === 'idle' || act === 'wait' || a.agent.kind === 'subagent' || a.agent.kind === 'desk') continue;
+          const key = a.place.desk !== null ? `work:${a.agent.room}` : `work:${act}`;
+          const g = groups.get(key) ?? [];
+          g.push(a);
+          groups.set(key, g);
+        }
         chatter.keep(new Set(groups.keys()));
         if (!RM) groups.forEach((members, name) => {
           members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
-          const said = chatter.step(name, members.map((m) => m.agent.id), T);
+          const said = chatter.step(name, members.map((m) => m.agent.id), T,
+            (who) => members.find((m) => m.agent.id === who)?.agent.activity ?? 'think');
           if (!said) return;
           const a = members.find((m) => m.agent.id === said.who);
           if (!a) return;
@@ -411,7 +423,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           live.add(id);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);   // 이름표 대신 말풍선
           label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(said.text)}`,
-            [a.x, 1.75 + SIT_LIFT + (a.place.lift ?? 0), a.z], 'translate(-50%, -100%)');
+            [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         });
         // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)
         for (const r of w.labels) {

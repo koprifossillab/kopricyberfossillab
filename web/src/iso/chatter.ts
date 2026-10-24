@@ -1,4 +1,5 @@
 // 휴게실 잡담 — 무리(카페 탁자·소파)에 둘 이상 있으면 대화 하나를 골라 돌아가며 말하고, 혼자면 가끔 혼잣말.
+// 일하는 중에도 — 무리 이름이 「work:」 로 시작하면(같은 사무실 책상·같은 일자리) 일 얘기 위주로, 휴게실보다 뜸하게.
 // 줄마다 보이는 시간은 글 길이로, 줄 사이·대화 사이의 쉼은 들쭉날쭉하게 — 같은 말이 같은 박자로 되풀이되지 않게.
 
 // 대화 — 한 줄씩 다른 사람이 말한다 (사람이 줄보다 적으면 돌아가며)
@@ -60,6 +61,41 @@ export const AQUA_DIALOGS: string[][] = [
 export const BREEZE: string[] = ['바람 좋다', '하아~', '하늘 맑네', '잠깐 머리 식히자', '밖이 낫다', '햇빛 좋다', '기지개 한 번', '오늘 노을 예쁘겠다'];
 export const COFFEE: string[] = ['☕', '커피 향 좋다', '샷 추가할까', '아 뜨거', '디카페인은 없나', '한 잔 더?', '설탕 어디 있지'];
 
+// 일하면서 — 같은 사무실(책상)·같은 일자리(코어 보관대·실험대·자료실)끼리
+export const WORK_DIALOGS: string[][] = [
+  ['이 함수 어디서 불러요?', 'grep 해 보세요', '아 세 군데나…'],
+  ['타입 에러 났어요', '몇 개요?', '마흔 개요', '…하나 고치면 다 없어질 거예요'],
+  ['시험 돌려 봤어요?', '지금 돌리는 중', '초록불 기도합니다'],
+  ['이거 누가 고쳤어요?', 'git blame 해 봐요', '…저네요'],
+  ['변수 이름 뭐로 하지', 'tmp 만 아니면 돼요', 'tmp2 는요?'],
+  ['주석 한국어로 쓰는 거 맞죠?', '네, 커밋도요', '오케이'],
+  ['커밋 쪼개서 해요?', '고친 파일만요', 'add -A 는 금지죠'],
+  ['이 줄 왜 있는 거예요?', '지우면 깨져요', '…두겠습니다'],
+  ['빌드 몇 초 걸려요?', '사백 밀리초', '빠르다'],
+  ['리뷰 코멘트 달았어요', '아 봤어요', '고치면 말해 줘요'],
+  ['머지해도 돼요?', 'ff-only 로요', '넵'],
+  ['로그 너무 많이 찍히는데', '디버그 거 지우는 거 깜빡했다', 'ㅋㅋ'],
+  ['이거 끝나면 커피?', '콜', '십 분만요'],
+  ['규조 분류 몇 장째예요?', '천 장 넘었어요', '와'],
+  ['지도 타일 다 받았어요?', '남극 쪽만 남았어요', '거기가 제일 크죠'],
+  ['권한 물어보네요', '읽기만 하는 거예요', '그럼 괜찮죠'],
+  ['오타 찾았다', '어디요?', '세 번째 줄 ㅋㅋ'],
+  ['시험 하나 흔들려요', '시간 재는 거죠?', '네…'],
+  ['devlog 썼어요?', '버린 것도 써야죠', '그게 제일 어려워'],
+  ['이 정규식 맞아요?', '돌려 보면 알죠', '무섭다'],
+];
+export const WORK_SOLO: Record<string, string[]> = {
+  code: ['한 줄만 더', '이름 뭐로 하지', '여기 괄호 하나 빠졌네', '깔끔하다', '아 이거 아닌데', '되돌리기…'],
+  read: ['아 이렇게 돼 있구나', '이거 누가 짰더라', '흠흠', '주석 고맙다', '길다…'],
+  search: ['어디 있더라', '이 문서 맞나', '찾았다!', '판이 다르네'],
+  run: ['돌아라 돌아라', '빨리 끝나라', '오 된다', '경고는 못 본 걸로', '왜 멈췄지'],
+  think: ['흠…', '어떻게 하지', '잠깐만', '아 그거다', '그러니까…'],
+  git: ['커밋 메시지 뭐라 쓰지', '푸시!', '충돌만 없어라', '브랜치 맞지?'],
+  test: ['초록불 가자', '하나만 통과해라', '이번엔 된다', '빨간불…', '다 통과!'],
+  spawn: ['이건 맡겨야지', '부탁해요~', '나눠서 하자'],
+};
+const workSolo = (act: string) => pick(WORK_SOLO[act] ?? WORK_SOLO.think);
+
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
 // 글이 길면 오래 보인다 — 짧은 말도 2초는 남겨 읽을 틈을 준다 (사용자: 「1초씩은 메시지가 유지되도록」)
@@ -72,7 +108,9 @@ export class Chatter {
   private talks = new Map<string, Talk>();
 
   // members: 그 무리에 앉아(서) 있는 사람 id. 돌려주는 것: 지금 말하는 사람과 말 (없으면 null)
-  step(group: string, members: string[], now: number): { who: string; text: string } | null {
+  // act: 혼잣말을 그 사람이 하는 일에 맞출 때 (일하는 무리)
+  step(group: string, members: string[], now: number, act?: (who: string) => string): { who: string; text: string } | null {
+    const work = group.startsWith('work:');
     let t = this.talks.get(group);
     if (t && t.speakers.slice().sort().join(',') !== members.slice().sort().join(',')) {
       // 사람이 바뀌었다 — 대화는 새로 하되, 하던 말은 끝까지 보인다 (끊기면 읽을 틈이 없다)
@@ -92,15 +130,17 @@ export class Chatter {
     if (t.solo) {
       // 혼자면 드문드문
       const feeding = group.startsWith('feed');
-      t.text = feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'breeze' ? pick(BREEZE) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
+      t.text = work ? (act && Math.random() < 0.8 ? workSolo(act(members[0])) : pick(SOLO)) : feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'breeze' ? pick(BREEZE) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
       t.who = members[0];
       t.until = now + lineTime(t.text);
-      t.next = t.until + (feeding ? rand(3, 8) : rand(12, 35));
+      t.next = t.until + (feeding ? rand(3, 8) : work ? rand(25, 60) : rand(12, 35));
       return { who: t.who, text: t.text };
     }
     if (t.i >= t.lines.length) {
       // 새 대화 — 말을 꺼내는 사람도 고른다
-      t.lines = group === 'aqua' && Math.random() < 0.7 ? pick(AQUA_DIALOGS) : pick(DIALOGS);
+      // 일하는 중엔 일 얘기가 많고, 가끔 딴 얘기
+      t.lines = work ? (Math.random() < 0.75 ? pick(WORK_DIALOGS) : pick(DIALOGS))
+        : group === 'aqua' && Math.random() < 0.7 ? pick(AQUA_DIALOGS) : pick(DIALOGS);
       t.i = 0;
       const start = Math.floor(Math.random() * members.length);
       t.speakers = [...members.slice(start), ...members.slice(0, start)];
@@ -110,7 +150,7 @@ export class Chatter {
     t.i++;
     t.until = now + lineTime(t.text);
     // 줄 사이는 짧게, 대화가 끝나면 한참 조용히
-    t.next = t.until + (t.i < t.lines.length ? rand(1.0, 2.2) : rand(8, 22));
+    t.next = t.until + (t.i < t.lines.length ? rand(1.0, 2.2) : work ? rand(20, 45) : rand(8, 22));
     return { who: t.who, text: t.text };
   }
 
