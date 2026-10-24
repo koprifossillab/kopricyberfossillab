@@ -43,13 +43,13 @@ function demo(set: (s: Snapshot) => void): () => void {
         label: 'Glob · **/*.tif', room: 'GSM', parentId: 'demo-0', startedAt: Date.now(), changedAt: Date.now() });
     }
     agents.push({ id: 'foreign/paleoadmin/1', kind: 'foreign', name: 'paleoadmin', project: '', activity: Math.random() < 0.5 ? 'think' : 'idle',
-      label: '다른 계정 — 기록은 읽지 않는다', room: 'general', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
+      label: '다른 계정 — 기록은 읽지 않는다', room: '@paleoadmin', user: 'paleoadmin', startedAt: t0 - 1, changedAt: Date.now() });
     agents.push({ id: 'desk/상담원', kind: 'desk', name: '상담원', project: '고객센터', activity: Math.random() < 0.4 ? 'think' : 'idle',
       label: '질문을 기다림', room: 'center', startedAt: t0 - 3, changedAt: Date.now() });
     const buildBusy = Math.random() < 0.5;
     agents.push({ id: 'tmux/build', kind: 'terminal', name: 'build', project: 'tmux', activity: buildBusy ? 'run' : 'idle',
       label: buildBusy ? '$ npm' : '프롬프트 대기', room: 'general', tmux: 'build', slot: 1, startedAt: t0 - 2, changedAt: Date.now() });
-    set({ version: 'demo', host: 'demo', at: Date.now(), agents, offices: [{ name: 'DiaRUGA', size: 'm' }, { name: 'ForGIA', size: 's' }, { name: 'GSM', size: 'l' }, { name: 'rash-company', size: 'm' }],
+    set({ version: 'demo', host: 'demo', at: Date.now(), agents, offices: [{ name: 'DiaRUGA', size: 'm' }, { name: 'ForGIA', size: 's' }, { name: 'GSM', size: 'l' }, { name: 'rash-company', size: 'm' }, { name: '@paleoadmin', size: 's' }],
       terminals: [{ name: 'pan', attached: 0, windows: 1, claude: true, command: 'claude' }, { name: 'build', attached: 1, windows: 2, claude: false, command: buildBusy ? 'npm' : 'bash' }],
       limits: { fiveHour: { usedPct: 73, resetsAt: t0 + 2 * 3600_000 + 14 * 60_000 }, sevenDay: { usedPct: 41, resetsAt: t0 + 3 * 86400_000 + 5 * 3600_000 }, seenAt: Date.now() - 30_000 } });
   };

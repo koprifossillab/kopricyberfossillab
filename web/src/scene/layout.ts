@@ -11,15 +11,7 @@ export const screenQuad = (x: number, z: number, kind: 'desk' | 'call' | 'rashde
   : { c: [x, 1.35, z - 0.215] as [number, number, number], w: 0.7, h: 0.4 };
 export const PHOSPHOR = 0x8fd18f;   // rash 방 모니터는 활동과 상관없이 초록 형광
 
-// 캐릭터 조각의 갈래 — 굽기와 화면이 같은 목록을 쓴다. 몸과 머리를 따로 굽는다.
-export type BodyShape = 'suit' | 'dress';
-export type Look = 'short' | 'buzz' | 'curly' | 'long' | 'bob' | 'ponytail' | 'bun';
-export const MALE_LOOKS: Look[] = ['short', 'buzz', 'curly'];
-export const FEMALE_LOOKS: Look[] = ['long', 'bob', 'ponytail', 'bun'];
-export const LOOKS: Look[] = [...MALE_LOOKS, ...FEMALE_LOOKS];
-export const HAIR_COLOR: Record<Look, number> = {
-  short: 0x4a1b0c, buzz: 0x1f1a17, curly: 0x2c2c2a, long: 0x2c1a10, bob: 0x6b3f22, ponytail: 0x8a4a2a, bun: 0x2c2c2a,
-};
+// 캐릭터 조각의 갈래 — 사람·옷 목록은 appearance.ts. 굽기와 화면이 같은 목록을 쓴다. 몸과 머리를 따로 굽는다.
 export const SKINS = [0xf5c4b3, 0xe0a882, 0x9c6b4e];
 export const CAP = 0xef9f27;   // tmux 사람의 모자
 export const HEAD_Y = 1.03;    // 머리 가운데 높이 (선 자세)

@@ -8,7 +8,8 @@
 // 가구(items)는 따로도 굽는다 — 캐릭터 앞에 다시 그려 가린다. 기준점은 모두 모듈 원점.
 import * as THREE from 'three';
 import { buildBody, buildHead, buildItem, buildFloor, buildTall } from '../src/scene/models.ts';
-import { PALETTE, FOREIGN_COLOR, DIRS, LOOKS, SKINS, HEAD_Y, type BodyShape } from '../src/scene/layout.ts';
+import { PALETTE, FOREIGN_COLOR, DIRS, SKINS, HEAD_Y } from '../src/scene/layout.ts';
+import { PERSONAS, CAP_PERSONAS, OUTFITS, BUILD_LIST, BUILDS, BODY_H, BODY_Y0, shapeKey } from '../src/scene/appearance.ts';
 import { MODULES, type ModuleType } from '../src/scene/modules.ts';
 import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
 import { buildFish, FISH_KINDS } from '../src/scene/aquarium.ts';
@@ -42,6 +43,7 @@ sun.shadow.bias = -0.0008;
 Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 90 });
 scene.add(sun, sun.target);
 const HIDDEN = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });   // 그림자만 드리운다
+const OCCLUDE = new THREE.MeshBasicMaterial({ colorWrite: false });                      // 보이지 않고 뒤의 것만 가린다
 
 function dispose(o: THREE.Object3D): void {
   o.traverse((m) => { if ((m as THREE.Mesh).geometry) (m as THREE.Mesh).geometry.dispose(); });
@@ -139,17 +141,27 @@ async function bake() {
     modules[type] = ms;
   }
 
-  // 캐릭터 조각 — 몸(색 × 옷 꼴 × 자세, 원기둥이라 방향 하나)과 머리(피부 × 머리 모양 × 모자 × 방향). 기준점: 발 / 머리 가운데
+  // 캐릭터 조각 — 몸(색 × 옷 × 몸집 × 자세, 원기둥이라 방향 하나)과 머리(피부 × 사람 × 모자 × 방향). 기준점: 발 / 머리 가운데
   const chars = new Map<string, Shot>();
   const foot = new THREE.Vector3(0, 0, 0);
-  for (const color of [...PALETTE, FOREIGN_COLOR]) for (const shape of ['suit', 'dress'] as BodyShape[]) for (const sit of [false, true]) {
-    const s = shoot(buildBody(color, shape, sit), foot);
-    if (s) chars.set('b:' + bodyKey(color, shape, sit), s);
+  for (const color of [...PALETTE, FOREIGN_COLOR]) for (const o of OUTFITS) for (const b of BUILD_LIST) for (const sit of [false, true]) {
+    const s = shoot(buildBody(color, shapeKey(o, b), sit), foot);
+    if (s) chars.set('b:' + bodyKey(color, shapeKey(o, b), sit), s);
   }
+  // 머리 — 보이지 않는 몸(가는 원기둥)을 함께 두어, 등 뒤로 돌아간 넥타이·목걸이를 몸이 가리게 한다. 그림 창은 머리로만 잡는다
   const headAt = new THREE.Vector3(0, HEAD_Y, 0);
-  for (const skin of SKINS) for (const look of LOOKS) for (const cap of [false, true]) for (let d = 0; d < DIRS; d++) {
-    const s = shoot(buildHead(skin, look, cap, (d * 2 * Math.PI) / DIRS), headAt);
-    if (s) chars.set('h:' + headKey(skin, look, cap, d), s);
+  for (const skin of SKINS) for (const look of Object.keys(PERSONAS)) for (const cap of [false, true]) {
+    if (cap && !CAP_PERSONAS.includes(look)) continue;
+    const { k, r } = BUILDS[PERSONAS[look].build];
+    for (let d = 0; d < DIRS; d++) {
+      const head = buildHead(skin, look, cap, (d * 2 * Math.PI) / DIRS);
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * r, 0.26 * r, BODY_H * k, 8), OCCLUDE);
+      body.position.y = BODY_Y0 + (BODY_H * k) / 2;
+      g.add(head, body);
+      const s = shoot(g, headAt, head);
+      if (s) chars.set('h:' + headKey(skin, look, cap, d), s);
+    }
   }
 
   // 공룡 조각 — 색 × (걷기 frame 셋 · 먹기 · 두리번) × 방향
@@ -160,7 +172,7 @@ async function bake() {
       if (s) dinos.set(dinoKey(color, pose, f, d), s);
     }
   }
-  // 물고기 — 6종 × 꼬리 둘 × 방향 (기준점은 몸 가운데라 원점)
+  // 물고기·손님 — 물고기 6종과 손님(흰 가재·버제스 셰일) × 자세 둘 × 방향 (기준점은 원점 — 물고기는 몸 가운데, 기는 것은 발)
   for (let kind = 0; kind < FISH_KINDS; kind++) for (const frame of [0, 1] as const) for (let d = 0; d < DIRS; d++) {
     const s = shoot(buildFish({ kind, rot: (d * 2 * Math.PI) / DIRS, frame }), foot);
     if (s) dinos.set('fish:' + fishKey(kind, frame, d), s);

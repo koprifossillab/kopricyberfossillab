@@ -3,6 +3,8 @@
 import type { Rect } from './layout.ts';
 import { PROPS } from './props.ts';
 import { aquariumModule, AQUA_VIEW, TANKS, type AquaKind } from './aquarium.ts';
+import { SKELETON_SIZE, type SkeletonKind } from './skeleton.ts';
+import type { StairKind } from './stairs.ts';
 
 export type ItemKind =
   | 'desk' | 'call' | 'rashdesk' | 'chair' | 'rashchair' | 'partition' | 'rashwall'
@@ -16,6 +18,8 @@ export type ItemKind =
   | 'door'   // 출입구 문틀 — 기둥 둘과 가로대. 명판은 가로대에 건다 (h = 출입구 폭, rot 0 이면 x 로 뻗는다)
   | 'fence' | 'feeder' | 'fern' | 'rock' | 'nest' | 'dinosign'
   | AquaKind   // 수족관 (aquarium.ts, wetherilli 011)
+  | SkeletonKind   // 휴게실 가운데 공룡 골격과 안내판 (skeleton.ts)
+  | StairKind   // 입구 바깥 엘리베이터·내려가는 계단 (stairs.ts)
   | 'prop';   // props.ts 의 소품 (prop 에 이름)
 
 export interface Item { id: string; kind: ItemKind; at: [number, number]; box: Rect; h?: number; rot?: number; prop?: string }
@@ -170,12 +174,16 @@ function front(): ModuleDef {
   const gen: [number, number][] = [[2.0, 1.4], [4.6, 1.4]];   // 위쪽 한 줄 — 가운데를 실험 테이블에 내준다
   // 고객센터: 상담 책상 넷
   const call: [number, number][] = [[10.3, 1.6], [14.6, 1.6], [10.3, 4.6], [14.6, 4.6]];
-  // 휴게실: 소파 둘이 낮은 탁자를 사이에 두고 마주 보고, 카페 탁자 넷(의자 넷씩), 커피 머신
+  // 휴게실: 소파 둘이 낮은 탁자를 사이에 두고 마주 보고, 가운데 공룡 골격(받침대), 그 앞뒤로 카페 탁자 넷(의자 넷씩), 커피 머신
+  // (사용자: 「휴게실 중앙에 커다란 공룡 골격 모형」 — 카페 탁자를 골격 앞뒤 두 줄로 밀었다)
   const sofas = [{ at: [20.5, 1.35] as [number, number], rot: Math.PI }, { at: [20.5, 5.85] as [number, number], rot: 0 }];
   const low: [number, number] = [20.5, 3.6];
-  const cafe: [number, number][] = [[24.6, 2.3], [27.9, 2.3], [24.6, 5.6], [27.9, 5.6]];
+  const skel: [number, number] = [26.0, 4.3];
+  const cafe: [number, number][] = [[24.4, 1.95], [27.6, 1.95], [24.4, 6.7], [27.6, 6.7]];
   const stoolOff: [number, number][] = [[-0.78, 0], [0.78, 0], [0, -0.78], [0, 0.78]];
-  const stools = cafe.flatMap(([x, z], t) => stoolOff.map(([dx, dz], k) => ({ at: [x + dx, z + dz] as [number, number], t, k })));
+  // 앞줄 탁자(2·3)는 앞벽 쪽 의자를 뺀다 — 벽과 탁자 사이에 끼면 닿을 길이 없다
+  const stools = cafe.flatMap(([x, z], t) => stoolOff.map(([dx, dz], k) => ({ at: [x + dx, z + dz] as [number, number], t, k })))
+    .filter((s) => !(s.t >= 2 && s.k === 3));
   const coffee: [number, number] = [30.3, 0.6];
   const core = { x: 0.45, z: 5.8, len: 3.2 };
   const bench = { x: 7.35, z: 4.6, len: 3.0 };   // 현미경 실험대 — 오른쪽 칸막이를 따라
@@ -192,6 +200,8 @@ function front(): ModuleDef {
     { id: 'bench', kind: 'bench', at: [bench.x, bench.z], box: [bench.x - 0.4, bench.z - bench.len / 2, bench.x + 0.4, bench.z + bench.len / 2] },
     ...sofas.map(({ at, rot }, i) => ({ id: `sofa${i}`, kind: 'sofa' as const, at, rot, box: box(at[0], at[1], 1, 0.45) })),
     { id: 'table0', kind: 'table', at: low, box: box(low[0], low[1], 0.8, 0.35) },
+    { id: 'skeleton', kind: 'skeleton', at: skel, box: box(skel[0], skel[1], SKELETON_SIZE[0] / 2, SKELETON_SIZE[1] / 2) },
+    { id: 'skelsign', kind: 'skelsign', at: [29.1, 5.5], rot: -Math.PI / 4, box: box(29.1, 5.5, 0.2, 0.2) },
     ...cafe.map(([x, z], i) => ({ id: `cafe${i}`, kind: 'cafe' as const, at: [x, z] as [number, number], box: box(x, z, 0.5, 0.5) })),
     ...stools.map(({ at, t, k }) => ({ id: `stool${t}_${k}`, kind: 'stool' as const, at, box: box(at[0], at[1], 0.2, 0.2) })),
     { id: 'coffee', kind: 'coffee', at: coffee, box: [coffee[0] - 0.45, coffee[1] - 0.3, coffee[0] + 0.45, coffee[1] + 0.45] },
@@ -205,6 +215,8 @@ function front(): ModuleDef {
     box(lab.x, lab.z, lab.w / 2 + 0.05, lab.d / 2 + 0.05),
     ...sofas.map(({ at }) => box(at[0], at[1], 1, 0.45)),
     box(low[0], low[1], 0.85, 0.4),
+    box(skel[0], skel[1], SKELETON_SIZE[0] / 2 + 0.05, SKELETON_SIZE[1] / 2 + 0.05),
+    box(29.1, 5.5, 0.2, 0.2),
     ...cafe.map(([x, z]) => box(x, z, 0.5, 0.5)),
     ...stools.map(({ at }) => box(at[0], at[1], 0.2, 0.2)),
     [coffee[0] - 0.5, coffee[1] - 0.35, W, coffee[1] + 0.4],
@@ -213,13 +225,16 @@ function front(): ModuleDef {
   addProps(items, blocks, [
     // 공용실 — 연구실다운 것
     prop('fossil', 'fossil_cabinet', 2.0, 7.5), prop('corebox', 'core_box', 6.6, 7.45), prop('rocks', 'rock_shelf', 1.7, 0.35),
-    prop('server', 'server_rack', 0.45, 2.5, Math.PI / 2),   // 왼쪽 벽 (tmux 모니터가 있던 자리)
+    prop('server', 'server_rack', 0.45, 1.3, Math.PI / 2),   // 왼쪽 벽 (tmux 모니터가 있던 자리)
+    prop('prep', 'prep_bench', 0.4, 3.25, Math.PI / 2),      // 화석 클리닝 작업대 — 왼쪽 벽, 코어 보관대 위
     // 고객센터
     prop('cooler', 'water_cooler', 16.5, 0.5), prop('copier', 'copier', 12.45, 7.3), prop('easel', 'whiteboard_easel', 9.2, 7.3),
-    prop('bin', 'trash_bin', 16.6, 3.2),
+    prop('bin', 'trash_bin', 16.6, 3.2), prop('skull', 'dino_skull_stand', 15.6, 7.3),
     // 휴게실
     prop('fridge', 'mini_fridge', 29.2, 0.42), prop('micro', 'microwave_table', 27.8, 0.35), prop('umbrella', 'umbrella_stand', 17.5, 0.45),
     prop('tall', 'plant_tall', 17.5, 4.0), prop('bush', 'plant_bush', 23.0, 7.4),
+    // 휴게실 고생물 — 왼쪽 벽 가에 알 둥지·호박 진열 (벽걸이는 칸막이가 낮아 위로 떠서 본부장실 바깥벽에)
+    prop('eggs', 'egg_nest_case', 17.6, 6.25), prop('amber', 'amber_display', 17.5, 2.3),
   ]);
   const cafeSeats = (t: number): Seat[] => stools.filter((s) => s.t === t).map((s) => ({
     at: s.at, pose: 'sit' as const, face: faceTo(s.at, cafe[t]), on: `stool${t}_${s.k}`, group: `cafe${t}`, lift: 0.26,
@@ -248,8 +263,10 @@ function front(): ModuleDef {
       { at: [29.4, 1.5], pose: 'stand', face: Math.PI * 0.8, group: 'coffee', lift: 0 },
       { at: [22.9, 3.1], pose: 'stand', face: -Math.PI / 2, group: 'sofa', lift: 0 },
       { at: [22.9, 4.1], pose: 'stand', face: -Math.PI / 2, group: 'sofa', lift: 0 },
-      { at: [30.4, 3.9], pose: 'stand', face: -Math.PI / 2, group: 'cafe1', lift: 0 },
-      { at: [30.4, 5.2], pose: 'stand', face: -Math.PI / 2, group: 'cafe3', lift: 0 },
+      // 골격 구경 — 머리 쪽과 꼬리 쪽에 서서 본다
+      { at: [29.3, 4.1], pose: 'stand', face: -Math.PI / 2, group: 'skel', lift: 0 },
+      { at: [29.3, 4.9], pose: 'stand', face: -Math.PI / 2, group: 'skel', lift: 0 },
+      { at: [25.95, 5.55], pose: 'stand', face: Math.PI, group: 'skel', lift: 0 },
     ],
     core: [[1.5, 4.8], [1.5, 5.8], [1.5, 6.8]],
     // 시험 자리 — 현미경 앞 셋과 실험 테이블 둘레 여섯. 시험 중인 사람은 10초쯤마다 옮겨 다닌다(director)
@@ -359,14 +376,22 @@ function dinoRoom(): ModuleDef {
   };
 }
 
-// 회사 입구 (4×2) — 건물 오른쪽 통로 끝에 붙는 바깥 길과 문틀. 새 세션은 여기로 들어오고 닫힌 세션은 여기로 나간다
+// 회사 입구 (4×2) — 건물 오른쪽 통로 끝에 붙는 바깥 길과 문틀. 새 세션은 여기로 들어오고 닫힌 세션은 여기로 나간다.
+// 길 끝에 엘리베이터(뒤)와 아래층으로 내려가는 계단(앞) — 세션은 그 앞(ENTRANCE_DOOR)에서 나타나고 사라진다
 export const ENTRANCE_W = 4;
+export const ENTRANCE_DOOR: [number, number] = [1.55, 0.8];
+const ELEVATOR: Rect = [1.95, 0, 3.95, 0.6];
+const STAIRS: Rect = [2.0, 1.0, 3.95, 1.95];
 function entrance(): ModuleDef {
   return {
     size: [ENTRANCE_W, CORRIDOR],
     floors: [{ rect: [0, 0, ENTRANCE_W, CORRIDOR], color: 0xb9bfc4 }],
-    items: [{ id: 'door', kind: 'doorframe', at: [0, CORRIDOR / 2], box: [-0.15, -0.1, 0.15, CORRIDOR + 0.1] }],
-    blocks: [],
+    items: [
+      { id: 'door', kind: 'doorframe', at: [0, CORRIDOR / 2], box: [-0.15, -0.1, 0.15, CORRIDOR + 0.1] },
+      { id: 'elevator', kind: 'elevator', at: [(ELEVATOR[0] + ELEVATOR[2]) / 2, (ELEVATOR[1] + ELEVATOR[3]) / 2], box: ELEVATOR },
+      { id: 'stairs', kind: 'stairs', at: [(STAIRS[0] + STAIRS[2]) / 2, (STAIRS[1] + STAIRS[3]) / 2], box: STAIRS },
+    ],
+    blocks: [pad(ELEVATOR, 0.05), pad(STAIRS, 0.05)],
     desks: [],
     labels: [{ name: '입구', at: [0.1, CORRIDOR / 2], y: 2.75, axis: 'z' }],   // 문틀 간판
     flats: ['mat'],
@@ -463,6 +488,8 @@ function bossRoom(hq: boolean): ModuleDef {
     addProps(items, blocks, [
       prop('shelf0', 'bookshelf', 3.5, 0.3), prop('globe', 'globe', 0.45, 4.0), prop('easel', 'whiteboard_easel', 0.8, 6.2),
       prop('fossil', 'fossil_cabinet', 5.9, 6.4),
+      // 바깥벽(뒤, 높다)에 거는 것 — 지질 연대표·암모나이트 액자. 뒷면이 벽 앞(z=0.05)에 닿는다
+      prop('timeline', 'timeline_poster', 1.5, 0.1), prop('ammonite', 'ammonite_frame', 5.4, 0.1),
     ]);
   } else {
     addProps(items, blocks, [prop('shelf0', 'bookshelf', 1.75, 0.25), prop('coat', 'coat_rack', 0.35, 4.6), prop('lamp', 'floor_lamp', W - 0.4, 4.6)]);
@@ -524,6 +551,9 @@ function terrace(): ModuleDef {
   addProps(items, blocks, [
     prop('tall0', 'plant_tall', 0.55, 6.4), prop('bush0', 'plant_bush', 6.6, 6.4), prop('bush1', 'plant_bush', 16.4, 6.4),
     prop('tall1', 'plant_tall', 30.4, 6.4), prop('succ0', 'plant_succulent', 0.5, 0.55), prop('lamp0', 'floor_lamp', 6.6, 0.5),
+    // 공룡 울타리 왼쪽 — 발굴 구석: 발자국 판(울타리 쪽을 본다)·체 거르기·석고 재킷. 왼쪽 끝에 랩터 골격
+    prop('footprint', 'footprint_slab', 17.6, 2.6, Math.PI / 2), prop('sieve', 'sieve_station', 17.75, 4.3),
+    prop('jacket', 'plaster_jacket', 18.3, 5.85), prop('raptor', 'raptor_skeleton', 1.4, 1.5),
   ]);
   return {
     size: [W, D],

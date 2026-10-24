@@ -174,7 +174,7 @@ export class Office {
       project: '',
       activity: c.busy ? 'think' as const : 'idle' as const,
       label: '다른 계정 — 기록은 읽지 않는다',
-      room: 'general',
+      room: `@${c.user}`,   // 계정마다 제 부서(사무실) — 사용자: 「다른 계정의 업무들은 다른 부서로 분리해서」
       user: c.user,
       startedAt: c.startedAt,
       changedAt: now,
@@ -239,6 +239,10 @@ export class Office {
         const n = commitCount(name, now);
         return { name, size: n < SMALL_COMMITS ? 's' as const : n >= LARGE_COMMITS ? 'l' as const : 'm' as const };
       });
+    // 다른 계정의 부서 — 「@계정」. 기록을 못 읽어 커밋 수 대신 그 계정 세션 수로 크기를 정한다 (책상 s 2 · m 4 · l 8)
+    const foreignN = new Map<string, number>();
+    for (const a of agents) if (a.kind === 'foreign') foreignN.set(a.room, (foreignN.get(a.room) ?? 0) + 1);
+    for (const [name, n] of [...foreignN].sort()) offices.push({ name, size: n <= 2 ? 's' : n <= 4 ? 'm' : 'l' });
     return { version: this.version, host: os.hostname(), at: now, agents, terminals, offices, limits: readLimits(now) };
   }
 }

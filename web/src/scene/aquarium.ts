@@ -31,14 +31,16 @@ const pad = ([x0, z0, x1, z1]: Rect, p = 0.1): Rect => [x0 - p, z0 - p, x1 + p, 
 const mid = (r: Rect): [number, number] => [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2];
 
 // 물고기가 다니는 상자 (모듈 안 좌표). 유리·모래·물 위에서 조금씩 떨어진다. 원통은 안에 든 네모
-export const TANKS: { box: Rect; y0: number; y1: number }[] = [
+// floor 는 모래 윗면 — 바닥을 기는 것(가재·할루키게니아)은 이 높이에 발을 딛는다.
+// z 로는 뒤판(z0+0.01~0.03)·앞 유리(z1-0.008)에서 0.18 떨어져 있어, 몸길이 0.32 인 아노말로카리스도 유리·뒤판을 뚫지 않는다
+export const TANKS: { box: Rect; y0: number; y1: number; floor?: number }[] = [
   ...BACK.map(([x0, z0, x1, z1]) => ({
     box: [x0 + 0.22, z0 + 0.18, x1 - 0.22, z1 - 0.18] as Rect,
-    y0: STAND_H + SAND_H + 0.14, y1: STAND_H + TANK_H - 0.16,
+    y0: STAND_H + SAND_H + 0.14, y1: STAND_H + TANK_H - 0.16, floor: STAND_H + SAND_H,
   })),
   {
     box: box(TUBE.at[0], TUBE.at[1], TUBE.r * 0.6, TUBE.r * 0.6),
-    y0: TUBE.base + SAND_H + 0.16, y1: TUBE.base + TUBE.h - 0.2,
+    y0: TUBE.base + SAND_H + 0.16, y1: TUBE.base + TUBE.h - 0.2, floor: TUBE.base + SAND_H,
   },
 ];
 
@@ -274,11 +276,35 @@ const FISH: FishLook[] = [
   { name: '엔젤피시', len: 0.24, tall: 1.35, body: 0xd8d4c8, fin: 0xd8d4c8, stripe: 0x2c2c2a, stripes: 3 },
   { name: '베타', len: 0.18, tall: 0.6, body: 0xc23a5a, fin: 0x8a2a8a },
 ];
-export const FISH_KINDS = FISH.length;
-export const FISH_NAMES = FISH.map((f) => f.name);
+
+// ---- 손님 — 물고기 말고 수조에 조금 넣은 것: 흰 가재와 버제스 셰일(캄브리아기) 고생물. 종류마다 한두 마리.
+// how: swim(물고기처럼 아무 높이) · low(바닥 가까이 낮게 헤엄) · crawl(모래 위를 긴다 — 모형의 원점이 발).
+// tanks 는 넣을 수조(TANKS 의 차례, 0~2 뒤 벽 수조·3 원통) — 하나에 하나씩. 가운데 수조(1)가 버제스 셰일 수조.
+export type CritterHow = 'swim' | 'low' | 'crawl';
+interface Critter { name: string; how: CritterHow; tanks: number[]; speed: [number, number]; build: (frame: 0 | 1) => THREE.Group }
+const CRITTERS: Critter[] = [
+  { name: '흰가재', how: 'crawl', tanks: [0, 2], speed: [0.03, 0.06], build: crayfish },
+  { name: '아노말로카리스', how: 'swim', tanks: [1], speed: [0.08, 0.13], build: anomalocaris },
+  { name: '오파비니아', how: 'low', tanks: [1], speed: [0.05, 0.09], build: opabinia },
+  { name: '할루키게니아', how: 'crawl', tanks: [1, 1], speed: [0.015, 0.03], build: hallucigenia },
+  { name: '마렐라', how: 'low', tanks: [1, 2], speed: [0.06, 0.1], build: marrella },
+];
+export const SWIM_KINDS = FISH.length;                       // 0..SWIM_KINDS-1 은 물고기 — 수조마다 섞어 넣는다
+export const FISH_KINDS = FISH.length + CRITTERS.length;     // 구운 조각의 종류 수 (물고기 + 손님)
+export const FISH_NAMES = [...FISH.map((f) => f.name), ...CRITTERS.map((c) => c.name)];
+// iso/fish.ts 가 읽는다 — 손님마다 kind·다니는 꼴·수조·빠르기
+export const GUESTS: { kind: number; how: CritterHow; tank: number; speed: [number, number] }[] =
+  CRITTERS.flatMap((c, i) => c.tanks.map((tank) => ({ kind: SWIM_KINDS + i, how: c.how, tank, speed: c.speed })));
 
 export function buildFish(opts: { kind: number; rot: number; frame: 0 | 1 }): THREE.Group {
-  const f = FISH[((opts.kind % FISH_KINDS) + FISH_KINDS) % FISH_KINDS];
+  const kind = ((opts.kind % FISH_KINDS) + FISH_KINDS) % FISH_KINDS;
+  const g = kind < SWIM_KINDS ? fishModel(FISH[kind], opts.frame) : CRITTERS[kind - SWIM_KINDS].build(opts.frame);
+  g.rotation.y = opts.rot;
+  return g;
+}
+
+function fishModel(f: FishLook, frame: 0 | 1): THREE.Group {
+  const opts = { frame };
   const g = new THREE.Group();
   const L = f.len, H = L * f.tall * 0.55, Wd = L * 0.22;
   // 몸 — 옆으로 납작한 방추형
@@ -317,6 +343,177 @@ export function buildFish(opts: { kind: number; rot: number; frame: 0 | 1 }): TH
   fin.scale.x = 0.15;
   // 눈
   for (const sx of [-1, 1]) mesh(g, new THREE.SphereGeometry(L * 0.032, 5, 4), 0x1f1a17, sx * Wd * 0.3, H * 0.12, L * 0.24);
-  g.rotation.y = opts.rot;
+  return g;
+}
+
+// ---- 손님 모형 — 앞은 +z. 기는 것은 발이 원점(모래 위에 놓는다), 헤엄치는 것은 몸 가운데가 원점.
+// 실제보다 조금 크게 — 구운 그림은 세계 1 = 96 픽셀이라 실제 크기면 몇 픽셀밖에 안 된다. 다리·가시는 0.004 보다 가늘면 굽을 때 사라진다
+type V3 = [number, number, number];
+const DARK = 0x1f1a17;
+// 두 점을 잇는 원기둥 (다리·더듬이·가시) — r0 은 a 쪽, r1 은 b 쪽 굵기
+function limb(g: THREE.Object3D, a: V3, b: V3, r0: number, c: number, r1 = r0): THREE.Mesh {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const m = mesh(g, new THREE.CylinderGeometry(r1, r0, A.distanceTo(B), 5), c, (A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.sub(A).normalize());
+  return m;
+}
+// 늘인 공 — 몸 마디
+function blob(g: THREE.Object3D, sx: number, sy: number, sz: number, c: number, x: number, y: number, z: number): THREE.Mesh {
+  const m = mesh(g, new THREE.SphereGeometry(0.5, 8, 6), c, x, y, z);
+  m.scale.set(sx, sy, sz);
+  return m;
+}
+// 마디진 굽은 팔 — 앞(+z)으로 나가다 step 씩 아래로 말린다. 마디마다 안쪽으로 짧은 가시
+function curl(g: THREE.Object3D, from: V3, n: number, seg: number, step: number, r: number, c: number, spine?: number): void {
+  let [x, y, z] = from, a = 0;
+  for (let k = 0; k < n; k++) {
+    const nx = x, ny = y - Math.sin(a) * seg, nz = z + Math.cos(a) * seg;
+    const rr = r * (1 - k / (n + 1));
+    limb(g, [x, y, z], [nx, ny, nz], rr, c, rr * 0.85);
+    if (spine !== undefined && k > 0) limb(g, [nx, ny, nz], [nx, ny - Math.cos(a) * seg * 0.6, nz - Math.sin(a) * seg * 0.6], rr * 0.6, spine, 0.002);
+    [x, y, z] = [nx, ny, nz];
+    a += step;
+  }
+}
+// 헤엄치는 옆 날개 — 몸 양옆에 n 쌍, frame 마다 물결이 반 칸 옮겨 간다
+function flaps(g: THREE.Object3D, n: number, z0: number, z1: number, out: number, w: number, c: number, frame: 0 | 1, y = 0): void {
+  for (let k = 0; k < n; k++) {
+    const t = k / (n - 1), z = z0 + (z1 - z0) * t, ww = w * (1 - 0.45 * Math.abs(t - 0.35));
+    for (const sx of [-1, 1]) {
+      const f = new THREE.Group();
+      f.position.set(sx * out, y, z);
+      f.rotation.z = sx * Math.sin(k * 1.1 + frame * Math.PI) * 0.4;
+      g.add(f);
+      bx(f, ww, 0.005, (z1 - z0) / n * 1.15, c, sx * ww / 2, 0, 0);
+    }
+  }
+}
+
+// 흰 가재 — 하얀 갑각, 마디진 배와 꼬리 부채, 앞에 큰 집게 둘, 걷는 다리 넷 쌍, 긴 더듬이. 원점은 발
+function crayfish(frame: 0 | 1): THREE.Group {
+  const g = new THREE.Group();
+  const W = 0xf4f2ec, P = 0xeadbd2, J = 0xd9c4ba;
+  const y = 0.045;
+  blob(g, 0.08, 0.06, 0.12, W, 0, y + 0.005, 0.03);                                   // 머리가슴 갑각
+  const ros = mesh(g, new THREE.ConeGeometry(0.014, 0.04, 4), W, 0, y + 0.012, 0.1);    // 이마뿔
+  ros.rotation.x = Math.PI / 2;
+  for (let k = 0; k < 4; k++) blob(g, 0.07 - k * 0.008, 0.045 - k * 0.004, 0.042, k % 2 ? W : P, 0, y + 0.004 - k * 0.004, -0.04 - k * 0.034);   // 배 마디
+  for (const r of [-0.55, 0, 0.55]) {                                                    // 꼬리 부채
+    const t = bx(g, 0.026, 0.008, 0.05, W, Math.sin(r) * 0.022, y - 0.012, -0.19 - Math.cos(r) * 0.01);
+    t.rotation.y = r;
+  }
+  for (const sx of [-1, 1]) {
+    // 집게 — 팔 두 마디, 집게 몸, 손가락 둘 (frame 마다 벌렸다 오므렸다)
+    limb(g, [sx * 0.03, y, 0.06], [sx * 0.068, y + 0.004, 0.1], 0.015, P, 0.014);
+    limb(g, [sx * 0.068, y + 0.004, 0.1], [sx * 0.07, y + 0.006, 0.14], 0.015, W, 0.017);
+    blob(g, 0.052, 0.032, 0.09, W, sx * 0.072, y + 0.006, 0.175);
+    const tip: V3 = [sx * 0.072, y + 0.006, 0.21], open = frame ? 0.026 : 0.01;
+    limb(g, tip, [sx * (0.072 + 0.012), y + 0.006, 0.26], 0.012, W, 0.005);
+    limb(g, tip, [sx * (0.072 - open), y + 0.006, 0.255], 0.01, J, 0.004);
+    // 걷는 다리 넷 — 좌우가 엇갈려 앞뒤로
+    for (let k = 0; k < 4; k++) {
+      const z = 0.06 - k * 0.032, ph = (k + (sx > 0 ? 1 : 0) + frame) % 2 ? 0.014 : -0.014;
+      limb(g, [sx * 0.035, y - 0.005, z], [sx * 0.085, y + 0.012, z + ph], 0.006, J);
+      limb(g, [sx * 0.085, y + 0.012, z + ph], [sx * 0.1, 0.002, z + ph * 1.6], 0.005, J, 0.003);
+    }
+    // 더듬이 — 길고 바깥으로
+    limb(g, [sx * 0.015, y + 0.02, 0.1], [sx * 0.09, y + 0.05, 0.27], 0.005, J, 0.003);
+    limb(g, [sx * 0.09, y + 0.05, 0.27], [sx * 0.15, y + 0.04, 0.36], 0.003, J);
+    mesh(g, new THREE.SphereGeometry(0.009, 5, 4), DARK, sx * 0.022, y + 0.03, 0.085);    // 눈
+  }
+  return g;
+}
+
+// 아노말로카리스 — 붉은 갈색 몸, 옆 날개 아홉 쌍, 자루 달린 눈, 머리 앞에 말린 가시팔 둘, 꼬리 부채. 원점은 몸 가운데
+function anomalocaris(frame: 0 | 1): THREE.Group {
+  const g = new THREE.Group();
+  const B = 0xc0683f, F = 0xe0956a, A = 0xd98a55;
+  blob(g, 0.07, 0.032, 0.25, B, 0, 0, -0.005);
+  flaps(g, 9, 0.08, -0.11, 0.025, 0.055, F, frame);
+  blob(g, 0.06, 0.036, 0.065, B, 0, 0.004, 0.125);                                     // 머리
+  for (const sx of [-1, 1]) {
+    limb(g, [sx * 0.018, 0.012, 0.125], [sx * 0.052, 0.024, 0.13], 0.005, B);            // 눈자루
+    mesh(g, new THREE.SphereGeometry(0.014, 6, 4), 0x2a1f1a, sx * 0.056, 0.026, 0.132);
+    curl(g, [sx * 0.016, -0.012, 0.15], 7, 0.024, frame ? 0.52 : 0.42, 0.01, A, 0x8e4a30);   // 앞 가시팔
+    for (const [r, l] of [[0.35, 0.07], [0.75, 0.065], [1.15, 0.055]]) {                 // 꼬리 부채 세 쌍
+      const t = new THREE.Group();
+      t.position.set(sx * 0.01, 0.006, -0.12);
+      t.rotation.y = Math.PI + sx * r;
+      t.rotation.x = -0.25;
+      g.add(t);
+      bx(t, 0.014, 0.005, l, 0xa8452f, 0, 0, l / 2);
+    }
+  }
+  return g;
+}
+
+// 오파비니아 — 눈 다섯 개(자루 위), 앞으로 길게 늘어진 코(끝에 집게), 옆 날개, 꼬리 부채. 원점은 몸 가운데
+function opabinia(frame: 0 | 1): THREE.Group {
+  const g = new THREE.Group();
+  const B = 0x9c8a74, F = 0xc4ab8c;
+  blob(g, 0.05, 0.028, 0.17, B, 0, 0, -0.01);
+  flaps(g, 7, 0.05, -0.08, 0.02, 0.035, F, frame);
+  blob(g, 0.046, 0.036, 0.045, B, 0, 0.004, 0.08);                                     // 머리
+  for (const [ex, ey, ez] of [[-0.02, 0.04, 0.085], [0.02, 0.04, 0.085], [-0.012, 0.046, 0.065], [0.012, 0.046, 0.065], [0, 0.05, 0.095]] as V3[]) {
+    limb(g, [ex * 0.5, 0.016, ez], [ex, ey, ez], 0.004, B);
+    mesh(g, new THREE.SphereGeometry(0.009, 5, 4), DARK, ex, ey, ez);
+  }
+  // 코 — 머리 아래에서 앞으로, 아래로 휜다. 끝의 집게
+  let p: V3 = [0, -0.008, 0.1], a = frame ? 0.35 : 0.2;
+  for (let k = 0; k < 4; k++) {
+    const q: V3 = [0, p[1] - Math.sin(a) * 0.028, p[2] + Math.cos(a) * 0.028];
+    limb(g, p, q, 0.007 - k * 0.0008, 0x8a7562);
+    p = q; a += 0.12;
+  }
+  for (const sx of [-1, 1]) limb(g, p, [sx * 0.012, p[1] - 0.012, p[2] + 0.016], 0.005, 0x5a463a, 0.003);
+  for (const sx of [-1, 1]) for (const [r, l] of [[0.3, 0.045], [0.7, 0.04]]) {            // 꼬리 부채 — 위로 살짝
+    const t = new THREE.Group();
+    t.position.set(sx * 0.008, 0.008, -0.085);
+    t.rotation.y = Math.PI + sx * r;
+    t.rotation.x = -0.5;
+    g.add(t);
+    bx(t, 0.012, 0.005, l, 0xb8503a, 0, 0, l / 2);
+  }
+  return g;
+}
+
+// 할루키게니아 — 가는 관 같은 몸, 등에 가시 일곱 쌍, 배에 촉수 다리 일곱 쌍, 둥근 머리. 원점은 발
+function hallucigenia(frame: 0 | 1): THREE.Group {
+  const g = new THREE.Group();
+  const B = 0xe6c39a, S = 0x5a3f30, L = 0xd6ab82;
+  const y = 0.04;
+  const body = mesh(g, new THREE.CylinderGeometry(0.011, 0.012, 0.16, 6), B, 0, y, 0);
+  body.rotation.x = Math.PI / 2;
+  blob(g, 0.026, 0.024, 0.034, B, 0, y + 0.004, 0.09);                                  // 머리
+  limb(g, [0, y, -0.078], [0, y + 0.014, -0.105], 0.01, B, 0.006);                       // 꼬리 — 살짝 들린다
+  for (let k = 0; k < 7; k++) {
+    const z = 0.055 - k * 0.019;
+    for (const sx of [-1, 1]) {
+      limb(g, [sx * 0.005, y + 0.008, z], [sx * 0.026, y + 0.06, z - 0.006], 0.006, S, 0.002);
+      const ph = (k + (sx > 0 ? 1 : 0) + frame) % 2 ? 0.008 : -0.008;
+      limb(g, [sx * 0.006, y - 0.006, z], [sx * 0.022, 0.001, z + ph], 0.005, L, 0.004);
+    }
+  }
+  return g;
+}
+
+// 마렐라 — 작은 머리 방패에 뒤로 휜 긴 뿔 두 쌍, 가늘어지는 몸 마디, 긴 더듬이 둘. 원점은 몸 가운데
+function marrella(frame: 0 | 1): THREE.Group {
+  const g = new THREE.Group();
+  const B = 0xd2b48a, S = 0x9a6a4a, A = 0xb89870;
+  blob(g, 0.052, 0.022, 0.046, B, 0, 0.006, 0.045);                                    // 머리 방패
+  for (let k = 0; k < 7; k++) {
+    const z = 0.018 - k * 0.015;
+    blob(g, 0.044 - k * 0.004, 0.018, 0.02, k % 2 ? B : 0xc4a47a, 0, 0, z);
+    for (const sx of [-1, 1]) limb(g, [sx * 0.012, -0.004, z], [sx * 0.03, -0.016, z + ((k + frame) % 2 ? 0.005 : -0.005)], 0.004, A, 0.003);   // 다리
+  }
+  for (const sx of [-1, 1]) {
+    // 뿔 — 바깥 쌍은 옆으로 낮게, 안쪽 쌍은 위로 솟아 뒤로
+    limb(g, [sx * 0.012, 0.008, 0.045], [sx * 0.05, 0.016, 0.0], 0.005, S, 0.004);
+    limb(g, [sx * 0.05, 0.016, 0.0], [sx * 0.058, 0.012, -0.08], 0.004, S, 0.002);
+    limb(g, [sx * 0.008, 0.012, 0.04], [sx * 0.026, 0.045, -0.005], 0.005, S, 0.004);
+    limb(g, [sx * 0.026, 0.045, -0.005], [sx * 0.032, 0.038, -0.09], 0.004, S, 0.002);
+    limb(g, [sx * 0.006, 0.004, 0.06], [sx * 0.04, -0.004, 0.14], 0.004, A, 0.003);       // 더듬이
+  }
   return g;
 }

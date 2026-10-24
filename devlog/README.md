@@ -14,6 +14,7 @@
 | 글 | 무엇 |
 |---|---|
 | [20261026_koprifossillab_P01](20261026_koprifossillab_P01_opt_in_other_accounts.md) | 다른 계정도 보이게 — 본인이 켜는 표지(스킬)·CAP_DAC_READ_SEARCH, ACL 을 버린 까닭(0600) |
+| [20261024_wetherilli_018](20261024_wetherilli_018_paleo_lab_people.md) | 공룡 골격·고생물 소품·계단과 엘리베이터·아래층 지붕·계정 부서·사람 같은 하위 에이전트·직원 개성·수족관 가림 — 세션 셋이 나눠 함 |
 | [20261024_wetherilli_017](20261024_wetherilli_017_rename_in_list.md) | 목록에서 이름 두 번 눌러 고치기(localStorage), 일하면서 잡담(work: 무리) |
 | [20261023_wetherilli_016](20261023_wetherilli_016_backdrop_daylight.md) | 바깥 배경 — 하늘·먼 도시·아래 두 층·땅, daylight(서울 시각)로 낮·밤 연속 |
 | [20261023_wetherilli_015](20261023_wetherilli_015_terrace_boss_lab.md) | 테라스, 부장실·본부장실, 실험실, 나무, 명판 폭, 이름표 깜빡임, 아이콘·메신저·부서 상자 합치기 |

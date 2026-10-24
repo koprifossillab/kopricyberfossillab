@@ -59,6 +59,13 @@ export const AQUA_DIALOGS: string[][] = [
   ['남극 바다에도 이런 애들 있어요?', '훨씬 칙칙하대요', '그래도 보고 싶다'],
 ];
 export const BREEZE: string[] = ['바람 좋다', '하아~', '하늘 맑네', '잠깐 머리 식히자', '밖이 낫다', '햇빛 좋다', '기지개 한 번', '오늘 노을 예쁘겠다'];
+export const SKEL: string[] = ['이빨 봐…', '팔 진짜 짧다', '실물은 세 배래', '이거 진짜 뼈예요?', '꼬리가 기네', '눈구멍 크다', '저 갈비 몇 개지'];
+export const SKEL_DIALOGS: string[][] = [
+  ['이거 진짜 화석이에요?', '모형이래요, 진짜는 박물관에', '그래도 멋있다'],
+  ['티라노 팔은 왜 짧아요?', '아직도 논쟁 중이래요', '귀엽긴 하다'],
+  ['저 다리뼈 하나가 제 키만 하겠네', '실물이면 더 크죠', '무섭다'],
+  ['깃털 있었대요?', '어릴 땐 있었을 수도요', '복슬복슬 티라노…'],
+];
 export const COFFEE: string[] = ['☕', '커피 향 좋다', '샷 추가할까', '아 뜨거', '디카페인은 없나', '한 잔 더?', '설탕 어디 있지'];
 
 // 일하면서 — 같은 사무실(책상)·같은 일자리(코어 보관대·실험대·자료실)끼리
@@ -130,7 +137,7 @@ export class Chatter {
     if (t.solo) {
       // 혼자면 드문드문
       const feeding = group.startsWith('feed');
-      t.text = work ? (act && Math.random() < 0.8 ? workSolo(act(members[0])) : pick(SOLO)) : feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'breeze' ? pick(BREEZE) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
+      t.text = work ? (act && Math.random() < 0.8 ? workSolo(act(members[0])) : pick(SOLO)) : feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'skel' ? pick(SKEL) : group === 'breeze' ? pick(BREEZE) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
       t.who = members[0];
       t.until = now + lineTime(t.text);
       t.next = t.until + (feeding ? rand(3, 8) : work ? rand(25, 60) : rand(12, 35));
@@ -140,7 +147,8 @@ export class Chatter {
       // 새 대화 — 말을 꺼내는 사람도 고른다
       // 일하는 중엔 일 얘기가 많고, 가끔 딴 얘기
       t.lines = work ? (Math.random() < 0.75 ? pick(WORK_DIALOGS) : pick(DIALOGS))
-        : group === 'aqua' && Math.random() < 0.7 ? pick(AQUA_DIALOGS) : pick(DIALOGS);
+        : group === 'aqua' && Math.random() < 0.7 ? pick(AQUA_DIALOGS)
+        : group === 'skel' && Math.random() < 0.7 ? pick(SKEL_DIALOGS) : pick(DIALOGS);
       t.i = 0;
       const start = Math.floor(Math.random() * members.length);
       t.speakers = [...members.slice(start), ...members.slice(0, start)];

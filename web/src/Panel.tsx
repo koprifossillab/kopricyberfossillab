@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import type { Agent, Snapshot } from './types.ts';
 import { loadAtlas, headKey, bodyKey } from './iso/atlas.ts';
-import { appearanceOf } from './scene/appearance.ts';
+import { appearanceOf, liftOf, PERSONAS } from './scene/appearance.ts';
 import { personName, subtitle, setPersonName, subscribeNames, namesVersion } from './scene/names.ts';
-import { STATE_TEXT, PALETTE, FOREIGN_COLOR } from './scene/layout.ts';
+import { STATE_TEXT, PALETTE, FOREIGN_COLOR, HEAD_Y } from './scene/layout.ts';
 import { colorOf } from './scene/director.ts';
 import type { Link } from './useOffice.ts';
 import { Desk } from './Desk.tsx';
@@ -12,7 +12,7 @@ import './agentlist.css';
 
 const KIND: Record<Agent['kind'], string> = { session: '터미널', job: '백그라운드', subagent: '하위', foreign: '다른 계정', terminal: 'tmux', desk: '상담원' };
 const WORK = new Set(['code', 'read', 'search', 'run', 'think', 'spawn', 'git', 'test']);
-const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : r);
+const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : r.startsWith('@') ? `${r.slice(1)} 계정` : r);
 const FACE_DIR = 1;   // 머리 조각의 방향 — 카메라 쪽(+x+z)을 본다
 
 // 목록의 얼굴 — 그 캐릭터의 머리·몸 조각을 그대로 (둥근 바탕은 몸 색)
@@ -30,14 +30,11 @@ export function Avatar({ a, color, small }: { a: Agent; color: number; small: bo
       const ctx = c.getContext('2d')!;
       ctx.clearRect(0, 0, c.width, c.height);
       if (!head) return;
-      // 머리 가운데를 원 가운데보다 조금 위에, 머리 지름이 원의 3/4 쯤
-      const s = (c.width * 0.75) / Math.max(head.w, head.h);
-      const cx = c.width / 2, cy = c.height * 0.44;
-      if (body) {
-        // 몸은 머리 기준점에서 HEAD_Y 아래 — 구운 픽셀로 머리 기준점 → 발 차이는 body.oy·head.oy 로 대신 맞춘다
-        const by = cy + (head.h * 0.5 + 4) * s;
-        ctx.drawImage(sheets[body.sheet], body.sx, body.sy, body.w, body.h, cx - (body.w * s) / 2, by, body.w * s, body.h * s);
-      }
+      // 머리(지름 약 0.5)가 원의 3/4 쯤, 머리 가운데를 원 가운데보다 조금 위에. 몸집 따라 머리가 조각 안에서 오르내린 만큼(lift) 함께 내린다
+      const px = atlas.scale * atlas.up[1];
+      const s = (c.width * 0.75) / (0.5 * atlas.scale);
+      const cx = c.width / 2, cy = c.height * 0.44 + liftOf(PERSONAS[L.look].build) * px * s;
+      if (body) ctx.drawImage(sheets[body.sheet], body.sx, body.sy, body.w, body.h, cx + body.ox * s, cy + HEAD_Y * px * s + body.oy * s, body.w * s, body.h * s);
       ctx.drawImage(sheets[head.sheet], head.sx, head.sy, head.w, head.h, cx + head.ox * s, cy + head.oy * s, head.w * s, head.h * s);
     }).catch(() => {});
     return () => { alive = false; };
@@ -109,9 +106,9 @@ function clock(ms: number): string {
 // 부서 상자 — 묶는 열쇠: 프로젝트 이름(그 부서), center(고객센터 + 상담원), general(공용실 + tmux 사람), foreign(다른 계정)
 // 하위 에이전트는 부모의 상자 안, 부모 아래. 차례는 프로젝트 부서(이름 차례) → 고객센터 → 공용실 → 다른 계정
 const KEY_COLLAPSED = 'kopricyberfossillab.groupsCollapsed';
-const groupOf = (a: Agent): string => a.kind === 'foreign' ? 'foreign' : a.kind === 'desk' ? 'center' : a.kind === 'terminal' ? 'general' : a.room;
-const GROUP_NAME = (g: string) => g === 'center' ? '고객센터' : g === 'general' ? '공용실' : g === 'foreign' ? '다른 계정' : `${g} 부서`;
-const GROUP_RANK = (g: string) => g === 'center' ? 1 : g === 'general' ? 2 : g === 'foreign' ? 3 : 0;
+const groupOf = (a: Agent): string => a.kind === 'foreign' ? (a.room.startsWith('@') ? a.room : 'foreign') : a.kind === 'desk' ? 'center' : a.kind === 'terminal' ? 'general' : a.room;
+const GROUP_NAME = (g: string) => g === 'center' ? '고객센터' : g === 'general' ? '공용실' : g === 'foreign' ? '다른 계정' : g.startsWith('@') ? `${g.slice(1)} 계정 부서` : `${g} 부서`;
+const GROUP_RANK = (g: string) => g === 'center' ? 1 : g === 'general' ? 2 : g === 'foreign' || g.startsWith('@') ? 3 : 0;
 function nameHash(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
@@ -119,7 +116,7 @@ function nameHash(s: string): number {
 }
 // 띠 색 — 프로젝트는 이름으로 PALETTE 에서, 나머지 셋은 정해 둔 것
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
-const GROUP_COLOR = (g: string) => g === 'center' ? 'var(--accent)' : g === 'general' ? 'var(--muted)' : g === 'foreign' ? hex(FOREIGN_COLOR) : hex(PALETTE[nameHash(g) % PALETTE.length]);
+const GROUP_COLOR = (g: string) => g === 'center' ? 'var(--accent)' : g === 'general' ? 'var(--muted)' : g === 'foreign' || g.startsWith('@') ? hex(FOREIGN_COLOR) : hex(PALETTE[nameHash(g) % PALETTE.length]);
 
 function loadCollapsed(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(KEY_COLLAPSED) ?? '[]') as string[]); } catch { return new Set(); }

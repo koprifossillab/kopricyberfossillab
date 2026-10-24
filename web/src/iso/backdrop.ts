@@ -139,6 +139,12 @@ function drawStatic(ctx: Ctx2D, proj: Proj, world: { w: number; d: number }, vie
     { len: d, at: (s: number, y: number): [number, number, number] => [w, y, d - s],
       wall: mix('#222b47', '#a9afbc', day), band: mix('#313b5b', '#c7ccd5', day), glass: hexOf(mix('#141c33', '#5e89b0', day)), shade: 0.88 },
   ];
+  // 아래층 지붕 — 맨 위층은 ㄱ자라(테라스 오른쪽, 화장실·창고 앞은 바닥이 없다) 그 자리로 땅이 비쳐 건물이 비어 보였다
+  // (사용자: 「창고 밑이 비어 보인다」). 지붕 판을 깔고 앞·오른쪽 가장자리에 낮은 난간 턱을 둔다 — 위층 바닥이 덮는 곳은 가려진다
+  const roof = mix('#2a3147', '#9a9d9f', day), curb = mix('#323a55', '#b9bcc2', day);
+  quad(ctx, proj, [[0, TOP, 0], [w, TOP, 0], [w, TOP, d], [0, TOP, d]], roof);
+  quad(ctx, proj, [[0, TOP + 0.3, d], [w, TOP + 0.3, d], [w, TOP, d], [0, TOP, d]], curb);
+  quad(ctx, proj, [[w, TOP + 0.3, 0], [w, TOP + 0.3, d], [w, TOP, d], [w, TOP, 0]], curb);
   faces.forEach((F, fi) => {
     quad(ctx, proj, [F.at(0, TOP), F.at(F.len, TOP), F.at(F.len, GROUND), F.at(0, GROUND)], F.wall);
     for (let fl = 0; fl < 2; fl++) {

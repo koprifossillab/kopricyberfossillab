@@ -9,7 +9,7 @@
 import type { Rect } from './layout.ts';
 import type { Office } from '../types.ts';
 import {
-  MODULES, TERRACE_D, DOOR_TOP, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
+  MODULES, TERRACE_D, DOOR_TOP, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, ENTRANCE_DOOR, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
   type DeskKind, type ModuleType, type Plaque, type Seat, type Item,
 } from './modules.ts';
 
@@ -56,7 +56,8 @@ export const isRash = (project: string) => /^rash-company/.test(project);
 
 export function buildWorld(offices: Office[]): World {
   // 이름 차례로 한 줄(폭 ROW_W)에 채우고, 넘치면 다음 줄. 줄 끝 남는 자리는 빈 사무실
-  const sorted = [...offices].sort((a, b) => a.name.localeCompare(b.name));
+  // 다른 계정의 부서(「@계정」)는 프로젝트 사무실 뒤에
+  const sorted = [...offices].sort((a, b) => Number(a.name.startsWith('@')) - Number(b.name.startsWith('@')) || a.name.localeCompare(b.name));
   const rowsOf: { type: ModuleType; x: number; label?: string }[][] = [[{ type: 'hq', x: 0 }]];   // 본부장실이 맨 앞
   let x = MODULES.hq.size[0];
   for (const o of sorted) {
@@ -103,7 +104,7 @@ export function buildWorld(offices: Office[]): World {
     w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D + TERRACE_D, modules, rooms,
     desks: [], items: [], blocks: [], lounge: [], core: [], bench: [], stand: [], labels: [],
     restroom: { male: [], female: [] }, search: [], pen: null, aqua: null, breeze: [],
-    door: [BUILDING_W + ENTRANCE_W - 0.4, entZ + CORRIDOR / 2],
+    door: [BUILDING_W + ENTRANCE_DOOR[0], entZ + ENTRANCE_DOOR[1]],   // 엘리베이터·계단 앞
   };
   // 건물 밖은 입구 길만 걷는다
   if (entZ > OFFICE_D) w.blocks.push([BUILDING_W, OFFICE_D, w.w, entZ]);   // 자료실 아래 빈 곳
@@ -152,7 +153,7 @@ export function buildWorld(offices: Office[]): World {
       w.labels.push({ name: m.type === 'hq' ? '본부장실' : `${m.label} 부장실`, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: 'boss' });
     }
     if (m.type.startsWith('office') && m.label) {
-      w.labels.push({ name: m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: m.type === 'office-rash' ? 'rash' : 'project' });
+      w.labels.push({ name: m.label.startsWith('@') ? `${m.label.slice(1)} 계정` : m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: m.type === 'office-rash' ? 'rash' : 'project' });
     }
   });
   return w;

@@ -94,6 +94,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let order: number[] = [];
       let pen: DinoPen | null = null;
       let tank: FishTank | null = null;
+      let tankItem: (string | undefined)[] = [];   // 수조 차례 → 그 수조 가구의 WorldItem.key (물고기를 그 그림 안에 그릴 때)
       let day = 1, lastSky = -1;
       let lamps: [number, number][] = [];
       let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
@@ -214,7 +215,12 @@ export function Stage({ agents, offices, selected, onSelect }: {
             for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.at[1] + lz]);
           }
         }
-        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; tank = w.aqua ? new FishTank(w.aqua.tanks) : null; }
+        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
+          tankItem = (w.aqua?.tanks ?? []).map(({ box: [x0, z0, x1, z1] }) => {
+            const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+            return w.items.find((it) => (it.kind === 'tank' || it.kind === 'tube') && cx > it.box[0] && cx < it.box[2] && cz > it.box[1] && cz < it.box[3])?.key;
+          });
+        }
         w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
         for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } }
 
@@ -234,7 +240,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           if (!body || !head) continue;
           const bob = a.moving && !RM ? Math.abs(Math.sin(a.t * 10)) * 0.08 : 0;
           const lift = sit ? (a.place.lift ?? 0) : 0;
-          const s = a.agent.kind === 'subagent' ? 0.72 : 1;
+          const s = 1;   // 하위 에이전트도 사람 크기 (전에는 0.72 — 사용자: 「에이전트도 사람같이」)
           const [bx, by] = proj([a.x, bob + lift, a.z]);
           const [hx, hy] = proj([a.x, bob + lift + (HEAD_Y + (sit ? SIT_LIFT : 0)) * s, a.z]);
           const x0 = Math.min(bx + body.ox * s, hx + head.ox * s), y0 = Math.min(by + body.oy * s, hy + head.oy * s);
@@ -253,7 +259,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
           pen.step(Math.min(0.05, dt), feeders);
         }
         // 그릴 것 — 캐릭터와 공룡을 x+z 차례로, 사이사이에 그들을 가리는 가구를 끼운다
-        type Figure = { x: number; z: number; sit: boolean; on?: string; x0: number; y0: number; x1: number; y1: number; draw: () => void };
+        // inside — 그 가구(수조) 속에 든 것. 그 가구는 이 그림을 덮지 않고 옅게만 비친다(아래 covers)
+        type Figure = { x: number; z: number; sit: boolean; on?: string; inside?: string; x0: number; y0: number; x1: number; y1: number; draw: () => void };
         const figs: Figure[] = draws.map((d) => ({
           x: d.a.x, z: d.a.z, sit: sitting(d.a), on: d.a.place.on, x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1,
           draw: () => {
@@ -279,34 +286,39 @@ export function Stage({ agents, offices, selected, onSelect }: {
             },
           });
         }
-        // 물고기 — 수조 안을 헤엄 (fish.ts). 수조 유리가 앞에서 옅게 덮는다
+        // 물고기·손님 — 수조 안을 헤엄치거나 모래 위를 긴다 (fish.ts). 수조 그림(뒤판·물·유리가 한 조각)은
+        // 물건 층에 먼저 깔리고, 물고기는 그 위에 — 그 수조가 다시 덮으면 짙은 뒤판까지 물고기 위에 칠해져 안 보인다(wetherilli 017 전까지의 탈).
+        // 그래서 든 수조는 옅게(VEIL)만 다시 칠해 물·유리 너머로 보이게 한다
         tank?.step(Math.min(0.05, dt));
         for (const f of tank?.fish ?? []) {
           const r = atlas.fish?.[fishKey(f.kind, f.frame, dirOf(f.rot))];
           if (!r) continue;
           const [ax, ay] = proj([f.x, f.y, f.z]);
-          figs.push({ x: f.x, z: f.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h, draw: () => blit(r, ax, ay) });
+          figs.push({ x: f.x, z: f.z, sit: false, inside: tankItem[f.tank], x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h, draw: () => blit(r, ax, ay) });
         }
         figs.sort((p, q) => (p.x + p.z) - (q.x + q.z));
         // 가구가 그림 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다
         const frontOf = (f: Figure, it: WorldItem) => f.x > it.box[2] || f.z > it.box[3] || (f.sit && f.on === it.key);
-        type Cover = { at: number; box: Rect; clip: Figure[]; fn: () => void };
+        type Cover = { at: number; box: Rect; clip: Figure[]; alpha: number; fn: () => void };
+        const VEIL = 0.3;   // 수조 속 물고기 위에 그 수조를 다시 칠하는 진하기 — 물빛이 살짝 돈다
         const covers: Cover[] = [];
         for (const it of w.items) {
           const r = atlas.modules[w.modules[it.module].type]?.items[it.id];
           if (!r) continue;
           const [ax, ay] = moduleAt(w, it.module);
-          let after = -1;
-          const clip: Figure[] = [];
+          let after = -1, afterIn = -1;
+          const clip: Figure[] = [], veil: Figure[] = [];
           figs.forEach((f, i) => {
-            if (frontOf(f, it)) return;
+            if (f.inside !== it.key && frontOf(f, it)) return;
             if (f.x1 < ax + r.ox || f.x0 > ax + r.ox + r.w || f.y1 < ay + r.oy || f.y0 > ay + r.oy + r.h) return;   // 겹치지 않는다
+            if (f.inside === it.key) { afterIn = Math.max(afterIn, i); veil.push(f); return; }
             after = Math.max(after, i);
             clip.push(f);
           });
-          if (after < 0) continue;
           const desk = w.desks.findIndex((dk) => dk.item === it.key);
-          covers.push({ at: after + 0.5, box: it.box, clip, fn: () => { blit(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); } });
+          const fn = () => { blit(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); };
+          if (after >= 0) covers.push({ at: after + 0.5, box: it.box, clip, alpha: 1, fn });
+          if (afterIn >= 0) covers.push({ at: afterIn + 0.5, box: it.box, clip: veil, alpha: VEIL, fn });
         }
         // 같은 자리에 끼는 가구끼리도 등각 차례로
         const rank = new Map(isoOrder(covers, (cv) => cv.box).map((cv, i) => [cv, i]));
@@ -320,6 +332,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
               ctx.beginPath();
               for (const f of cv.clip) ctx.rect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
               ctx.clip();
+              ctx.globalAlpha = cv.alpha;
               cv.fn();
               ctx.restore();
             },
@@ -364,13 +377,13 @@ export function Stage({ agents, offices, selected, onSelect }: {
           ctx.restore();
         }
 
-        // 이름표 (HTML) — 하위 에이전트는 이름표 없이
+        // 이름표 (HTML) — 하위 에이전트도 단다
         const live = new Set<string>();
         hits = [];
         for (const d of draws) {
           const { a } = d;
           hits.push({ id: a.agent.id, x0: d.x0 * k + offX, y0: d.y0 * k + offY, x1: d.x1 * k + offX, y1: d.y1 * k + offY });
-          if (a.agent.kind === 'subagent' || a.leaving) continue;
+          if (a.leaving) continue;
           // 휴게실에 앉은 사람은 이름표를 숨긴다 (겹친다) — 말할 때 말풍선에 이름이 붙고, 고르면 보인다
           const resting = a.agent.activity === 'idle' && !!a.place.group && !a.moving;
           if (resting && sel !== a.agent.id) continue;
@@ -401,11 +414,11 @@ export function Stage({ agents, offices, selected, onSelect }: {
           groups.set(a.place.group, g);
         }
         // 일하면서도 — 책상에 앉은 사람은 같은 사무실끼리, 그 밖(코어 보관대·실험대·자료실)은 같은 일끼리.
-        // 확인 대기(빨간 링·이름표)와 하위 에이전트·상담원은 빼고, 말하는 동안은 이름표 대신 말풍선
+        // 확인 대기(빨간 링·이름표)와 상담원은 빼고, 말하는 동안은 이름표 대신 말풍선
         for (const d of draws) {
           const { a } = d;
           const act = a.agent.activity;
-          if (a.moving || a.leaving || act === 'idle' || act === 'wait' || a.agent.kind === 'subagent' || a.agent.kind === 'desk') continue;
+          if (a.moving || a.leaving || act === 'idle' || act === 'wait' || a.agent.kind === 'desk') continue;
           const key = a.place.desk !== null ? `work:${a.agent.room}` : `work:${act}`;
           const g = groups.get(key) ?? [];
           g.push(a);

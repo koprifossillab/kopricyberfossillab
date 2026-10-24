@@ -78,8 +78,22 @@ const resting = (a: Agent) => a.activity === 'idle' && a.kind !== 'subagent';
 function assignDesks(w: World, agents: Agent[]): void {
   const taken = new Set(deskOf.values());
   const room = (i: number) => w.desks[i].room;
-  for (const a of agents) {
-    if (a.kind !== 'session' && a.kind !== 'job' && a.kind !== 'terminal' && a.kind !== 'desk') continue;
+  // 하위 에이전트도 사람처럼 책상에 앉는다 — 부모가 앉은 방의 빈 책상, 없으면 부모 곁에 선다 (사용자: 「에이전트도 사람같이」)
+  // 부모가 먼저 책상을 받아야 그 방을 안다 — 하위 에이전트는 뒤에
+  const order = [...agents.filter((a) => a.kind !== 'subagent'), ...agents.filter((a) => a.kind === 'subagent')];
+  for (const a of order) {
+    if (a.kind === 'subagent') {
+      const pd = a.parentId ? deskOf.get(a.parentId) : undefined;
+      const want = pd !== undefined ? room(pd) : null;
+      const has = deskOf.get(a.id);
+      if (want === null) { if (has !== undefined) { deskOf.delete(a.id); taken.delete(has); } continue; }
+      if (has !== undefined && room(has) === want) continue;
+      const free = w.desks.findIndex((_, i) => !taken.has(i) && room(i) === want);
+      if (has !== undefined) { deskOf.delete(a.id); taken.delete(has); }
+      if (free >= 0) { deskOf.set(a.id, free); taken.add(free); }
+      continue;
+    }
+    if (a.kind !== 'session' && a.kind !== 'job' && a.kind !== 'terminal' && a.kind !== 'desk' && a.kind !== 'foreign') continue;
     if (a.kind === 'terminal' && a.activity === 'idle') { deskOf.delete(a.id); continue; }   // tmux 는 명령이 돌 때만 책상에
     // 부장은 그 프로젝트의 부장실, 없으면 본부장실, 그것도 차면 제 방
     const want = a.role === 'boss'
@@ -162,7 +176,7 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
 
   for (const a of agents) {
     const desk = deskOf.get(a.id) ?? null;
-    if (a.kind === 'subagent') {
+    if (a.kind === 'subagent' && desk === null) {   // 책상을 못 받은 하위 에이전트는 부모 곁에 선다
       const pd = a.parentId ? deskOf.get(a.parentId) : undefined;
       const n = children.get(a.parentId ?? '') ?? 0;
       children.set(a.parentId ?? '', n + 1);
@@ -199,7 +213,7 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
       out.set(a.id, lounge(a));
       continue;
     }
-    if (a.kind === 'foreign') {
+    if (a.kind === 'foreign' && desk === null) {   // 제 부서 책상이 없을 때만 (예전 서버는 room 이 general 이었다)
       out.set(a.id, { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
       continue;
     }

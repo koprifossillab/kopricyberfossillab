@@ -1,7 +1,7 @@
 // 수족관 방 — 물고기는 수조 상자 안에만, 관람 자리는 막힌 곳에 갇히지 않고 출입구에서 걸어갈 수 있다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aquariumModule, AQUA_VIEW, TANKS, FISH_KINDS, AQUA_W, AQUA_D } from './aquarium.ts';
+import { aquariumModule, AQUA_VIEW, TANKS, FISH_KINDS, SWIM_KINDS, GUESTS, AQUA_W, AQUA_D } from './aquarium.ts';
 import { FishTank } from '../iso/fish.ts';
 import { Nav } from './nav.ts';
 import type { Rect } from './layout.ts';
@@ -10,6 +10,8 @@ const inside = ([x0, z0, x1, z1]: Rect, x: number, z: number) => x > x0 && x < x
 const overlaps = (a: Rect, b: Rect) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 
 test('물고기는 600초 헤엄쳐도 수조 상자 밖으로 안 나간다', () => {
+  // 수조 상자는 뒤판·앞 유리에서 떨어져 있다 — 물고기 중심이 뒤판 두께 안으로 들어가면 뒤판에 가려진다
+  for (const t of TANKS) assert.ok(t.floor !== undefined && t.floor < t.y0 && t.y0 < t.y1);
   const tank = new FishTank(TANKS);
   assert.ok(tank.fish.length >= TANKS.length * 2);
   const home = tank.fish.map((f) => TANKS.findIndex((t) => f.x >= t.box[0] && f.x <= t.box[2] && f.z >= t.box[1] && f.z <= t.box[3]));
@@ -19,7 +21,10 @@ test('물고기는 600초 헤엄쳐도 수조 상자 밖으로 안 나간다', (
     tank.step(1 / 30);
     tank.fish.forEach((f, i) => {
       const t = TANKS[home[i]];
-      assert.ok(f.x >= t.box[0] && f.x <= t.box[2] && f.z >= t.box[1] && f.z <= t.box[3] && f.y >= t.y0 && f.y <= t.y1,
+      const crawl = GUESTS.some((g) => g.kind === f.kind && g.how === 'crawl');
+      const yok = crawl ? f.y === t.floor : f.y >= t.y0 && f.y <= t.y1;   // 기는 것은 모래 위에 붙어서
+      assert.ok(f.tank === home[i]);
+      assert.ok(f.x >= t.box[0] && f.x <= t.box[2] && f.z >= t.box[1] && f.z <= t.box[3] && yok,
         `물고기 ${i} 가 수조 ${home[i]} 밖 (${f.x.toFixed(2)}, ${f.y.toFixed(2)}, ${f.z.toFixed(2)})`);
       assert.ok(Number.isFinite(f.rot) && (f.frame === 0 || f.frame === 1));
     });
@@ -70,4 +75,13 @@ test('출입구는 왼쪽 벽 z 2.0~3.4, 오른쪽·앞은 열려 있다', () =>
   assert.ok(walls.some((r) => inside(r, 0, 1.0)) && walls.some((r) => inside(r, 0, 4.5)), '왼쪽 벽이 없다');
   for (let t = 0.2; t < AQUA_D; t += 0.1) assert.ok(!walls.some((r) => inside(r, AQUA_W - 0.03, t)), `오른쪽 z=${t.toFixed(1)} 에 벽`);
   for (let t = 0.2; t < AQUA_W; t += 0.1) assert.ok(!walls.some((r) => inside(r, t, AQUA_D - 0.03)), `앞 x=${t.toFixed(1)} 에 벽`);
+});
+
+test('손님(흰 가재·버제스 셰일 고생물)은 종류마다 한두 마리, 물고기와 kind 가 겹치지 않는다', () => {
+  const tank = new FishTank(TANKS);
+  const per = new Map<number, number>();
+  for (const f of tank.fish) if (f.kind >= SWIM_KINDS) per.set(f.kind, (per.get(f.kind) ?? 0) + 1);
+  assert.equal(per.size, FISH_KINDS - SWIM_KINDS);
+  for (const [, n] of per) assert.ok(n >= 1 && n <= 2);
+  for (let i = 0; i < TANKS.length; i++) assert.ok(tank.fish.filter((f) => f.tank === i && f.kind < SWIM_KINDS).length >= 2, `수조 ${i} 에 물고기가 둘보다 적다`);
 });

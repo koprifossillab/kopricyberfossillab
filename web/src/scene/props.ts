@@ -18,6 +18,8 @@ function glow(c: number): THREE.MeshBasicMaterial {
   return m;
 }
 const GLASS = new THREE.MeshLambertMaterial({ color: 0xcfe8f0, transparent: true, opacity: 0.28, depthWrite: false });
+// 호박 — 불빛이 아니라 비치는 돌, 빛을 받는다
+const AMBER = new THREE.MeshLambertMaterial({ color: 0xd9861c, transparent: true, opacity: 0.82, flatShading: true });
 
 function bx(g: THREE.Object3D, w: number, h: number, d: number, c: number, x: number, y: number, z: number, cast = true): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
@@ -46,6 +48,7 @@ const PURPLE = 0x7f77dd, PURPLE_D = 0x534ab7, LEAF = 0x639922, LEAF_D = 0x3b6d11
 const BOOKS = [0xd85a30, 0x378add, 0x1d9e75, 0x7f77dd, 0xef9f27, 0xd4537e, 0x639922, 0x993c1d, 0xfac775, 0x9fe1cb];
 const ROCKS = [0x8a7a62, 0x6e6a5e, 0xa69272, 0x5c5446, 0xb8a888];
 const RUST = 0x8c5a3c, OLD_GREEN = 0x6f7a62, OLD_GREEN_D = 0x59634f;
+const BONE = 0xe6dcc4, BONE_D = 0xc9b994, PLASTER = 0xeeeae0, BURLAP = 0xc9b48a, GOLD = 0xc9a24a;
 
 type Prop = { label: string; size: [number, number]; build: (x: number, z: number, rot?: number) => THREE.Group };
 
@@ -102,6 +105,39 @@ function rock(g: THREE.Group, r: number, c: number, x: number, y: number, z: num
   const m = mesh(g, new THREE.DodecahedronGeometry(r, 0), c, x, y + r * 0.7, z);
   m.rotation.set(seed * 0.7, seed * 1.3, seed * 0.4);
   m.scale.set(1 + (seed % 3) * 0.15, 0.75, 1 - (seed % 2) * 0.15);
+}
+
+// 뼈 한 토막 — xy 평면의 두 점 (x1,y1)→(x2,y2) 를 잇는 원기둥, 깊이 z
+function bone(g: THREE.Object3D, x1: number, y1: number, x2: number, y2: number, r: number, z: number, c = BONE): THREE.Mesh {
+  const dx = x2 - x1, dy = y2 - y1;
+  const m = mesh(g, cyl(r, r * 0.85, Math.hypot(dx, dy), 5), c, (x1 + x2) / 2, (y1 + y2) / 2, z);
+  m.rotation.z = -Math.atan2(dx, dy);
+  return m;
+}
+
+// 공룡 발자국 — 뒤꿈치와 세 발가락(부채꼴). 판의 앞면(z)에 붙인다
+function footprint(g: THREE.Object3D, x: number, y: number, z: number, s: number, c = 0x7d6e58): void {
+  bx(g, 0.09 * s, 0.08 * s, 0.012, c, x, y, z, false);
+  for (const a of [0.45, 0, -0.45]) {
+    const len = (a ? 0.12 : 0.15) * s;
+    const t = bx(g, 0.035 * s, len, 0.012, c, x - Math.sin(a) * (0.04 * s + len / 2), y + Math.cos(a) * (0.04 * s + len / 2), z, false);
+    t.rotation.z = a;
+  }
+}
+
+// 석고 재킷 — 울퉁불퉁한 덩어리에 삼베 띠 둘. 띠는 같은 덩어리를 얇게 썬 조각을 살짝 크게 겹쳐 겉으로 나오게 한다
+function jacket(g: THREE.Group, x: number, z: number, a: number, b: number, c: number, rot: number, y0: number): void {
+  const j = new THREE.Group();
+  mesh(j, new THREE.IcosahedronGeometry(1, 1), PLASTER, 0, 0, 0).scale.set(a, b, c);
+  for (const d of [-0.35, 0.35]) {
+    const k = Math.sqrt(1 - d * d) * 1.04;
+    mesh(j, new THREE.IcosahedronGeometry(1, 1), BURLAP, d * a, 0, 0).scale.set(0.05, b * k, c * k);
+  }
+  bx(j, a * 0.5, 0.005, 0.025, 0xd85a30, 0, b * 0.99, 0.02, false);              // 마커로 쓴 번호
+  bx(j, a * 0.3, 0.005, 0.025, 0xd85a30, -a * 0.1, b * 0.99, -0.04, false);
+  j.position.set(x, y0 + b * 0.85, z);                                           // 바닥이 판에 조금 묻힌다
+  j.rotation.y = rot;
+  g.add(j);
 }
 
 export const PROPS: Record<string, Prop> = {
@@ -499,5 +535,223 @@ export const PROPS: Record<string, Prop> = {
     g.add(head);
     bx(g, 0.08, 0.04, 0.06, 0xd8d0b0, 0.12, 0.03, 0.12).rotation.y = 0.4;         // 스위치 상자
     bx(g, 0.2, 0.012, 0.012, DARK, 0.15, 0.01, 0.25, false).rotation.y = -0.5;    // 늘어진 줄
+  }),
+
+  // ── 고생물 연구실 — 전시물 ──
+  dino_skull_stand: prop('트리케라톱스 두개골', [0.9, 0.7], (g) => {
+    bx(g, 0.8, 0.48, 0.6, WOOD_DD, 0, 0.24, 0);                                  // 받침대
+    bx(g, 0.84, 0.04, 0.64, WOOD_D, 0, 0.5, 0);
+    bx(g, 0.26, 0.07, 0.01, GOLD, 0, 0.3, 0.305, false);                          // 명판
+    const t = new THREE.Group();
+    bx(t, 0.32, 0.24, 0.3, BONE, 0, 0.12, -0.04);                                 // 머리뼈
+    bx(t, 0.2, 0.17, 0.24, BONE, 0, 0.09, 0.22);                                  // 주둥이
+    mesh(t, new THREE.ConeGeometry(0.08, 0.16, 5), BONE_D, 0, 0.05, 0.41).rotation.x = Math.PI / 2;   // 부리
+    bx(t, 0.24, 0.06, 0.36, BONE_D, 0, -0.02, 0.1);                               // 아래턱
+    for (const s of [-1, 1]) {
+      bx(t, 0.01, 0.06, 0.07, DARK, s * 0.161, 0.17, 0.03, false);                // 눈구멍
+      const h = mesh(t, new THREE.ConeGeometry(0.035, 0.42, 6), BONE, s * 0.09, 0.4, 0.08);   // 눈썹 뿔 — 앞으로 길게
+      h.rotation.set(0.95, 0, -s * 0.15);
+    }
+    mesh(t, new THREE.ConeGeometry(0.03, 0.11, 5), BONE, 0, 0.21, 0.27).rotation.x = 0.4;   // 코뿔
+    const frill = new THREE.Group();                                              // 프릴 — 뒤로 젖힌 원판, 테두리에 돌기
+    mesh(frill, cyl(0.36, 0.36, 0.04, 12), BONE_D, 0, 0, 0).rotation.x = Math.PI / 2;
+    for (const s of [-1, 1]) mesh(frill, cyl(0.07, 0.07, 0.042, 8), 0x8a7a62, s * 0.14, 0.1, 0).rotation.x = Math.PI / 2;   // 구멍(흙빛)
+    for (let i = 0; i < 9; i++) {
+      const a = -Math.PI * 0.45 + (i * Math.PI * 0.9) / 8;
+      mesh(frill, new THREE.ConeGeometry(0.035, 0.07, 4), BONE, Math.sin(a) * 0.37, Math.cos(a) * 0.37, 0).rotation.z = -a;
+    }
+    frill.position.set(0, 0.3, -0.2);
+    frill.rotation.x = -0.5;
+    t.add(frill);
+    t.position.set(0, 0.57, -0.02);
+    g.add(t);
+  }),
+
+  raptor_skeleton: prop('랩터 골격', [1.2, 0.5], (g) => {
+    bx(g, 1.15, 0.06, 0.45, DARK, 0, 0.03, 0);                                    // 받침
+    bx(g, 0.24, 0.008, 0.07, GOLD, 0.35, 0.064, 0.17, false);
+    for (const x of [-0.05, 0.15]) mesh(g, cyl(0.012, 0.012, 0.5, 4), GREY_D, x, 0.3, 0);   // 받침 쇠막대
+    // 척추 — 꼬리 끝(-x)에서 목(+x)까지, 마디마다 굵기와 기울기
+    const sp: [number, number][] = [[-0.56, 0.4], [-0.47, 0.45], [-0.38, 0.49], [-0.29, 0.52], [-0.2, 0.55], [-0.11, 0.57], [-0.03, 0.58],
+      [0.05, 0.58], [0.13, 0.57], [0.2, 0.58], [0.25, 0.63], [0.29, 0.69], [0.32, 0.75]];
+    sp.forEach(([x, y], i) => {
+      const r = i < 6 ? 0.022 + i * 0.007 : i < 10 ? 0.06 : 0.045;
+      const [nx, ny] = sp[Math.min(i + 1, sp.length - 1)], [px, py] = sp[Math.max(i - 1, 0)];
+      bx(g, 0.07, r, r * 0.9, BONE, x, y, 0).rotation.z = Math.atan2(ny - py, nx - px);
+      if (i > 4 && i < 10) bx(g, 0.02, 0.05, 0.015, BONE_D, x, y + r / 2 + 0.02, 0, false);   // 가시돌기
+    });
+    // 갈비 — 등에서 아래로 벌어지게, 앞으로 갈수록 짧다
+    [[-0.04, 0.2], [0.03, 0.21], [0.1, 0.19], [0.17, 0.15]].forEach(([x, len]) => {
+      for (const s of [-1, 1]) {
+        const r = bx(g, 0.015, len, 0.015, BONE, x, 0.56 - len / 2, s * 0.05);
+        r.rotation.set(-s * 0.35, 0, 0.15);
+      }
+    });
+    // 머리 — 길쭉한 머리뼈·주둥이·아래턱
+    bx(g, 0.12, 0.08, 0.07, BONE, 0.38, 0.77, 0);
+    bx(g, 0.1, 0.045, 0.05, BONE, 0.47, 0.755, 0);
+    bx(g, 0.17, 0.02, 0.045, BONE_D, 0.43, 0.715, 0).rotation.z = -0.12;
+    for (const s of [-1, 1]) bx(g, 0.03, 0.03, 0.005, DARK, 0.37, 0.785, s * 0.036, false);
+    for (const s of [-1, 1]) {
+      const z = s * 0.07;
+      bone(g, -0.06, 0.56, 0.03, 0.36, 0.022, z);                                 // 넓적다리
+      bone(g, 0.03, 0.36, -0.07, 0.17, 0.016, z);                                 // 정강이
+      bone(g, -0.07, 0.17, -0.03, 0.075, 0.013, z);                               // 발허리
+      bone(g, -0.03, 0.075, 0.07, 0.065, 0.01, z);                                // 발가락
+      const claw = mesh(g, new THREE.ConeGeometry(0.014, 0.07, 4), BONE_D, -0.0, 0.11, z);   // 낫 발톱 — 들어 올린 둘째 발가락
+      claw.rotation.z = -0.6;
+      bone(g, 0.22, 0.56, 0.26, 0.47, 0.01, s * 0.045);                           // 팔
+      bone(g, 0.26, 0.47, 0.32, 0.44, 0.008, s * 0.045);
+      mesh(g, new THREE.ConeGeometry(0.008, 0.04, 4), BONE_D, 0.34, 0.43, s * 0.045).rotation.z = Math.PI * 0.8;
+    }
+  }),
+
+  ammonite_frame: prop('암모나이트 액자', [0.6, 0.1], (g) => {
+    const y = 1.55, z = -0.03;
+    bx(g, 0.6, 0.6, 0.04, WOOD_DD, 0, y, z);
+    bx(g, 0.52, 0.52, 0.01, 0x2f4a3f, 0, y, z + 0.02, false);                     // 짙은 바탕천
+    ammonite(g, 0, y + 0.02, z + 0.04, 1.2, 0xb8a888);
+    bx(g, 0.18, 0.04, 0.005, GOLD, 0, y - 0.23, z + 0.026, false);                // 이름표
+    mesh(g, new THREE.BoxGeometry(0.54, 0.54, 0.005), GLASS, 0, y, z + 0.075);
+  }),
+
+  footprint_slab: prop('발자국 화석 판', [1.0, 0.4], (g) => {
+    bx(g, 0.9, 0.08, 0.32, WOOD_DD, 0, 0.04, 0);                                  // 받침틀
+    bx(g, 0.06, 0.45, 0.06, WOOD_D, 0, 0.3, -0.13).rotation.x = -0.25;            // 뒤 버팀
+    const s = new THREE.Group();
+    bx(s, 0.86, 0.66, 0.09, ROCKS[2], 0, 0.33, 0);
+    bx(s, 0.86, 0.04, 0.095, 0x8a7a62, 0, 0.5, 0, false);                         // 층리 줄
+    bx(s, 0.86, 0.03, 0.095, 0x8a7a62, 0, 0.14, 0, false);
+    rock(s, 0.06, ROCKS[2], 0.4, 0.58, 0, 3);                                     // 모서리 깨진 자국
+    rock(s, 0.05, ROCKS[0], -0.41, 0.1, 0.01, 5);
+    footprint(s, -0.17, 0.2, 0.046, 1.0);
+    footprint(s, 0.15, 0.38, 0.046, 1.0);
+    s.position.set(0, 0.08, 0.04);
+    s.rotation.x = -0.25;                                                         // 위가 뒤로 기운다
+    g.add(s);
+  }),
+
+  egg_nest_case: prop('공룡알 둥지 진열장', [0.7, 0.7], (g) => {
+    bx(g, 0.66, 0.55, 0.66, WOOD_DD, 0, 0.275, 0);
+    bx(g, 0.24, 0.06, 0.01, GOLD, 0, 0.42, 0.335, false);
+    bx(g, 0.6, 0.04, 0.6, 0xc9b48a, 0, 0.57, 0);                                  // 모래 바닥
+    for (let i = 0; i < 9; i++) {                                                 // 둥지 둘레 — 흙덩이
+      const a = (i * Math.PI * 2) / 9;
+      rock(g, 0.05, i % 2 ? 0x8a6e4a : 0x7a5e3e, Math.cos(a) * 0.19, 0.58, Math.sin(a) * 0.19, i + 1);
+    }
+    for (let i = 0; i < 7; i++) {                                                 // 알 — 둥글게 세워 바깥으로 기울인다
+      const a = (i * Math.PI * 2) / 6, r = i === 6 ? 0 : 0.1;
+      const e = mesh(g, new THREE.SphereGeometry(0.045, 7, 5), i % 3 ? 0xd8d0b0 : 0xc8bc98, Math.cos(a) * r, 0.65, Math.sin(a) * r);
+      e.scale.set(1, 1.5, 1);
+      e.rotation.set(Math.sin(a) * (r ? 0.4 : 0), 0, -Math.cos(a) * (r ? 0.4 : 0));
+    }
+    mesh(g, new THREE.BoxGeometry(0.62, 0.48, 0.62), GLASS, 0, 0.83, 0);          // 유리관
+    bx(g, 0.66, 0.03, 0.66, WOOD_DD, 0, 1.085, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) bx(g, 0.025, 0.48, 0.025, WOOD_DD, sx * 0.31, 0.83, sz * 0.31);
+  }),
+
+  amber_display: prop('호박 진열대', [0.4, 0.4], (g) => {
+    bx(g, 0.3, 0.95, 0.3, PAPER, 0, 0.475, 0);                                    // 흰 전시 받침
+    bx(g, 0.33, 0.04, 0.33, 0xd3d1c7, 0, 0.02, 0);
+    bx(g, 0.22, 0.03, 0.22, DARK, 0, 0.965, 0);                                   // 검은 받침천
+    const a = mesh(g, new THREE.DodecahedronGeometry(0.07, 0), AMBER, 0, 1.03, 0);
+    a.scale.set(1.35, 0.8, 1);
+    a.rotation.set(0.3, 0.5, 0.2);
+    bx(g, 0.03, 0.012, 0.012, 0x3a2a14, 0, 1.03, 0.01, false);                    // 갇힌 벌레
+    for (const s of [-1, 1]) bx(g, 0.015, 0.003, 0.025, 0x5c4433, 0.003, 1.037, 0.01 + s * 0.016, false).rotation.y = s * 0.5;
+    mesh(g, new THREE.SphereGeometry(0.13, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), GLASS, 0, 0.98, 0);   // 유리 덮개
+    const c = bx(g, 0.12, 0.06, 0.005, WHITE, 0, 0.995, 0.12, false);             // 표찰 — 비스듬히
+    c.rotation.x = -0.6;
+  }),
+
+  // ── 고생물 연구실 — 작업 ──
+  prep_bench: prop('화석 클리닝 작업대', [1.4, 0.7], (g) => {
+    bx(g, 1.4, 0.05, 0.7, WOOD, 0, 0.8, 0);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bx(g, 0.05, 0.78, 0.05, GREY_L, sx * 0.65, 0.39, sz * 0.3);
+    bx(g, 1.3, 0.03, 0.6, WOOD_D, 0, 0.25, 0);                                    // 아래 선반
+    bx(g, 0.35, 0.18, 0.3, 0x378add, -0.35, 0.355, 0);                            // 플라스틱 통
+    rock(g, 0.1, ROCKS[3], 0.3, 0.265, 0, 2);
+    // 모래주머니 위 돌덩이 — 드러난 뼈
+    mesh(g, new THREE.TorusGeometry(0.14, 0.05, 5, 10), BURLAP, -0.15, 0.86, 0.05).rotation.x = Math.PI / 2;
+    const m = mesh(g, new THREE.DodecahedronGeometry(0.16, 0), ROCKS[2], -0.15, 0.94, 0.05);
+    m.scale.set(1.3, 0.65, 1);
+    bx(g, 0.24, 0.04, 0.06, BONE, -0.15, 1.03, 0.08).rotation.y = 0.4;
+    mesh(g, new THREE.SphereGeometry(0.04, 6, 4), BONE, -0.26, 1.03, 0.13);       // 뼈 끝 마디
+    for (let i = 0; i < 4; i++) rock(g, 0.012, ROCKS[2], 0.05 + i * 0.05, 0.825, 0.12 - (i % 2) * 0.05, i + 1);   // 부스러기
+    // 확대경 램프 — 뒤 모서리에 물린 집게, 꺾인 팔 둘, 둥근 머리
+    bx(g, 0.08, 0.06, 0.08, DARK, 0.45, 0.855, -0.3);
+    const lamp = new THREE.Group();
+    bone(lamp, 0, 0.08, 0.08, 0.55, 0.012, 0, GREY_L);
+    mesh(lamp, new THREE.SphereGeometry(0.022, 6, 4), DARK, 0.08, 0.55, 0);       // 팔꿈치
+    bone(lamp, 0.08, 0.55, 0.45, 0.32, 0.012, 0, GREY_L);
+    const head = mesh(lamp, new THREE.TorusGeometry(0.08, 0.018, 4, 12), GREY_L, 0.48, 0.29, 0);
+    head.rotation.x = Math.PI / 2;
+    mesh(lamp, cyl(0.065, 0.065, 0.008, 12), glow(0xfff3c4), 0.48, 0.29, 0);     // 렌즈·불빛
+    lamp.position.set(0.45, 0.825, -0.3);
+    lamp.rotation.y = -2.64;                                                      // 팔이 돌덩이 쪽(앞 왼쪽)을 향하게
+    g.add(lamp);
+    // 에어스크라이브 — 펜과 뒤로 늘어진 호스
+    const pen = mesh(g, cyl(0.016, 0.012, 0.18, 6), GREY_D, 0.18, 0.842, 0.2);
+    pen.rotation.set(0, 0.4, Math.PI / 2);
+    mesh(g, cyl(0.004, 0.004, 0.03, 4), GREY_L, 0.27, 0.842, 0.165).rotation.set(0, 0.4, Math.PI / 2);   // 바늘
+    const hose = mesh(g, cyl(0.008, 0.008, 0.58, 4), DARK, 0.055, 0.832, -0.08);
+    hose.rotation.set(0, -1.2, Math.PI / 2);
+    bone(g, -0.05, 0.832, -0.07, 0.3, 0.008, -0.36, DARK);                        // 뒤 모서리로 내려간다
+    // 붓 꽂이와 치과 도구 받침
+    mesh(g, cyl(0.04, 0.035, 0.1, 8), 0xd85a30, 0.42, 0.875, 0.18);
+    for (const [r, h] of [[-0.2, 0.18], [0.05, 0.2], [0.25, 0.16]]) {
+      const b = mesh(g, cyl(0.007, 0.007, h, 4), WOOD_D, 0.42 + r * 0.05, 0.84 + h / 2, 0.18);
+      b.rotation.z = r;
+      mesh(g, cyl(0.012, 0.006, 0.03, 4), DARK, 0.42 + r * 0.05 - Math.sin(r) * h / 2, 0.84 + h, 0.18).rotation.z = r;
+    }
+    bx(g, 0.2, 0.015, 0.12, GREY_L, 0.55, 0.832, 0.05);
+    for (let i = 0; i < 3; i++) bx(g, 0.14, 0.008, 0.008, 0xb4b2a9, 0.55, 0.844, 0.01 + i * 0.035, false);
+  }),
+
+  plaster_jacket: prop('석고 재킷', [1.0, 0.8], (g) => {
+    for (const x of [-0.4, 0, 0.4]) bx(g, 0.1, 0.08, 0.75, WOOD_D, x, 0.04, 0);   // 팔레트 발
+    for (let i = 0; i < 5; i++) bx(g, 0.95, 0.025, 0.12, WOOD, 0, 0.0925, -0.3 + i * 0.15);
+    jacket(g, -0.16, -0.06, 0.32, 0.17, 0.25, 0.2, 0.105);
+    jacket(g, 0.25, 0.16, 0.2, 0.12, 0.17, -0.5, 0.105);
+  }),
+
+  sieve_station: prop('체 거르기', [0.7, 0.6], (g) => {
+    mesh(g, cyl(0.2, 0.17, 0.3, 10), 0x378add, -0.1, 0.15, 0);                   // 물통
+    mesh(g, cyl(0.19, 0.19, 0.01, 10), 0x5f8fb0, -0.1, 0.27, 0);
+    for (const s of [-1, 1]) {                                                    // 체 — 나무틀과 철망
+      bx(g, 0.46, 0.06, 0.03, WOOD_D, -0.1, 0.33, s * 0.215);
+      bx(g, 0.03, 0.06, 0.46, WOOD_D, -0.1 + s * 0.215, 0.33, 0);
+    }
+    bx(g, 0.42, 0.005, 0.42, GREY_L, -0.1, 0.31, 0, false);
+    for (let i = 0; i < 6; i++) rock(g, 0.025 + (i % 3) * 0.008, ROCKS[i % ROCKS.length], -0.22 + (i % 3) * 0.1, 0.31, -0.08 + Math.floor(i / 3) * 0.13, i + 2);
+    mesh(g, cyl(0.11, 0.09, 0.25, 8), 0xef9f27, 0.22, 0.125, 0.17);               // 양동이
+    mesh(g, cyl(0.1, 0.1, 0.01, 8), ROCKS[0], 0.22, 0.23, 0.17);                 // 담긴 흙
+    mesh(g, new THREE.TorusGeometry(0.1, 0.006, 4, 8, Math.PI), GREY_D, 0.22, 0.25, 0.17);   // 손잡이
+    const sh = new THREE.Group();                                                 // 삽 — 벽 쪽에 기대 세운다
+    bx(sh, 0.16, 0.2, 0.02, GREY, 0, 0.1, 0);
+    mesh(sh, cyl(0.015, 0.015, 0.75, 5), WOOD_D, 0, 0.57, 0);
+    bx(sh, 0.1, 0.03, 0.03, DARK, 0, 0.95, 0);
+    sh.position.set(0.24, 0, -0.18);
+    sh.rotation.z = 0.2;
+    g.add(sh);
+  }),
+
+  timeline_poster: prop('지질 연대표', [1.4, 0.1], (g) => {
+    const y = 1.6, z = -0.035;
+    bx(g, 1.4, 0.85, 0.03, DARK, 0, y, z);
+    bx(g, 1.34, 0.79, 0.01, PAPER, 0, y, z + 0.02, false);
+    bx(g, 0.6, 0.05, 0.005, GREY_D, 0, y + 0.32, z + 0.027, false);               // 제목
+    // 기 — 캄브리아기부터 제4기까지, 국제 층서표 색
+    const P: [number, number][] = [[0x7fa056, 0.12], [0x009270, 0.1], [0xb3e1b6, 0.06], [0xcb8c37, 0.1], [0x67a599, 0.12], [0xf04028, 0.1],
+      [0x812b92, 0.1], [0x34b2c9, 0.1], [0x7fc64e, 0.14], [0xfd9a52, 0.1], [0xffe619, 0.06], [0xf9f97f, 0.04]];
+    let x = -0.62;
+    P.forEach(([c, w], i) => {
+      bx(g, w, 0.2, 0.005, c, x + w / 2, y + 0.13, z + 0.027, false);
+      bx(g, w * 0.7, 0.015, 0.005, GREY_L, x + w / 2, y - 0.01, z + 0.027, false);   // 이름 줄
+      if (i % 2 === 0) bx(g, 0.05, 0.04, 0.005, GREY_D, x + w / 2, y - 0.1 - (i % 4) * 0.02, z + 0.027, false);   // 생물 그림
+      x += w + 0.004;
+    });
+    for (let i = 0; i < 4; i++) bx(g, 1.1 - i * 0.2, 0.012, 0.005, 0xb4b2a9, -0.05 - i * 0.1, y - 0.22 - i * 0.04, z + 0.027, false);   // 설명 글
+    bx(g, 0.03, 0.06, 0.005, 0xd85a30, 0.6, y + 0.27, z + 0.028, false);          // 「지금」 표시
   }),
 };
