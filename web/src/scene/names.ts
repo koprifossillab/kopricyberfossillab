@@ -44,11 +44,33 @@ export function makeName(id: string, female: boolean): string {
 }
 
 const cache = new Map<string, string>();
+// 사람이 고친 이름 — 목록에서 이름을 두 번 눌러 고친다. 이 브라우저에만 남는다(localStorage, id 마다)
+const KEY_NAMES = 'kopricyberfossillab.names';
+const custom: Map<string, string> = (() => {
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem(KEY_NAMES) ?? '{}') as Record<string, string>)); } catch { return new Map(); }
+})();
+const listeners = new Set<() => void>();
+let version = 0;
+// 빈 이름이면 지어 준 이름으로 되돌린다
+export function setPersonName(id: string, name: string): void {
+  const n = name.trim().slice(0, 20);
+  if (n && n !== generatedName(id)) custom.set(id, n); else custom.delete(id);
+  try { localStorage.setItem(KEY_NAMES, JSON.stringify(Object.fromEntries(custom))); } catch { /* 저장이 막힌 브라우저 — 이번만 */ }
+  version++;
+  for (const f of listeners) f();
+}
+// 이름이 바뀌면 다시 그리게 — useSyncExternalStore(subscribeNames, namesVersion)
+export const subscribeNames = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
+export const namesVersion = () => version;
+
+function generatedName(id: string): string {
+  let n = cache.get(id);
+  if (!n) { n = makeName(id, isFemale(id)); cache.set(id, n); }
+  return n;
+}
 // 화면에 보이는 사람 이름. 상담원도 사람 이름을 갖는다 (부제목에 「상담원」)
 export function personName(a: Pick<Agent, 'id'>): string {
-  let n = cache.get(a.id);
-  if (!n) { n = makeName(a.id, isFemale(a.id)); cache.set(a.id, n); }
-  return n;
+  return custom.get(a.id) ?? generatedName(a.id);
 }
 
 // 부제목 — 세션 이름(사람이 붙인 것·자동 이름), 하위 에이전트는 종류, 다른 계정은 계정

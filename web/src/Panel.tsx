@@ -1,9 +1,9 @@
 // 오른쪽 목록 — 에이전트(하위 에이전트는 부모 아래로)와 터미널
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import type { Agent, Snapshot } from './types.ts';
 import { loadAtlas, headKey, bodyKey } from './iso/atlas.ts';
 import { appearanceOf } from './scene/appearance.ts';
-import { personName, subtitle } from './scene/names.ts';
+import { personName, subtitle, setPersonName, subscribeNames, namesVersion } from './scene/names.ts';
 import { STATE_TEXT, PALETTE, FOREIGN_COLOR } from './scene/layout.ts';
 import { colorOf } from './scene/director.ts';
 import type { Link } from './useOffice.ts';
@@ -54,20 +54,50 @@ function since(ms: number): string {
   return `${Math.floor(s / 3600)}시간`;
 }
 
+// 이름 — 두 번 눌러 그 자리에서 고친다. Enter·바깥 누르기로 정하고 Esc 로 그만, 비우면 지어 준 이름으로
+function NameEdit({ a, onDone }: { a: Agent; onDone: () => void }) {
+  const [v, setV] = useState(personName(a));
+  const done = useRef(false);
+  const finish = (keep: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (keep) setPersonName(a.id, v);
+    onDone();
+  };
+  return (
+    <input className="name-edit" value={v} autoFocus maxLength={20} aria-label="이름 고치기"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setV(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing) finish(true);
+        else if (e.key === 'Escape') finish(false);
+      }}
+      onBlur={() => finish(true)} />
+  );
+}
+
 function Row({ a, all, selected, onSelect }: { a: Agent; all: Agent[]; selected: boolean; onSelect: (id: string) => void }) {
   const pill = a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill';
+  const [editing, setEditing] = useState(false);
+  useSyncExternalStore(subscribeNames, namesVersion);
+  // 줄 안에 입력란을 두려고 <button> 대신 role=button — 입력란은 button 안에 둘 수 없다
   return (
-    <button className={'row' + (a.parentId ? ' sub' : '') + (selected ? ' sel' : '')} onClick={() => onSelect(a.id)}>
+    <div role="button" tabIndex={0} className={'row' + (a.parentId ? ' sub' : '') + (selected ? ' sel' : '')} onClick={() => onSelect(a.id)}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(a.id); } }}>
       <Avatar a={a} color={colorOf(a, all)} small={!!a.parentId} />
       <div className="txt">
         <div className="who">
-          <b title={subtitle(a)}>{personName(a)}<small>{subtitle(a)}</small></b>
+          {editing ? <NameEdit a={a} onDone={() => setEditing(false)} />
+            : <b title={`${subtitle(a)} — 두 번 눌러 이름 고치기`} onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}>{personName(a)}<small>{subtitle(a)}</small></b>}
           <span className={pill}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span>
         </div>
         <div className="tool" title={a.label}>{a.label}</div>
         <div className="meta">{a.kind !== 'foreign' && !a.parentId ? `${ROOM(a.room)} · ` : ''}{KIND[a.kind]}{a.project ? ` · ${a.project}` : ''}{a.tmux ? ` · tmux ${a.tmux}` : ''} · {since(a.changedAt)}째</div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -165,6 +195,7 @@ export function SidePanel({ snap, selected, onSelect }: {
   const agents = snap?.agents ?? [];
   const a = agents.find((x) => x.id === selected);
   const kids = a ? agents.filter((x) => x.parentId === a.id) : [];
+  useSyncExternalStore(subscribeNames, namesVersion);
   return (
     <aside className="side right">
       <section className="sel-box">

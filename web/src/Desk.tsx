@@ -1,10 +1,10 @@
 // 상담원 대화창 — 고객센터 상담원(도구 없는 claude)에게 간단한 것을 묻는다. 본인만: 처음 한 번 열쇠를 넣는다.
 // 대화는 이 브라우저에만 남는다(localStorage). 화면의 상담원 캐릭터에는 「답하는 중…」 만 보인다.
 // 꼴은 메신저 — 머리(얼굴·이름·온라인), 말풍선(상담원 왼쪽·나 오른쪽, 아래 시각), 날짜 줄, 입력 중 「···」, 알약 입력란.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Agent } from './types.ts';
 import { Avatar } from './Panel.tsx';
-import { personName } from './scene/names.ts';
+import { personName, subscribeNames, namesVersion } from './scene/names.ts';
 import { colorOf } from './scene/director.ts';
 import './desk.css';
 
@@ -19,7 +19,6 @@ const DESK: Agent = {
   id: 'desk/상담원', kind: 'desk', name: '상담원', project: '고객센터', room: 'center',
   activity: 'idle', label: '', startedAt: 0, changedAt: 0,
 };
-const DESK_NAME = personName(DESK);
 const DESK_COLOR = colorOf(DESK, [DESK]);
 
 const load = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) as T : d; } catch { return d; } };
@@ -35,7 +34,7 @@ function Head({ status, onClear }: { status: string; onClear?: () => void }) {
     <div className="dk-head">
       <Avatar a={DESK} color={DESK_COLOR} small={false} />
       <div className="dk-who">
-        <b>{DESK_NAME}</b>
+        <b>{personName(DESK)}</b>
         <span className={status === '온라인' ? 'on' : status === '답하는 중…' ? 'typing' : ''}>{status}</span>
       </div>
       {onClear && <button type="button" className="dk-clear" onClick={onClear} title="대화 지우기">지우기</button>}
@@ -52,6 +51,7 @@ function SendIcon() {
 }
 
 export function Desk() {
+  useSyncExternalStore(subscribeNames, namesVersion);   // 목록에서 상담원 이름을 고치면 여기도
   const [token, setToken] = useState<string>(() => load(KEY_TOKEN, ''));
   const [ok, setOk] = useState<boolean | null>(null);
   const [draft, setDraft] = useState('');
@@ -127,7 +127,7 @@ export function Desk() {
               <div className={`dk-row by-${m.who}${first ? ' first' : ''}`}>
                 {m.who === 'desk' && (first ? <Avatar a={DESK} color={DESK_COLOR} small /> : <span className="dk-gap" />)}
                 <div className="dk-col">
-                  {m.who === 'desk' && first && <span className="dk-name">{DESK_NAME}</span>}
+                  {m.who === 'desk' && first && <span className="dk-name">{personName(DESK)}</span>}
                   <div className="dk-bubble">{m.text}</div>
                   {last && <time className="dk-time" dateTime={new Date(m.at).toISOString()}>{time(m.at)}</time>}
                 </div>

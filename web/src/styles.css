@@ -58,6 +58,7 @@ h1 img{width:1.1em;height:1.1em;border-radius:22%;flex:none}
 .txt{min-width:0}
 .who{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .who b{font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:baseline;gap:6px;min-width:0}
+.who .name-edit{font:inherit;font-size:14px;font-weight:500;color:var(--fg);background:var(--bg);border:1px solid var(--accent);border-radius:4px;padding:1px 4px;min-width:0;flex:1;width:100%;outline:none}
 .who b small{font-weight:400;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
 .dhead .sub{display:block;font-size:11px;color:var(--muted)}
 .pill{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--bg);color:var(--muted);white-space:nowrap}
