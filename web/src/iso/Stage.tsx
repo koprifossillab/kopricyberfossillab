@@ -3,7 +3,8 @@
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office } from '../types.ts';
-import { bodyKey, headKey, dinoKey, fishKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { bodyKey, headLayers, dinoKey, fishKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { appearanceOf, liftOf, shapeOf } from '../scene/appearance.ts';
 import { FishTank } from './fish.ts';
 import { daylight, hourNow } from './daylight.ts';
 import { drawBackdrop } from './backdrop.ts';
@@ -229,22 +230,25 @@ export function Stage({ agents, offices, selected, onSelect }: {
         for (const a of actors) if (sitting(a) && a.place.desk !== null) seated.set(a.place.desk, a.agent.activity);
         seated.forEach((act, d) => deskScreen(w, d, act, T));
 
-        // 캐릭터의 그림 자리 (구운 픽셀) — 몸 위에 머리를 겹친다
-        type Draw = { a: Actor; body: SpriteRect; head: SpriteRect; bx: number; by: number; hx: number; hy: number; s: number; x0: number; y0: number; x1: number; y1: number };
+        // 캐릭터의 그림 자리 (구운 픽셀) — 몸 위에 머리 층들을 겹친다
+        type Draw = { a: Actor; body: SpriteRect; head: SpriteRect[]; bx: number; by: number; hx: number; hy: number; s: number; x0: number; y0: number; x1: number; y1: number };
         const draws: Draw[] = [];
         for (const a of actors) {
           const sit = sitting(a);
-          const L = a.look;
-          const body = atlas.bodies[bodyKey(a.color, L.shape, sit)];
-          const head = atlas.heads[headKey(L.skin, L.look, L.cap, dirOf(a.rot))];
-          if (!body || !head) continue;
+          const L = appearanceOf(a.agent);   // 화면에서 고치면 바로 — 서버가 모두에게 보낸다
+          const body = atlas.bodies[bodyKey(a.color, shapeOf(L), sit)];
+          const head = headLayers(atlas, L, dirOf(a.rot));
+          if (!body || !head.length) continue;
           const bob = a.moving && !RM ? Math.abs(Math.sin(a.t * 10)) * 0.08 : 0;
           const lift = sit ? (a.place.lift ?? 0) : 0;
           const s = 1;   // 하위 에이전트도 사람 크기 (전에는 0.72 — 사용자: 「에이전트도 사람같이」)
           const [bx, by] = proj([a.x, bob + lift, a.z]);
-          const [hx, hy] = proj([a.x, bob + lift + (HEAD_Y + (sit ? SIT_LIFT : 0)) * s, a.z]);
-          const x0 = Math.min(bx + body.ox * s, hx + head.ox * s), y0 = Math.min(by + body.oy * s, hy + head.oy * s);
-          const x1 = Math.max(bx + (body.ox + body.w) * s, hx + (head.ox + head.w) * s), y1 = Math.max(by + (body.oy + body.h) * s, hy + (head.oy + head.h) * s);
+          const [hx, hy] = proj([a.x, bob + lift + (HEAD_Y + liftOf(L.build) + (sit ? SIT_LIFT : 0)) * s, a.z]);   // 머리 층은 보통 몸집으로 구웠다
+          let x0 = bx + body.ox * s, y0 = by + body.oy * s, x1 = bx + (body.ox + body.w) * s, y1 = by + (body.oy + body.h) * s;
+          for (const h of head) {
+            x0 = Math.min(x0, hx + h.ox * s); y0 = Math.min(y0, hy + h.oy * s);
+            x1 = Math.max(x1, hx + (h.ox + h.w) * s); y1 = Math.max(y1, hy + (h.oy + h.h) * s);
+          }
           draws.push({ a, body, head, bx, by, hx, hy, s, x0, y0, x1, y1 });
         }
         // 공룡 — 먹이 주는 사람(울타리 앞에 도착한 사람)이 있으면 그 앞으로 온다
@@ -270,7 +274,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
             if (waiting) ring(a.x, a.z, 0.42, 0.5, '#e24b4a', RM ? 0.8 : 0.5 + 0.4 * Math.sin(T * 5));
             else if (sel === a.agent.id) ring(a.x, a.z, 0.42, 0.5, '#534ab7', 0.45);
             blit(d.body, d.bx, d.by, d.s);
-            blit(d.head, d.hx, d.hy, d.s);
+            for (const h of d.head) blit(h, d.hx, d.hy, d.s);
           },
         }));
         for (const dn of pen?.dinos ?? []) {

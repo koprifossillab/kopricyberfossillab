@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {
   SCREEN_OFF, CAP, HEAD_Y, SIT_LIFT, PARTITION_H, RASH_WALL_H, type Rect,
 } from './layout.ts';
-import { PERSONAS, BUILDS, BODY_H, BODY_Y0, liftOf, type Build, type Outfit } from './appearance.ts';
+import { BUILDS, BODY_H, BODY_Y0, type Build, type Outfit, type Hair, type Acc } from './appearance.ts';
 import { MODULES, DOOR_TOP, type Item, type ModuleType } from './modules.ts';
 import { PROPS } from './props.ts';
 import { buildAquaItem } from './aquarium.ts';
@@ -732,22 +732,27 @@ export function buildBody(color: number, shape: string, sit: boolean): THREE.Gro
   return g;
 }
 
-// look: 머리 조각 이름 (appearance.ts 의 PERSONAS). 몸집에 따라 머리 높이가 다르다 — 기준점은 그대로 HEAD_Y 라 조각 안에서 오르내린다.
-// 넥타이·목걸이처럼 몸 앞에 붙는 것도 여기서 — 몸 조각은 방향이 없다. 굽기가 보이지 않는 몸을 함께 두어 등 뒤로 간 것은 가린다.
-export function buildHead(skin: number, look: string, cap: boolean, rot: number): THREE.Group {
+// 머리는 층으로 — 얼굴 · 머리카락 · 치장품 하나씩 · 모자. 화면이 차례로 겹친다(iso/atlas.ts headLayers).
+// 모두 보통 몸집(머리 가운데 HEAD_Y)으로 굽고, 몸집에 따른 높이(liftOf)는 화면이 옮긴다. 목의 것만 몸 굵기(wide)를 따른다.
+// 넥타이·목걸이처럼 몸 앞에 붙는 것도 머리 쪽 — 몸 조각은 방향이 없다. 굽기가 보이지 않는 얼굴·몸을 함께 두어 그 뒤로 간 것은 가린다.
+export function buildFace(skin: number, rot: number): THREE.Group {
   const g = new THREE.Group();
-  const P = PERSONAS[look];
-  const y = HEAD_Y + liftOf(P.build);
-  const R = BUILDS[P.build].r;
+  const y = HEAD_Y;
   mesh(g, new THREE.SphereGeometry(0.24, 12, 10), skin, 0, y, 0);
   for (const ex of [-0.08, 0.08]) mesh(g, new THREE.SphereGeometry(0.028, 6, 4), 0x2c2c2a, ex, y + 0.01, 0.225);   // 눈
-  const hc = P.hc, acc = new Set(P.acc);
+  g.rotation.y = rot;
+  return g;
+}
+
+export function buildHair(hair: Hair, hc: number, rot: number): THREE.Group {
+  const g = new THREE.Group();
+  const y = HEAD_Y;
   const cap0 = (r: number, theta: number, tilt: number, sy = 1) => {
     const h = mesh(g, new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, theta), hc, 0, y + 0.03, 0);
     h.rotation.x = tilt; h.scale.y = sy;
     return h;
   };
-  switch (P.hair) {
+  switch (hair) {
     case 'short': cap0(0.25, Math.PI / 2.2, -0.25); break;
     case 'buzz': cap0(0.246, Math.PI / 2.6, -0.3, 0.9); break;
     case 'side': {                                                                // 옆으로 넘긴 앞머리
@@ -796,59 +801,79 @@ export function buildHead(skin: number, look: string, cap: boolean, rot: number)
       mesh(g, new THREE.SphereGeometry(0.11, 10, 8), hc, 0, y + 0.24, -0.1);
       break;
   }
-  // 얼굴의 것
-  if (acc.has('beard')) mesh(g, new THREE.SphereGeometry(0.252, 12, 6, Math.PI / 2 - 1.15, 2.3, Math.PI * 0.55, Math.PI * 0.3), hc, 0, y, 0);
-  if (acc.has('mustache')) mesh(g, new THREE.BoxGeometry(0.14, 0.035, 0.04), hc, 0, y - 0.065, 0.225);
-  if (acc.has('glasses') || acc.has('round')) {
-    const round = acc.has('round'), fc = round ? 0xc9a24a : 0x2c2c2a;
-    for (const ex of [-0.085, 0.085]) {
-      const f = mesh(g, new THREE.TorusGeometry(round ? 0.048 : 0.05, round ? 0.008 : 0.012, 3, round ? 10 : 4), fc, ex, y + 0.01, 0.245);
-      if (!round) f.rotation.z = Math.PI / 4;
+  g.rotation.y = rot;
+  return g;
+}
+
+// color: 포인트 색이나 머리 색(appearance.ts accColor) — 안경·목걸이는 쓰지 않는다
+export function buildAcc(acc: Acc, color: number, wide: boolean, rot: number): THREE.Group {
+  const g = new THREE.Group();
+  const y = HEAD_Y;
+  const R = wide ? BUILDS.w.r : 1;
+  switch (acc) {
+    // 얼굴의 것
+    case 'beard': mesh(g, new THREE.SphereGeometry(0.252, 12, 6, Math.PI / 2 - 1.15, 2.3, Math.PI * 0.55, Math.PI * 0.3), color, 0, y, 0); break;
+    case 'mustache': mesh(g, new THREE.BoxGeometry(0.14, 0.035, 0.04), color, 0, y - 0.065, 0.225); break;
+    case 'glasses': case 'round': {
+      const round = acc === 'round', fc = round ? 0xc9a24a : 0x2c2c2a;
+      for (const ex of [-0.085, 0.085]) {
+        const f = mesh(g, new THREE.TorusGeometry(round ? 0.048 : 0.05, round ? 0.008 : 0.012, 3, round ? 10 : 4), fc, ex, y + 0.01, 0.245);
+        if (!round) f.rotation.z = Math.PI / 4;
+      }
+      bx(g, 0.07, 0.012, 0.012, fc, 0, y + 0.02, 0.25, false);                    // 코다리
+      for (const sx of [-1, 1]) bx(g, 0.012, 0.012, 0.16, fc, sx * 0.215, y + 0.02, 0.15, false);   // 다리
+      break;
     }
-    bx(g, 0.07, 0.012, 0.012, fc, 0, y + 0.02, 0.25, false);                      // 코다리
-    for (const sx of [-1, 1]) bx(g, 0.012, 0.012, 0.16, fc, sx * 0.215, y + 0.02, 0.15, false);   // 다리
-  }
-  // 머리에 쓰는 것
-  if (acc.has('headphones')) {
-    mesh(g, new THREE.TorusGeometry(0.285, 0.022, 4, 12, Math.PI), 0x444441, 0, y + 0.02, 0);
-    for (const sx of [-1, 1]) mesh(g, new THREE.CylinderGeometry(0.075, 0.075, 0.07, 10), P.accent, sx * 0.265, y, 0).rotation.z = Math.PI / 2;
-  }
-  if (acc.has('headband')) mesh(g, new THREE.TorusGeometry(0.285, 0.022, 4, 12, Math.PI), P.accent, 0, y + 0.02, 0.03).rotation.x = 0.3;
-  if (acc.has('beanie')) {
-    mesh(g, new THREE.SphereGeometry(0.27, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2.2), P.accent, 0, y + 0.03, 0);
-    mesh(g, new THREE.CylinderGeometry(0.272, 0.272, 0.08, 12), lighten(P.accent, 0.25), 0, y + 0.08, 0);   // 접은 단
-    mesh(g, new THREE.SphereGeometry(0.06, 6, 4), lighten(P.accent, 0.6), 0, y + 0.31, 0);               // 방울
+    // 머리에 쓰는 것
+    case 'headphones':
+      mesh(g, new THREE.TorusGeometry(0.285, 0.022, 4, 12, Math.PI), 0x444441, 0, y + 0.02, 0);
+      for (const sx of [-1, 1]) mesh(g, new THREE.CylinderGeometry(0.075, 0.075, 0.07, 10), color, sx * 0.265, y, 0).rotation.z = Math.PI / 2;
+      break;
+    case 'headband': mesh(g, new THREE.TorusGeometry(0.285, 0.022, 4, 12, Math.PI), color, 0, y + 0.02, 0.03).rotation.x = 0.3; break;
+    case 'beanie':
+      mesh(g, new THREE.SphereGeometry(0.27, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2.2), color, 0, y + 0.03, 0);
+      mesh(g, new THREE.CylinderGeometry(0.272, 0.272, 0.08, 12), lighten(color, 0.25), 0, y + 0.08, 0);   // 접은 단
+      mesh(g, new THREE.SphereGeometry(0.06, 6, 4), lighten(color, 0.6), 0, y + 0.31, 0);               // 방울
+      break;
   }
   // 목·가슴의 것 — 몸 꼭대기는 머리 가운데에서 0.235 아래, 앞면은 반지름 rt 쯤
   const rt = 0.26 * R, top = y - 0.235;
-  if (acc.has('tie')) {
-    for (const sx of [-1, 1]) bx(g, 0.07, 0.05, 0.02, SHIRT, sx * 0.04, top - 0.01, rt + 0.0, false).rotation.z = sx * 0.6;   // 깃
-    bx(g, 0.05, 0.05, 0.04, P.accent, 0, top - 0.03, rt + 0.02, false);
-    bx(g, 0.065, 0.26, 0.02, P.accent, 0, top - 0.18, rt + 0.03, false).rotation.x = -0.08;
+  switch (acc) {
+    case 'tie':
+      for (const sx of [-1, 1]) bx(g, 0.07, 0.05, 0.02, SHIRT, sx * 0.04, top - 0.01, rt + 0.0, false).rotation.z = sx * 0.6;   // 깃
+      bx(g, 0.05, 0.05, 0.04, color, 0, top - 0.03, rt + 0.02, false);
+      bx(g, 0.065, 0.26, 0.02, color, 0, top - 0.18, rt + 0.03, false).rotation.x = -0.08;
+      break;
+    case 'bowtie':
+      for (const sx of [-1, 1]) mesh(g, new THREE.ConeGeometry(0.035, 0.07, 4), color, sx * 0.04, top - 0.02, rt + 0.02).rotation.z = sx * Math.PI / 2;
+      bx(g, 0.025, 0.03, 0.03, lighten(color, 0.3), 0, top - 0.02, rt + 0.025, false);
+      break;
+    case 'lanyard':                                                               // 사원증 — 목줄과 카드
+      for (const sx of [-1, 1]) bx(g, 0.015, 0.24, 0.012, color, sx * 0.055, top - 0.11, rt + 0.02, false).rotation.z = -sx * 0.4;
+      bx(g, 0.1, 0.13, 0.012, SHIRT, 0, top - 0.29, rt + 0.04, false);
+      bx(g, 0.1, 0.03, 0.014, color, 0, top - 0.24, rt + 0.042, false);
+      break;
+    case 'scarf':
+      mesh(g, new THREE.TorusGeometry(0.19 * R, 0.055, 5, 12), color, 0, top - 0.01, 0).rotation.x = Math.PI / 2;
+      bx(g, 0.09, 0.26, 0.04, color, 0.06, top - 0.15, rt + 0.04, false).rotation.z = 0.12;   // 늘어진 끝
+      break;
+    case 'necklace': {
+      const n = mesh(g, new THREE.TorusGeometry(0.2 * R, 0.008, 3, 14), 0xc9a24a, 0, top - 0.02, 0.02);
+      n.rotation.x = Math.PI / 2 - 0.5;
+      mesh(g, new THREE.SphereGeometry(0.025, 6, 4), 0xc9a24a, 0, top - 0.11, 0.22 * R);
+      break;
+    }
   }
-  if (acc.has('bowtie')) {
-    for (const sx of [-1, 1]) mesh(g, new THREE.ConeGeometry(0.035, 0.07, 4), P.accent, sx * 0.04, top - 0.02, rt + 0.02).rotation.z = sx * Math.PI / 2;
-    bx(g, 0.025, 0.03, 0.03, lighten(P.accent, 0.3), 0, top - 0.02, rt + 0.025, false);
-  }
-  if (acc.has('lanyard')) {                                                       // 사원증 — 목줄과 카드
-    for (const sx of [-1, 1]) bx(g, 0.015, 0.24, 0.012, P.accent, sx * 0.055, top - 0.11, rt + 0.02, false).rotation.z = -sx * 0.4;
-    bx(g, 0.1, 0.13, 0.012, SHIRT, 0, top - 0.29, rt + 0.04, false);
-    bx(g, 0.1, 0.03, 0.014, P.accent, 0, top - 0.24, rt + 0.042, false);
-  }
-  if (acc.has('scarf')) {
-    mesh(g, new THREE.TorusGeometry(0.19 * R, 0.055, 5, 12), P.accent, 0, top - 0.01, 0).rotation.x = Math.PI / 2;
-    bx(g, 0.09, 0.26, 0.04, P.accent, 0.06, top - 0.15, rt + 0.04, false).rotation.z = 0.12;   // 늘어진 끝
-  }
-  if (acc.has('necklace')) {
-    const n = mesh(g, new THREE.TorusGeometry(0.2 * R, 0.008, 3, 14), 0xc9a24a, 0, top - 0.02, 0.02);
-    n.rotation.x = Math.PI / 2 - 0.5;
-    mesh(g, new THREE.SphereGeometry(0.025, 6, 4), 0xc9a24a, 0, top - 0.11, 0.22 * R);
-  }
-  if (cap) {
-    mesh(g, new THREE.CylinderGeometry(0.255, 0.265, 0.18, 12), CAP, 0, y + 0.2, 0);   // 정수리 머리카락이 뚫고 나오지 않게 높게
-    const brim = mesh(g, new THREE.BoxGeometry(0.34, 0.03, 0.2), CAP, 0, y + 0.11, 0.25);
-    brim.rotation.x = 0.15;
-  }
+  g.rotation.y = rot;
+  return g;
+}
+
+export function buildCap(rot: number): THREE.Group {
+  const g = new THREE.Group();
+  const y = HEAD_Y;
+  mesh(g, new THREE.CylinderGeometry(0.255, 0.265, 0.18, 12), CAP, 0, y + 0.2, 0);   // 정수리 머리카락이 뚫고 나오지 않게 높게
+  const brim = mesh(g, new THREE.BoxGeometry(0.34, 0.03, 0.2), CAP, 0, y + 0.11, 0.25);
+  brim.rotation.x = 0.15;
   g.rotation.y = rot;
   return g;
 }

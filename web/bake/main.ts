@@ -7,13 +7,13 @@
 //   objects 가구와 벽
 // 가구(items)는 따로도 굽는다 — 캐릭터 앞에 다시 그려 가린다. 기준점은 모두 모듈 원점.
 import * as THREE from 'three';
-import { buildBody, buildHead, buildItem, buildFloor, buildTall } from '../src/scene/models.ts';
+import { buildBody, buildFace, buildHair, buildAcc, buildCap, buildItem, buildFloor, buildTall } from '../src/scene/models.ts';
 import { PALETTE, FOREIGN_COLOR, DIRS, SKINS, HEAD_Y } from '../src/scene/layout.ts';
-import { PERSONAS, CAP_PERSONAS, OUTFITS, BUILD_LIST, BUILDS, BODY_H, BODY_Y0, shapeKey } from '../src/scene/appearance.ts';
+import { OUTFITS, BUILD_LIST, BUILDS, BODY_H, BODY_Y0, shapeKey, HAIRS, HAIR_COLORS, ACCENTS, ACCS, ACCENT_ACC, HAIR_ACC, WIDE_ACC } from '../src/scene/appearance.ts';
 import { MODULES, type ModuleType } from '../src/scene/modules.ts';
 import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
 import { buildFish, FISH_KINDS } from '../src/scene/aquarium.ts';
-import { bodyKey, headKey, dinoKey, fishKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
+import { bodyKey, faceKey, hairKey, accKey, capKey, dinoKey, fishKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
 
 const SCALE = 96;                                      // 세계 1 = 96 구운 픽셀 (화면 2배 밀도에서 또렷하게)
 const VIEW = new THREE.Vector3(18, 16.5, 18);          // 시제품 카메라 방향 (CX+18, 17, CZ+18) → (CX, 0.5, CZ)
@@ -148,20 +148,28 @@ async function bake() {
     const s = shoot(buildBody(color, shapeKey(o, b), sit), foot);
     if (s) chars.set('b:' + bodyKey(color, shapeKey(o, b), sit), s);
   }
-  // 머리 — 보이지 않는 몸(가는 원기둥)을 함께 두어, 등 뒤로 돌아간 넥타이·목걸이를 몸이 가리게 한다. 그림 창은 머리로만 잡는다
+  // 머리 층 — 얼굴(피부) · 머리카락(모양 × 색) · 치장품(하나씩, 색 × 목의 것은 몸 굵기) · 모자, 모두 × 방향.
+  // 보이지 않는 얼굴·몸을 함께 두어, 그 뒤로 돌아간 머리카락·넥타이·안경다리는 지운다. 그림 창은 그 층으로만 잡는다
   const headAt = new THREE.Vector3(0, HEAD_Y, 0);
-  for (const skin of SKINS) for (const look of Object.keys(PERSONAS)) for (const cap of [false, true]) {
-    if (cap && !CAP_PERSONAS.includes(look)) continue;
-    const { k, r } = BUILDS[PERSONAS[look].build];
-    for (let d = 0; d < DIRS; d++) {
-      const head = buildHead(skin, look, cap, (d * 2 * Math.PI) / DIRS);
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * r, 0.26 * r, BODY_H * k, 8), OCCLUDE);
-      body.position.y = BODY_Y0 + (BODY_H * k) / 2;
-      g.add(head, body);
-      const s = shoot(g, headAt, head);
-      if (s) chars.set('h:' + headKey(skin, look, cap, d), s);
+  const layer = (key: string, part: THREE.Group, wide = false, face = true) => {
+    const r = wide ? BUILDS.w.r : 1;
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * r, 0.26 * r, BODY_H, 8), OCCLUDE);
+    body.position.y = BODY_Y0 + BODY_H / 2;
+    g.add(part, body);
+    if (face) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.238, 12, 10), OCCLUDE); f.position.y = HEAD_Y; g.add(f); }
+    const s = shoot(g, headAt, part);
+    if (s) chars.set('h:' + key, s);
+  };
+  for (let d = 0; d < DIRS; d++) {
+    const rot = (d * 2 * Math.PI) / DIRS;
+    for (const skin of SKINS) layer(faceKey(skin, d), buildFace(skin, rot), false, false);
+    for (const hair of HAIRS) for (const hc of HAIR_COLORS) layer(hairKey(hair, hc, d), buildHair(hair, hc, rot));
+    for (const acc of ACCS) {
+      const colors = ACCENT_ACC.has(acc) ? ACCENTS : HAIR_ACC.has(acc) ? HAIR_COLORS : [0];
+      for (const c of colors) for (const wide of WIDE_ACC.has(acc) ? [false, true] : [false]) layer(accKey(acc, c, wide, d), buildAcc(acc, c, wide, rot), wide);
     }
+    layer(capKey(d), buildCap(rot));
   }
 
   // 공룡 조각 — 색 × (걷기 frame 셋 · 먹기 · 두리번) × 방향

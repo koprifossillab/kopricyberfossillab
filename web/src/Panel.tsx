@@ -1,9 +1,11 @@
 // 오른쪽 목록 — 에이전트(하위 에이전트는 부모 아래로)와 터미널
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import type { Agent, Snapshot } from './types.ts';
-import { loadAtlas, headKey, bodyKey } from './iso/atlas.ts';
-import { appearanceOf, liftOf, PERSONAS } from './scene/appearance.ts';
-import { personName, subtitle, setPersonName, subscribeNames, namesVersion } from './scene/names.ts';
+import { loadAtlas, headLayers, bodyKey } from './iso/atlas.ts';
+import { appearanceOf, liftOf, shapeOf } from './scene/appearance.ts';
+import { personName, subtitle, alias } from './scene/names.ts';
+import { editPerson, subscribePeople, peopleVersion } from './scene/people.ts';
+import { LookEditor } from './LookEditor.tsx';
 import { STATE_TEXT, PALETTE, FOREIGN_COLOR, HEAD_Y } from './scene/layout.ts';
 import { colorOf } from './scene/director.ts';
 import type { Link } from './useOffice.ts';
@@ -12,35 +14,38 @@ import './agentlist.css';
 
 const KIND: Record<Agent['kind'], string> = { session: '터미널', job: '백그라운드', subagent: '하위', foreign: '다른 계정', terminal: 'tmux', desk: '상담원' };
 const WORK = new Set(['code', 'read', 'search', 'run', 'think', 'spawn', 'git', 'test']);
-const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : r.startsWith('@') ? `${r.slice(1)} 계정` : r);
+const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : r.startsWith('@') ? `${r.slice(1)} 계정` : alias(r));
 const FACE_DIR = 1;   // 머리 조각의 방향 — 카메라 쪽(+x+z)을 본다
 
-// 목록의 얼굴 — 그 캐릭터의 머리·몸 조각을 그대로 (둥근 바탕은 몸 색)
-export function Avatar({ a, color, small }: { a: Agent; color: number; small: boolean }) {
+// 목록의 얼굴 — 그 캐릭터의 머리 층·몸 조각을 그대로 (둥근 바탕은 몸 색). onEdit 이 있으면 두 번 눌러 생김새 고치기
+export function Avatar({ a, color, small, onEdit }: { a: Agent; color: number; small: boolean; onEdit?: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  useSyncExternalStore(subscribePeople, peopleVersion);
   const L = appearanceOf(a);
-  const key = `${color}-${L.look}-${L.skin}-${L.shape}-${L.cap}`;
+  const key = `${color}-${JSON.stringify(L)}`;
   useEffect(() => {
     let alive = true;
     loadAtlas().then(({ atlas, sheets }) => {
       const c = ref.current;
       if (!alive || !c) return;
-      const head = atlas.heads[headKey(L.skin, L.look, L.cap, FACE_DIR)];
-      const body = atlas.bodies[bodyKey(color, L.shape, false)];
+      const head = headLayers(atlas, L, FACE_DIR);
+      const body = atlas.bodies[bodyKey(color, shapeOf(L), false)];
       const ctx = c.getContext('2d')!;
       ctx.clearRect(0, 0, c.width, c.height);
-      if (!head) return;
-      // 머리(지름 약 0.5)가 원의 3/4 쯤, 머리 가운데를 원 가운데보다 조금 위에. 몸집 따라 머리가 조각 안에서 오르내린 만큼(lift) 함께 내린다
+      if (!head.length) return;
+      // 머리(지름 약 0.5)가 원의 3/4 쯤, 머리 가운데를 원 가운데보다 조금 위에. 몸은 몸집 따라 머리가 오르는 만큼(lift) 더 아래에서
       const px = atlas.scale * atlas.up[1];
       const s = (c.width * 0.75) / (0.5 * atlas.scale);
-      const cx = c.width / 2, cy = c.height * 0.44 + liftOf(PERSONAS[L.look].build) * px * s;
-      if (body) ctx.drawImage(sheets[body.sheet], body.sx, body.sy, body.w, body.h, cx + body.ox * s, cy + HEAD_Y * px * s + body.oy * s, body.w * s, body.h * s);
-      ctx.drawImage(sheets[head.sheet], head.sx, head.sy, head.w, head.h, cx + head.ox * s, cy + head.oy * s, head.w * s, head.h * s);
+      const cx = c.width / 2, cy = c.height * 0.44;
+      if (body) ctx.drawImage(sheets[body.sheet], body.sx, body.sy, body.w, body.h, cx + body.ox * s, cy + (HEAD_Y + liftOf(L.build)) * px * s + body.oy * s, body.w * s, body.h * s);
+      for (const h of head) ctx.drawImage(sheets[h.sheet], h.sx, h.sy, h.w, h.h, cx + h.ox * s, cy + h.oy * s, h.w * s, h.h * s);
     }).catch(() => {});
     return () => { alive = false; };
   }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
   const hexc = '#' + color.toString(16).padStart(6, '0');
-  return <canvas ref={ref} className={'av' + (small ? ' sm' : '')} width={64} height={64} style={{ background: hexc + '33', borderColor: hexc }} />;
+  return <canvas ref={ref} className={'av' + (small ? ' sm' : '') + (onEdit ? ' editable' : '')} width={64} height={64} style={{ background: hexc + '33', borderColor: hexc }}
+    title={onEdit ? '두 번 눌러 생김새 고치기' : undefined}
+    onDoubleClick={onEdit ? (e) => { e.stopPropagation(); onEdit(); } : undefined} />;
 }
 const LINK: Record<Link, string> = { connecting: '연결 중', live: '실시간', lost: '연결 끊김 — 다시 붙는 중', demo: '예시 데이터' };
 
@@ -58,7 +63,7 @@ function NameEdit({ a, onDone }: { a: Agent; onDone: () => void }) {
   const finish = (keep: boolean) => {
     if (done.current) return;
     done.current = true;
-    if (keep) setPersonName(a.id, v);
+    if (keep && v.trim() !== personName(a)) void editPerson(a.id, { name: v });   // 비우면 지어 준 이름으로 — 서버가 모두에게
     onDone();
   };
   return (
@@ -79,20 +84,22 @@ function NameEdit({ a, onDone }: { a: Agent; onDone: () => void }) {
 function Row({ a, all, selected, onSelect }: { a: Agent; all: Agent[]; selected: boolean; onSelect: (id: string) => void }) {
   const pill = a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill';
   const [editing, setEditing] = useState(false);
-  useSyncExternalStore(subscribeNames, namesVersion);
+  const [looking, setLooking] = useState(false);
+  useSyncExternalStore(subscribePeople, peopleVersion);
   // 줄 안에 입력란을 두려고 <button> 대신 role=button — 입력란은 button 안에 둘 수 없다
   return (
     <div role="button" tabIndex={0} className={'row' + (a.parentId ? ' sub' : '') + (selected ? ' sel' : '')} onClick={() => onSelect(a.id)}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(a.id); } }}>
-      <Avatar a={a} color={colorOf(a, all)} small={!!a.parentId} />
+      <Avatar a={a} color={colorOf(a, all)} small={!!a.parentId} onEdit={() => setLooking(true)} />
+      {looking && <LookEditor a={a} all={all} onClose={() => setLooking(false)} />}
       <div className="txt">
         <div className="who">
           {editing ? <NameEdit a={a} onDone={() => setEditing(false)} />
             : <b title={`${subtitle(a)} — 두 번 눌러 이름 고치기`} onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}>{personName(a)}<small>{subtitle(a)}</small></b>}
           <span className={pill}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span>
         </div>
-        <div className="tool" title={a.label}>{a.label}</div>
-        <div className="meta">{a.kind !== 'foreign' && !a.parentId ? `${ROOM(a.room)} · ` : ''}{KIND[a.kind]}{a.project ? ` · ${a.project}` : ''}{a.tmux ? ` · tmux ${a.tmux}` : ''} · {since(a.changedAt)}째</div>
+        <div className="tool" title={alias(a.label)}>{alias(a.label)}</div>
+        <div className="meta">{a.kind !== 'foreign' && !a.parentId ? `${ROOM(a.room)} · ` : ''}{KIND[a.kind]}{a.project ? ` · ${alias(a.project)}` : ''}{a.tmux ? ` · tmux ${a.tmux}` : ''} · {since(a.changedAt)}째</div>
       </div>
     </div>
   );
@@ -107,7 +114,7 @@ function clock(ms: number): string {
 // 하위 에이전트는 부모의 상자 안, 부모 아래. 차례는 프로젝트 부서(이름 차례) → 고객센터 → 공용실 → 다른 계정
 const KEY_COLLAPSED = 'kopricyberfossillab.groupsCollapsed';
 const groupOf = (a: Agent): string => a.kind === 'foreign' ? (a.room.startsWith('@') ? a.room : 'foreign') : a.kind === 'desk' ? 'center' : a.kind === 'terminal' ? 'general' : a.room;
-const GROUP_NAME = (g: string) => g === 'center' ? '고객센터' : g === 'general' ? '공용실' : g === 'foreign' ? '다른 계정' : g.startsWith('@') ? `${g.slice(1)} 계정 부서` : `${g} 부서`;
+const GROUP_NAME = (g: string) => g === 'center' ? '고객센터' : g === 'general' ? '공용실' : g === 'foreign' ? '다른 계정' : g.startsWith('@') ? `${g.slice(1)} 계정 부서` : `${alias(g)} 부서`;
 const GROUP_RANK = (g: string) => g === 'center' ? 1 : g === 'general' ? 2 : g === 'foreign' || g.startsWith('@') ? 3 : 0;
 function nameHash(s: string): number {
   let h = 0;
@@ -192,7 +199,8 @@ export function SidePanel({ snap, selected, onSelect }: {
   const agents = snap?.agents ?? [];
   const a = agents.find((x) => x.id === selected);
   const kids = a ? agents.filter((x) => x.parentId === a.id) : [];
-  useSyncExternalStore(subscribeNames, namesVersion);
+  const [looking, setLooking] = useState(false);
+  useSyncExternalStore(subscribePeople, peopleVersion);
   return (
     <aside className="side right">
       <section className="sel-box">
@@ -200,14 +208,15 @@ export function SidePanel({ snap, selected, onSelect }: {
         {a ? (
           <div className="detail">
             <div className="dhead">
-              <Avatar a={a} color={colorOf(a, agents)} small={false} />
+              <Avatar a={a} color={colorOf(a, agents)} small={false} onEdit={() => setLooking(true)} />
+              {looking && <LookEditor a={a} all={agents} onClose={() => setLooking(false)} />}
               <div><b>{personName(a)}</b><small className="sub">{subtitle(a)}</small><span className={a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill'}>{STATE_TEXT[a.activity]}{a.guessed ? '?' : ''}</span></div>
             </div>
             <dl>
-              <dt>지금</dt><dd className="mono">{a.label}</dd>
+              <dt>지금</dt><dd className="mono">{alias(a.label)}</dd>
               <dt>종류</dt><dd>{KIND[a.kind]}{a.user ? ` · ${a.user}` : ''}</dd>
               {a.kind !== 'foreign' && <><dt>방</dt><dd>{ROOM(a.room)}</dd></>}
-              {a.project && <><dt>{a.parentId ? '맡은 일' : '프로젝트'}</dt><dd>{a.project}</dd></>}
+              {a.project && <><dt>{a.parentId ? '맡은 일' : '프로젝트'}</dt><dd>{alias(a.project)}</dd></>}
               {a.tmux && <><dt>tmux</dt><dd className="mono">{a.tmux}</dd></>}
               <dt>시작</dt><dd>{clock(a.startedAt)} · {since(a.startedAt)} 전</dd>
               <dt>이 활동</dt><dd>{since(a.changedAt)}째</dd>

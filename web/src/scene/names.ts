@@ -3,6 +3,7 @@
 // 정치인·유명인 이름은 피한다 — 지어낸 이름이 아래 목록에 걸리면 다시 짓는다 (사용자 요청, 2026-10-23).
 import type { Agent } from '../types.ts';
 import { isFemale } from './appearance.ts';
+import { personOf } from './people.ts';
 
 const SURNAMES = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권', '황', '안', '송', '류', '전',
   '홍', '고', '문', '양', '손', '배', '백', '허', '남', '심', '노', '하', '곽', '성', '차', '주', '우', '구', '민', '진'];
@@ -43,34 +44,26 @@ export function makeName(id: string, female: boolean): string {
   return female ? '한서윤' : '한도윤';
 }
 
-const cache = new Map<string, string>();
-// 사람이 고친 이름 — 목록에서 이름을 두 번 눌러 고친다. 이 브라우저에만 남는다(localStorage, id 마다)
-const KEY_NAMES = 'kopricyberfossillab.names';
-const custom: Map<string, string> = (() => {
-  try { return new Map(Object.entries(JSON.parse(localStorage.getItem(KEY_NAMES) ?? '{}') as Record<string, string>)); } catch { return new Map(); }
-})();
-const listeners = new Set<() => void>();
-let version = 0;
-// 빈 이름이면 지어 준 이름으로 되돌린다
-export function setPersonName(id: string, name: string): void {
-  const n = name.trim().slice(0, 20);
-  if (n && n !== generatedName(id)) custom.set(id, n); else custom.delete(id);
-  try { localStorage.setItem(KEY_NAMES, JSON.stringify(Object.fromEntries(custom))); } catch { /* 저장이 막힌 브라우저 — 이번만 */ }
-  version++;
-  for (const f of listeners) f();
-}
-// 이름이 바뀌면 다시 그리게 — useSyncExternalStore(subscribeNames, namesVersion)
-export const subscribeNames = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
-export const namesVersion = () => version;
+const cache = new Map<string, string>();   // id·성별 → 지어 준 이름
 
 function generatedName(id: string): string {
-  let n = cache.get(id);
-  if (!n) { n = makeName(id, isFemale(id)); cache.set(id, n); }
+  const key = `${id}\0${isFemale(id)}`;   // 성별을 고치면 그 성별의 이름을 새로 짓는다
+  let n = cache.get(key);
+  if (!n) { n = makeName(id, isFemale(id)); cache.set(key, n); }
   return n;
 }
 // 화면에 보이는 사람 이름. 상담원도 사람 이름을 갖는다 (부제목에 「상담원」)
+// 사람이 고친 이름은 서버가 모두에게 보낸다(people.ts) — 목록에서 이름을 두 번 눌러 고친다
 export function personName(a: Pick<Agent, 'id'>): string {
-  return custom.get(a.id) ?? generatedName(a.id);
+  return personOf(a.id)?.name ?? generatedName(a.id);
+}
+
+// 화면에 보이는 프로젝트 이름의 줄임 — 저장소 이름이 길거나(이 앱), 드러내고 싶지 않은 개인 프로젝트 (사용자, 2026-10-26).
+// 방 이름·명판·세션 이름(rash-company-51 → 비밀연구실-51)·상담원 요약에 쓴다. 원천의 값(Snapshot)은 그대로 두고 보일 때만 바꾼다
+const ALIASES: [RegExp, string][] = [[/kopricyberfossillab/g, '사이버연구실'], [/rash-company/g, '비밀연구실']];
+export function alias(s: string): string {
+  for (const [re, to] of ALIASES) s = s.replace(re, to);
+  return s;
 }
 
 // 부제목 — 세션 이름(사람이 붙인 것·자동 이름), 하위 에이전트는 종류, 다른 계정은 계정
@@ -79,7 +72,7 @@ export function subtitle(a: Agent): string {
   if (a.kind === 'foreign') return a.user ? `${a.user} 계정` : a.name;
   if (a.kind === 'subagent') return `${a.name} 하위 에이전트`;
   if (a.kind === 'terminal') return `tmux ${a.name}`;
-  return a.name;
+  return alias(a.name);
 }
 
 export const FAMOUS_NAMES = FAMOUS;

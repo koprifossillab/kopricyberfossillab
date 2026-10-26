@@ -1,6 +1,7 @@
 // 서버의 SSE(/api/events)를 받는다. ?demo 이면 서버 없이 예시 데이터로 움직인다.
 import { useEffect, useState } from 'react';
 import type { Activity, Agent, Snapshot } from './types.ts';
+import { setPeople, editPerson } from './scene/people.ts';
 
 export type Link = 'connecting' | 'live' | 'lost' | 'demo';
 
@@ -13,12 +14,31 @@ export function useOffice(): { snap: Snapshot | null; link: Link } {
   useEffect(() => {
     if (DEMO) return demo(setSnap);
     const es = new EventSource('api/events');   // 상대경로 — 서브경로 뒤에서도
-    es.onmessage = (e) => { setSnap(JSON.parse(e.data)); setLink('live'); };
+    es.onmessage = (e) => {
+      const s: Snapshot = JSON.parse(e.data);
+      setPeople(s.people);   // 이름·생김새는 서버가 모두에게 같은 것을 보낸다
+      migrateNames(s);
+      setSnap(s);
+      setLink('live');
+    };
     es.onerror = () => setLink('lost');          // EventSource 가 알아서 다시 붙는다
     return () => es.close();
   }, []);
 
   return { snap, link };
+}
+
+// 0.6.4~0.8.0 은 고친 이름을 이 브라우저(localStorage)에만 두었다 — 지금 화면에 있는 사람 것은 서버로 한 번 올리고 지운다
+const KEY_NAMES = 'kopricyberfossillab.names';
+let migrated = false;
+function migrateNames(s: Snapshot): void {
+  if (migrated) return;
+  migrated = true;
+  try {
+    const old = JSON.parse(localStorage.getItem(KEY_NAMES) ?? '{}') as Record<string, string>;
+    for (const a of s.agents) if (old[a.id] && !s.people?.[a.id]?.name) void editPerson(a.id, { name: old[a.id] });
+    localStorage.removeItem(KEY_NAMES);
+  } catch { /* 저장이 막힌 브라우저 */ }
 }
 
 // 시제품의 예시 네 명 + 하위 에이전트 하나, 몇 초마다 활동을 바꾼다

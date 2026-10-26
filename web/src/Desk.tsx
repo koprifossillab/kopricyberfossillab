@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Agent } from './types.ts';
 import { Avatar } from './Panel.tsx';
-import { personName, subscribeNames, namesVersion } from './scene/names.ts';
+import { personName } from './scene/names.ts';
+import { subscribePeople, peopleVersion } from './scene/people.ts';
 import { colorOf } from './scene/director.ts';
 import './desk.css';
 
@@ -51,7 +52,7 @@ function SendIcon() {
 }
 
 export function Desk() {
-  useSyncExternalStore(subscribeNames, namesVersion);   // 목록에서 상담원 이름을 고치면 여기도
+  useSyncExternalStore(subscribePeople, peopleVersion);   // 목록에서 상담원 이름을 고치면 여기도
   const [token, setToken] = useState<string>(() => load(KEY_TOKEN, ''));
   const [ok, setOk] = useState<boolean | null>(null);
   const [draft, setDraft] = useState('');

@@ -1,6 +1,7 @@
 // 127.0.0.1 에서만 듣는다 — 세션 기록에는 코드와 대화가 담겨 있다(보내는 것은 도구 한 줄뿐이어도).
 //   GET /api/snapshot   지금 상태 한 번
 //   GET /api/events     SSE — 바뀔 때마다 Snapshot
+//   PUT /api/people     화면에서 고친 이름·생김새 (people.ts — 누구나, 좁게 거른다)
 //   GET /healthz        ok + 판
 //   그 밖               web/dist 의 정적 파일
 import http from 'node:http';
@@ -9,6 +10,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Office } from './office.ts';
 import { ask, askToken, checkToken, ASK_MAX, type Turn } from './desk.ts';
+import { peopleFor, editPerson } from './people.ts';
+import { setPeople } from '../web/src/scene/people.ts';   // 상담원의 상태 요약도 고친 이름으로
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'web', 'dist');
@@ -23,19 +26,26 @@ const TYPES: Record<string, string> = {
 };
 
 const office = new Office(VERSION);
-let current = office.snapshot();
+function take() {
+  const s = office.snapshot();
+  const people = peopleFor(s.agents.map((a) => a.id));
+  setPeople(people);
+  return people ? { ...s, people } : s;
+}
+let current = take();
 let body = JSON.stringify(current);
 const clients = new Set<http.ServerResponse>();
 
-setInterval(() => {
-  const next = office.snapshot();
+function tick(): void {
+  const next = take();
   const { at: _a, ...a } = next;
   const { at: _b, ...b } = current;
   current = next;
   if (JSON.stringify(a) === JSON.stringify(b)) return;
   body = JSON.stringify(next);
   for (const res of clients) res.write(`data: ${body}\n\n`);
-}, POLL_MS);
+}
+setInterval(tick, POLL_MS);
 
 // 프록시가 조용한 연결을 끊지 않게
 setInterval(() => { for (const res of clients) res.write(': ping\n\n'); }, 20_000);
@@ -81,6 +91,16 @@ async function handleAsk(req: http.IncomingMessage, res: http.ServerResponse, ur
   if (r.ok) json(res, 200, { answer: r.answer }); else json(res, r.status, { error: r.error });
 }
 
+async function handlePeople(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  if (req.method !== 'PUT') { json(res, 405, { error: 'PUT 만' }); return; }
+  let b: unknown;
+  try { b = JSON.parse(await readBody(req, 4 * 1024)); } catch { json(res, 400, { error: '본문을 읽지 못했다' }); return; }
+  const r = editPerson(b, new Set(current.agents.map((a) => a.id)));
+  if (!r.ok) { json(res, r.status, { error: r.error }); return; }
+  tick();   // 모두의 화면에 바로
+  json(res, 200, { ok: true });
+}
+
 const server = http.createServer((req, res) => {
   // nginx 서브경로(/kopricyberfossillab/) 뒤에 서도 되게 앞부분을 떼고 본다
   const url = (req.url ?? '/').replace(/^\/kopricyberfossillab(?=\/|$)/, '') || '/';
@@ -88,6 +108,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, version: VERSION }));
   } else if (url.startsWith('/api/ask')) {
     handleAsk(req, res, url).catch(() => json(res, 500, { error: '서버 오류' }));
+  } else if (url.startsWith('/api/people')) {
+    handlePeople(req, res).catch(() => json(res, 500, { error: '서버 오류' }));
   } else if (url.startsWith('/api/changelog')) {
     // 판 이력 — 설정 화면이 읽는다
     fs.readFile(path.join(ROOT, 'CHANGELOG.md'), 'utf8', (err, text) =>

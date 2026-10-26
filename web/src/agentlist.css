@@ -19,3 +19,29 @@
 .grp-body{padding:0 4px 4px}
 .grp-body>div:first-child>.row:first-child{border-top-color:transparent}
 @media (prefers-reduced-motion:reduce){.grp-caret{transition:none}}
+
+/* 생김새 고치기 (LookEditor) */
+.av.editable{cursor:pointer}
+.av.editable:hover{filter:brightness(1.12)}
+.modal.lk{width:min(620px,100%)}
+.lk-who{margin-right:auto;font-size:14px;display:flex;align-items:baseline;gap:6px;min-width:0;overflow:hidden;white-space:nowrap}
+.lk-who small{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.lk-body{display:grid;grid-template-columns:120px minmax(0,1fr);gap:14px 18px;align-items:start}
+.lk-face{position:sticky;top:0}
+.lk-face .av{width:120px;height:120px}
+.lk-form{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;align-items:center}
+.lk-form dt{font-size:12px;color:var(--muted);white-space:nowrap}
+.lk-form dd{margin:0;display:flex;flex-direction:column;gap:3px}
+.lk-chips{display:flex;flex-wrap:wrap;gap:4px}
+.lk-chips button{all:unset;cursor:pointer;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--fg)}
+.lk-chips button:hover{border-color:var(--muted)}
+.lk-chips button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.lk-chips button:focus-visible,.lk-sw button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.lk-sw{display:flex;flex-wrap:wrap;gap:6px}
+.lk-sw button{all:unset;cursor:pointer;width:20px;height:20px;border-radius:50%;border:2px solid var(--line);box-sizing:border-box}
+.lk-sw button.on{border-color:var(--fg);box-shadow:0 0 0 2px var(--accent)}
+.lk-note{font-size:11px;color:var(--muted)}
+.lk-foot{grid-column:1/-1;margin:0;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.lk-foot span{margin-right:auto}
+.lk-foot button{all:unset;cursor:pointer;font-size:12px;padding:3px 12px;border-radius:999px;border:1px solid var(--line);color:var(--fg)}
+@media (max-width:560px){.lk-body{grid-template-columns:1fr}.lk-face{position:static;justify-self:center}}

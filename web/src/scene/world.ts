@@ -6,6 +6,7 @@
 //        │ office …                      │ hall │
 //        │ corridor ─────────────────────┤      │
 //        └ front (공용실 | 고객센터 | 휴게실)    ┘
+import { alias } from './names.ts';
 import type { Rect } from './layout.ts';
 import type { Office } from '../types.ts';
 import {
@@ -153,7 +154,7 @@ export function buildWorld(offices: Office[]): World {
       w.labels.push({ name: m.type === 'hq' ? '본부장실' : `${m.label} 부장실`, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: 'boss' });
     }
     if (m.type.startsWith('office') && m.label) {
-      w.labels.push({ name: m.label.startsWith('@') ? `${m.label.slice(1)} 계정` : m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: m.type === 'office-rash' ? 'rash' : 'project' });
+      w.labels.push({ name: m.label.startsWith('@') ? `${m.label.slice(1)} 계정` : alias(m.label), at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: m.type === 'office-rash' ? 'rash' : 'project' });
     }
   });
   return w;

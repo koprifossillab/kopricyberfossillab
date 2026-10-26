@@ -13,7 +13,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import type { Snapshot } from './model.ts';
-import { personName } from '../web/src/scene/names.ts';   // 화면과 같은 사람 이름
+import { personName, alias } from '../web/src/scene/names.ts';   // 화면과 같은 사람 이름·프로젝트 줄임
 
 export const ASK_MAX = 500;
 const ASK_PER_MIN = 4;
@@ -58,9 +58,9 @@ export function summarize(s: Snapshot): string {
     code: '코딩 중', read: '탐색 중', search: '자료 검색', run: '실행 중', think: '생각 중', git: 'GitHub 작업',
     test: '시험 중', spawn: '하위 작업', wait: '확인 필요', idle: '휴식',
   };
-  const room = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : `${r} 사무실`);
+  const room = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : `${alias(r)} 사무실`);
   const lines = s.agents.filter((a) => a.kind !== 'desk').map((a) =>
-    `- ${personName(a)}(${a.name}) [${a.kind === 'subagent' ? '하위 에이전트' : a.kind === 'job' ? '백그라운드' : a.kind === 'foreign' ? '다른 계정' : a.kind === 'terminal' ? 'tmux' : '터미널 세션'}]` +
+    `- ${personName(a)}(${alias(a.name)}) [${a.kind === 'subagent' ? '하위 에이전트' : a.kind === 'job' ? '백그라운드' : a.kind === 'foreign' ? '다른 계정' : a.kind === 'terminal' ? 'tmux' : '터미널 세션'}]` +
     ` ${a.kind === 'foreign' ? '' : room(a.room) + ' · '}${NAMES[a.activity] ?? a.activity}${a.label ? ' · ' + a.label : ''}`);
   const lim = s.limits
     ? `사용 한도: 5시간 ${s.limits.fiveHour ? Math.round(s.limits.fiveHour.usedPct) + '%' : '모름'}, 주간 ${s.limits.sevenDay ? Math.round(s.limits.sevenDay.usedPct) + '%' : '모름'}`

@@ -4,7 +4,6 @@ import { Nav } from '../scene/nav.ts';
 import { direct, colorOf, type Placement } from '../scene/director.ts';
 import type { World } from '../scene/world.ts';
 import { DIRS } from '../scene/layout.ts';
-import { appearanceOf, type Appearance } from '../scene/appearance.ts';
 
 const SPEED = 2.2;
 
@@ -12,7 +11,6 @@ export interface Actor {
   agent: Agent;
   place: Placement;
   color: number;
-  look: Appearance;
   x: number; z: number; rot: number;
   path: [number, number][];
   moving: boolean;
@@ -46,7 +44,7 @@ export class Cast {
       let actor = this.actors.get(a.id);
       if (!actor || actor.leaving) {
         const [x, z] = this.first ? place.target : doorSpot();
-        actor = { agent: a, place, color: 0, look: appearanceOf(a), x, z, rot: Math.PI, path: [], moving: false, leaving: false, t: Math.random() * 10 };
+        actor = { agent: a, place, color: 0, x, z, rot: Math.PI, path: [], moving: false, leaving: false, t: Math.random() * 10 };
         this.actors.set(a.id, actor);
       }
       const moved = actor.place.target[0] !== place.target[0] || actor.place.target[1] !== place.target[1];
