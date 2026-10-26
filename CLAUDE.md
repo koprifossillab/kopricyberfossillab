@@ -84,6 +84,7 @@ npm run typecheck
 npm run probe              # 화면 없이 지금 판정을 콘솔에 (-- --watch 로 계속)
 npm run bake               # 그림(models.ts·layout.ts)을 고쳤을 때만 — 결과(web/public/sprites/)를 커밋
 npm run build && npm start # http://127.0.0.1:8098/  (?demo 를 붙이면 예시 데이터)
+npm run restart            # 돌리는 서비스(systemd)를 다시 띄우기 — server/ 를 고쳤을 때만 (web/ 만이면 build 로 끝)
 npm run dev                # 화면 개발 — http://127.0.0.1:8058/ (/api 는 8098 로 넘긴다)
 ```
 

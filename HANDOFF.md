@@ -11,7 +11,9 @@
 (`/usr/local/share/kopricyberfossillab/skills/fl-visible` ← 각 계정 `~/.claude/skills/fl-visible`, `/etc/skel`). 남은 것은 각 계정 주인에게
 「자기 Claude Code 세션에서 『fl 에서 보이게 해줘』」라고 알리는 일.
 
-**판을 올릴 때** — sclee 가 `npm run build` 한 뒤 paleoadmin 이 `sudo systemctl restart kopricyberfossillab`.
+**판을 올릴 때** — 화면(`web/`)만 고쳤으면 sclee 의 `npm run build` 로 끝(web/dist 는 요청마다 읽는다). 서버(`server/`)를 고쳤으면 그 뒤
+sclee 가 `npm run restart` — `install-service.sh` 가 깐 `/etc/sudoers.d/kopricyberfossillab`(이 서비스의 restart 하나만 비밀번호 없이)를 쓴다.
+**아직 안 깔렸다** — paleoadmin 이 `git pull` 하고 `sudo bash deploy/host/install-service.sh` 를 한 번 다시 돌려야 한다. 그 전에는 예전처럼 paleoadmin 이 `sudo systemctl restart kopricyberfossillab`.
 `deploy/host/` 의 유닛·스킬이 바뀌었으면 paleoadmin 클론(`~paleoadmin/projects/kopricyberfossillab`)에서 `git pull` 하고
 `sudo bash deploy/host/install-service.sh`·`install-skill.sh` 를 다시(몇 번 돌려도 같다). sudo 는 비밀번호를 물으니 `!` 말고 터미널에서.
 nginx 조각을 고치면 `sudo bash deploy/host/install.sh`. 502 면 `systemctl status kopricyberfossillab`·`journalctl -u kopricyberfossillab`.

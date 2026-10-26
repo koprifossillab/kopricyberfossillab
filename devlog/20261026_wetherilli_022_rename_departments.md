@@ -1,4 +1,4 @@
-# 022 — 부서 이름도 두 번 눌러 고치기
+# 022 — 부서 이름도 두 번 눌러 고치기, 서버 다시 띄우기를 sclee 가
 
 2026-10-26 · `work/20261026-wetherilli-2` · wetherilli
 
@@ -23,3 +23,15 @@
 
 - 명판을 두 번 눌러 고치기 — 명판은 무대 위 글자라 누르기를 받지 않는다(무대를 끌어 옮기는 손짓과도 겹친다). 목록 한 곳이면 된다.
 - 부장실·본부장실 명판은 고치지 않는다 — 부서가 아니라 GSM 에 딸린 방이다.
+
+## 서버 다시 띄우기를 sclee 가
+
+사용자: 「근데 왜 매번 서버를 재시작해야 돼?」. 매번은 아니다 — `web/dist` 는 요청마다 디스크에서 읽어서 화면만 고친 판은 `npm run build` 로 끝난다.
+`server/` 를 고친 판(이번처럼)은 Node 가 코드를 메모리에 들고 있으니 다시 띄워야 하는데, 유닛이 시스템 서비스라 root 가 필요했고 sclee 는 sudo 가 없다.
+그래서 판마다 paleoadmin 을 불렀다.
+
+- `install-service.sh` 가 `/etc/sudoers.d/kopricyberfossillab` 에 **`systemctl restart kopricyberfossillab` 한 줄만** 비밀번호 없이 허락한다(넣기 전에 `visudo -c`).
+  sclee 는 `npm run restart`(`deploy/restart.sh` — 다시 띄우고 `/healthz` 를 기다린다).
+- 버린 것: systemd path 유닛으로 표지 파일을 지켜보다 다시 띄우기 — sudo 는 아예 없지만 유닛이 하나 더 늘고, 언제 다시 떴는지가 덜 보인다.
+  서버가 제 코드가 바뀐 것을 알고 실패로 끝나 `Restart=on-failure` 에 기대기 — 깔 것은 없지만 판마다 로그에 실패가 남는 꼼수다.
+- 허락은 이 서비스의 restart 하나라 stop·유닛 바꾸기·다른 서비스는 그대로 paleoadmin 몫이다. 서비스는 어차피 sclee 로 돈다(User=sclee) — 새로 주는 힘은 「다시 띄우기」뿐.

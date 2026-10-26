@@ -8,6 +8,7 @@
     "dev": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
     "start": "tsx server/index.ts",
+    "restart": "bash deploy/restart.sh",
     "probe": "tsx server/probe.ts",
     "test": "tsx --test server/*.test.ts web/src/scene/*.test.ts",
     "typecheck": "tsc --noEmit -p .",

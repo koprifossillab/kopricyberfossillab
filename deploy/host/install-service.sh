@@ -4,6 +4,7 @@
 #   sudo bash deploy/host/install-service.sh
 #
 # 유닛은 sclee 의 클론(/home/sclee/projects/kopricyberfossillab)을 돌린다 — 이 스크립트를 어느 클론에서 부르든 같다.
+# sclee 가 판을 올린 뒤 스스로 다시 띄우게, 이 서비스의 restart 하나만 비밀번호 없이 허락한다(/etc/sudoers.d/kopricyberfossillab).
 # tmux `fl` 에서 npm start 로 띄운 서버가 있으면 포트(8098)가 겹친다. 그 tmux 는 sclee 의 것이라 여기서 죽이지 않고 멈춘다.
 set -euo pipefail
 
@@ -11,6 +12,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 NAME=kopricyberfossillab
 UNIT=/etc/systemd/system/$NAME.service
+SUDOERS=/etc/sudoers.d/$NAME
 APP=/home/sclee/projects/kopricyberfossillab
 PORT=8098
 
@@ -28,6 +30,13 @@ install -m 644 "$REPO/deploy/host/$NAME.service" "$UNIT"
 systemctl daemon-reload
 systemctl enable "$NAME"
 systemctl restart "$NAME"     # 처음이면 띄우고, 이미 돌면 새 유닛·새 코드로 다시
+
+echo "== $SUDOERS — sclee 가 이 서비스만 다시 띄우게 (npm run restart)"
+TMP="$(mktemp)"
+echo "sclee ALL=(root) NOPASSWD: $(command -v systemctl) restart $NAME" > "$TMP"
+visudo -cqf "$TMP" || { rm -f "$TMP"; echo "!! sudoers 문법 확인 실패 — 넣지 않았다" >&2; exit 1; }
+install -m 440 -o root -g root "$TMP" "$SUDOERS"
+rm -f "$TMP"
 
 echo "== healthz"
 for _ in $(seq 1 20); do
