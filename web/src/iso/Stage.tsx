@@ -15,7 +15,7 @@ import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
 import { buildWorld, type World, type WorldItem } from '../scene/world.ts';
 import { Chatter } from './chatter.ts';
-import { personName } from '../scene/names.ts';
+import { personName, roomName } from '../scene/names.ts';
 
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 type V3 = [number, number, number];
@@ -445,15 +445,16 @@ export function Stage({ agents, offices, selected, onSelect }: {
         // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)
         for (const r of w.labels) {
           const id = `room:${r.name}:${r.at.join(',')}`;
+          const name = r.room ? roomName(r.room) : r.name;   // 사람이 고친 부서 이름
           live.add(id);
-          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), esc(r.name), [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)`);
+          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), esc(name), [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)`);
           // 가로 길이를 문틀 폭에 — 화면에서 그 폭이 차지하는 가로 픽셀만큼, 글자는 그 안에 들어가게
           if (r.span) {
             const el = labelEls.get(id)!;
             const [u0] = proj([0, 0, 0]);
             const [u1] = proj(r.axis === 'x' ? [r.span, 0, 0] : [0, 0, r.span]);
             const px = Math.abs(u1 - u0) * k / dpr;
-            const ems = [...r.name].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 1 : 0.62), 0) + 0.8;
+            const ems = [...name].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 1 : 0.62), 0) + 0.8;
             const fs = Math.max(6, Math.min(15, (px - 6) / ems));
             const wpx = `${Math.round(px)}px`, fpx = `${fs.toFixed(1)}px`;
             if (el.style.width !== wpx) el.style.width = wpx;

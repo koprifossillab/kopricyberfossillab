@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-people-'));
 process.env.FL_PEOPLE_FILE = path.join(root, 'people.json');
-const { editPerson, peopleFor, cleanLook, cleanName } = await import('./people.ts');
+const { editPerson, editRoom, peopleFor, roomsFor, cleanLook, cleanName } = await import('./people.ts');
 test.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
 const live = new Set(['s1', 's2']);
@@ -43,4 +43,15 @@ test('1분에 너무 자주 고치면 거절', () => {
   let last;
   for (let i = 0; i < 200; i++) last = editPerson({ id: 's2', name: `이름${i}` }, live, t);
   assert.equal(last && !last.ok && last.status, 429);
+});
+
+test('부서 이름 — 지금 있는 방만, 비우면 처음 이름으로', () => {
+  const rooms = new Set(['gsm', 'center']);
+  const t = Date.now() + 600_000;   // 앞 시험의 횟수 제한과 다른 창
+  assert.equal(editRoom({ room: 'nope', name: '없는 방' }, rooms, t).ok, false);
+  assert.deepEqual(editRoom({ room: 'gsm', name: ' 지질‮조사부 ' }, rooms, t), { ok: true });
+  assert.deepEqual(roomsFor(['gsm', 'center']), { gsm: '지질조사부' });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'rooms.json'), 'utf8')).gsm.name, '지질조사부');
+  editRoom({ room: 'gsm', name: '' }, rooms, t);
+  assert.equal(roomsFor(['gsm']), undefined);
 });

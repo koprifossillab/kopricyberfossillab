@@ -1,7 +1,7 @@
 // 서버의 SSE(/api/events)를 받는다. ?demo 이면 서버 없이 예시 데이터로 움직인다.
 import { useEffect, useState } from 'react';
 import type { Activity, Agent, Snapshot } from './types.ts';
-import { setPeople, editPerson } from './scene/people.ts';
+import { setPeople, setRooms, editPerson } from './scene/people.ts';
 
 export type Link = 'connecting' | 'live' | 'lost' | 'demo';
 
@@ -16,7 +16,8 @@ export function useOffice(): { snap: Snapshot | null; link: Link } {
     const es = new EventSource('api/events');   // 상대경로 — 서브경로 뒤에서도
     es.onmessage = (e) => {
       const s: Snapshot = JSON.parse(e.data);
-      setPeople(s.people);   // 이름·생김새는 서버가 모두에게 같은 것을 보낸다
+      setPeople(s.people);   // 이름·생김새·부서 이름은 서버가 모두에게 같은 것을 보낸다
+      setRooms(s.rooms);
       migrateNames(s);
       setSnap(s);
       setLink('live');

@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties }
 import type { Agent, Snapshot } from './types.ts';
 import { loadAtlas, headLayers, bodyKey } from './iso/atlas.ts';
 import { appearanceOf, liftOf, shapeOf } from './scene/appearance.ts';
-import { personName, subtitle, alias } from './scene/names.ts';
-import { editPerson, subscribePeople, peopleVersion } from './scene/people.ts';
+import { personName, subtitle, alias, roomName } from './scene/names.ts';
+import { editPerson, editRoom, customRoom, subscribePeople, peopleVersion } from './scene/people.ts';
 import { LookEditor } from './LookEditor.tsx';
 import { STATE_TEXT, PALETTE, FOREIGN_COLOR, HEAD_Y } from './scene/layout.ts';
 import { colorOf } from './scene/director.ts';
@@ -14,7 +14,7 @@ import './agentlist.css';
 
 const KIND: Record<Agent['kind'], string> = { session: '터미널', job: '백그라운드', subagent: '하위', foreign: '다른 계정', terminal: 'tmux', desk: '상담원' };
 const WORK = new Set(['code', 'read', 'search', 'run', 'think', 'spawn', 'git', 'test']);
-const ROOM = (r: string) => (r === 'center' ? '고객센터' : r === 'general' ? '공용실' : r.startsWith('@') ? `${r.slice(1)} 계정` : alias(r));
+const ROOM = roomName;
 const FACE_DIR = 1;   // 머리 조각의 방향 — 카메라 쪽(+x+z)을 본다
 
 // 목록의 얼굴 — 그 캐릭터의 머리 층·몸 조각을 그대로 (둥근 바탕은 몸 색). onEdit 이 있으면 두 번 눌러 생김새 고치기
@@ -81,6 +81,28 @@ function NameEdit({ a, onDone }: { a: Agent; onDone: () => void }) {
   );
 }
 
+// 부서 이름 — 상자 머리의 이름을 두 번 눌러 고친다. 비우면 정해 둔 이름으로. 고친 이름은 명판에도
+function RoomEdit({ g, onDone }: { g: string; onDone: () => void }) {
+  const [v, setV] = useState(GROUP_NAME(g));
+  const done = useRef(false);
+  const finish = (keep: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (keep && v.trim() !== GROUP_NAME(g)) void editRoom(g, v);
+    onDone();
+  };
+  return (
+    <input className="name-edit grp-edit" value={v} autoFocus maxLength={20} aria-label="부서 이름 고치기"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setV(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing) finish(true);
+        else if (e.key === 'Escape') finish(false);
+      }}
+      onBlur={() => finish(true)} />
+  );
+}
+
 function Row({ a, all, selected, onSelect }: { a: Agent; all: Agent[]; selected: boolean; onSelect: (id: string) => void }) {
   const pill = a.activity === 'wait' ? 'pill wait' : WORK.has(a.activity) ? 'pill work' : 'pill';
   const [editing, setEditing] = useState(false);
@@ -114,7 +136,8 @@ function clock(ms: number): string {
 // 하위 에이전트는 부모의 상자 안, 부모 아래. 차례는 프로젝트 부서(이름 차례) → 고객센터 → 공용실 → 다른 계정
 const KEY_COLLAPSED = 'kopricyberfossillab.groupsCollapsed';
 const groupOf = (a: Agent): string => a.kind === 'foreign' ? (a.room.startsWith('@') ? a.room : 'foreign') : a.kind === 'desk' ? 'center' : a.kind === 'terminal' ? 'general' : a.room;
-const GROUP_NAME = (g: string) => g === 'center' ? '고객센터' : g === 'general' ? '공용실' : g === 'foreign' ? '다른 계정' : g.startsWith('@') ? `${g.slice(1)} 계정 부서` : `${alias(g)} 부서`;
+// 사람이 고친 이름은 그대로, 정해 둔 이름은 프로젝트·계정이면 「… 부서」
+const GROUP_NAME = (g: string) => customRoom(g) ?? (g === 'center' || g === 'general' || g === 'foreign' ? roomName(g) : `${roomName(g)} 부서`);
 const GROUP_RANK = (g: string) => g === 'center' ? 1 : g === 'general' ? 2 : g === 'foreign' || g.startsWith('@') ? 3 : 0;
 function nameHash(s: string): number {
   let h = 0;
@@ -137,6 +160,8 @@ export function AgentList({ snap, link, selected, onSelect }: {
   const kids = (id: string) => agents.filter((a) => a.parentId === id);
   const waiting = agents.filter((a) => a.activity === 'wait').length;
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  const [naming, setNaming] = useState<string | null>(null);   // 이름을 고치는 부서
+  useSyncExternalStore(subscribePeople, peopleVersion);
   const toggle = (g: string) => setCollapsed((c) => {
     const n = new Set(c);
     if (n.has(g)) n.delete(g); else n.add(g);
@@ -163,16 +188,17 @@ export function AgentList({ snap, link, selected, onSelect }: {
           const shut = collapsed.has(g);
           return (
             <section key={g} className={`grp${wait ? ' has-wait' : ''}${shut ? ' shut' : ''}`} style={{ '--grp': GROUP_COLOR(g) } as CSSProperties}>
-              <button type="button" className="grp-head" aria-expanded={!shut} onClick={() => toggle(g)}>
+              {naming === g ? <div className="grp-head editing"><RoomEdit g={g} onDone={() => setNaming(null)} /></div> :
+              <button type="button" className="grp-head" aria-expanded={!shut} onClick={(e) => { if (e.detail < 2) toggle(g); }}>
                 <span className="grp-caret" aria-hidden="true">▾</span>
-                <b>{GROUP_NAME(g)}</b>
+                <b title="두 번 눌러 부서 이름 고치기" onDoubleClick={(e) => { e.stopPropagation(); if (shut) toggle(g); setNaming(g); }}>{GROUP_NAME(g)}</b>
                 <span className="grp-n">{members.length}명</span>
                 <span className="grp-sum">
                   {work > 0 && <span>일하는 중 {work}</span>}
                   {wait > 0 && <span className="w">확인 필요 {wait}</span>}
                   {!work && !wait && <span>쉬는 중</span>}
                 </span>
-              </button>
+              </button>}
               {!shut && (
                 <div className="grp-body">
                   {heads.map((a) => (

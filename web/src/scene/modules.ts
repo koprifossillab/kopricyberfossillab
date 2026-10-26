@@ -28,7 +28,7 @@ export type DeskKind = 'desk' | 'call' | 'rashdesk' | 'bossdesk';
 export type Slot = 'project' | 'center' | 'general' | 'boss';   // boss: 부장실(프로젝트 붙은 것은 그 프로젝트, 아니면 본부장실)   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
 
 // span — 명판 가로 길이(세계 단위). 문틀 폭에 맞춘다 (사용자: 「이름판이 문틀보다 커서 이상하다」)
-export interface Plaque { name: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss'; span?: number }
+export interface Plaque { name: string; room?: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss'; span?: number }
 
 export interface Seat { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; group: string; lift: number }
 
@@ -295,7 +295,7 @@ function front(): ModuleDef {
     // 복도 쪽 칸막이의 문 위에
     // 문틀 가로대에 (휴게실은 이름 없이 — 사용자)
     labels: [
-      { name: '공용실', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4 }, { name: '고객센터', at: [14.65, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.3 },
+      { name: '공용실', room: 'general', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4 }, { name: '고객센터', room: 'center', at: [14.65, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.3 },
     ],
     flats: ['rug'],
     tall: ['leftwall'],

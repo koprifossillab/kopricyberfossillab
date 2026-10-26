@@ -12,6 +12,9 @@ export const PEOPLE_FILE = process.env.FL_PEOPLE_FILE ?? path.join(os.homedir(),
 const MAX_PEOPLE = 500;         // 세션 id 는 대화마다 새로 생긴다 — 오래 안 고친 것부터 잊는다
 const NAME_MAX = 20;
 const PUT_PER_MIN = 60;
+// 부서(방) 이름 — 프로젝트 이름은 세션과 달리 오래 가니 따로, 같은 폴더의 다른 파일에
+export const ROOMS_FILE = path.join(path.dirname(PEOPLE_FILE), 'rooms.json');
+const MAX_ROOMS = 200;
 
 interface Stored extends Person { at: number }
 let store = new Map<string, Stored>();
@@ -19,12 +22,19 @@ try {
   store = new Map(Object.entries(JSON.parse(fs.readFileSync(PEOPLE_FILE, 'utf8')) as Record<string, Stored>));
 } catch { /* 처음이거나 깨졌다 — 빈 것으로 */ }
 
-function save(): void {
-  fs.mkdirSync(path.dirname(PEOPLE_FILE), { recursive: true });
-  const tmp = `${PEOPLE_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(store)));
-  fs.renameSync(tmp, PEOPLE_FILE);   // 반쯤 쓴 파일이 남지 않게
+interface StoredRoom { name: string; at: number }
+let rooms = new Map<string, StoredRoom>();
+try {
+  rooms = new Map(Object.entries(JSON.parse(fs.readFileSync(ROOMS_FILE, 'utf8')) as Record<string, StoredRoom>));
+} catch { /* 처음이거나 깨졌다 */ }
+
+function write(file: string, data: unknown): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data));
+  fs.renameSync(tmp, file);   // 반쯤 쓴 파일이 남지 않게
 }
+const save = () => write(PEOPLE_FILE, Object.fromEntries(store));
 
 // 화면에 보낼 것 — 지금 있는 에이전트의 것만
 export function peopleFor(ids: Iterable<string>): Record<string, Person> | undefined {
@@ -68,13 +78,25 @@ export function cleanName(raw: unknown): string | null {
   return [...raw.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, '').trim()].slice(0, NAME_MAX).join('');
 }
 
+// 화면에 보낼 부서 이름 — 지금 있는 방의 것만
+export function roomsFor(keys: Iterable<string>): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const k of keys) { const r = rooms.get(k); if (r) out[k] = r.name; }
+  return Object.keys(out).length ? out : undefined;
+}
+
 let window0 = 0, count = 0;
 export type EditResult = { ok: true } | { ok: false; status: number; error: string };
+// 사람·부서 고치기가 함께 쓰는 횟수 제한
+function limited(now: number): boolean {
+  if (now - window0 > 60_000) { window0 = now; count = 0; }
+  return ++count > PUT_PER_MIN;
+}
+const TOO_MANY: EditResult = { ok: false, status: 429, error: '너무 자주 고친다 — 잠시 뒤에' };
 
 // body: { id, name?: 문자열(빈 글이면 지운다), look?: 객체 | null(지운다) }
 export function editPerson(body: unknown, live: Set<string>, now = Date.now()): EditResult {
-  if (now - window0 > 60_000) { window0 = now; count = 0; }
-  if (++count > PUT_PER_MIN) return { ok: false, status: 429, error: '너무 자주 고친다 — 잠시 뒤에' };
+  if (limited(now)) return TOO_MANY;
   if (!body || typeof body !== 'object') return { ok: false, status: 400, error: '본문이 없다' };
   const b = body as Record<string, unknown>;
   const id = typeof b.id === 'string' ? b.id : '';
@@ -95,5 +117,24 @@ export function editPerson(body: unknown, live: Set<string>, now = Date.now()): 
     for (const [k] of old) store.delete(k);
   }
   save();
+  return { ok: true };
+}
+
+// 부서 이름 — body: { room: 방 열쇠(프로젝트 이름·center·general·foreign·@계정), name: 문자열(빈 글이면 처음 이름으로) }
+// live 는 지금 화면에 있는 방들(서버 index.ts 가 에이전트에서 모은다)
+export function editRoom(body: unknown, live: Set<string>, now = Date.now()): EditResult {
+  if (limited(now)) return TOO_MANY;
+  if (!body || typeof body !== 'object') return { ok: false, status: 400, error: '본문이 없다' };
+  const b = body as Record<string, unknown>;
+  const key = typeof b.room === 'string' ? b.room : '';
+  if (!live.has(key)) return { ok: false, status: 404, error: '지금 화면에 없는 부서' };
+  const n = cleanName(b.name);
+  if (n === null) return { ok: false, status: 400, error: '이름은 글이어야 한다' };
+  if (n) rooms.set(key, { name: n, at: now }); else rooms.delete(key);
+  if (rooms.size > MAX_ROOMS) {
+    const old = [...rooms.entries()].sort((x, y) => x[1].at - y[1].at).slice(0, rooms.size - MAX_ROOMS);
+    for (const [k] of old) rooms.delete(k);
+  }
+  write(ROOMS_FILE, Object.fromEntries(rooms));
   return { ok: true };
 }

@@ -1,10 +1,12 @@
 // 사람이 고친 이름·생김새 — 서버(server/people.ts)가 파일에 두고 Snapshot.people 로 모두에게 보낸다. 누가 고치든 모두의 화면이 같이 바뀐다.
-// 여기는 그 사본: 화면은 Snapshot 이 올 때마다 setPeople, 고칠 때는 editPerson(바로 내 화면에 반영하고 서버로 보낸다).
+// 부서 이름도 같은 길로(Snapshot.rooms). 여기는 그 사본: 화면은 Snapshot 이 올 때마다 setPeople, 고칠 때는 editPerson(바로 내 화면에 반영하고 서버로 보낸다).
 // 서버도 이 모듈을 읽는다 — 상담원의 상태 요약이 화면과 같은 이름을 쓰게(desk.ts → names.ts).
 import type { Person } from '../types.ts';
 
 let people = new Map<string, Person>();
 let raw = '{}';
+let rooms = new Map<string, string>();   // 고친 부서 이름 — 방 열쇠 → 이름
+let rawRooms = '{}';
 let version = 0;
 const listeners = new Set<() => void>();
 
@@ -22,6 +24,28 @@ export function setPeople(rec: Record<string, Person> | undefined): void {
   raw = next;
   people = new Map(Object.entries(rec ?? {}));
   changed();
+}
+
+export const customRoom = (key: string): string | undefined => rooms.get(key);
+
+export function setRooms(rec: Record<string, string> | undefined): void {
+  const next = JSON.stringify(rec ?? {});
+  if (next === rawRooms) return;
+  rawRooms = next;
+  rooms = new Map(Object.entries(rec ?? {}));
+  changed();
+}
+
+// 부서 이름 고치기 — 빈 글이면 처음 이름으로
+export async function editRoom(key: string, name: string): Promise<boolean> {
+  if (name.trim()) rooms.set(key, name.trim()); else rooms.delete(key);
+  changed();
+  try {
+    const r = await fetch('api/people', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ room: key, name }) });
+    return r.ok;
+  } catch {
+    return false;
+  }
 }
 
 // 고치기 — name 이 빈 글이면 지어 준 이름으로, look 이 null 이면 처음 생김새로. 서버가 거절하면 다음 Snapshot 이 되돌린다

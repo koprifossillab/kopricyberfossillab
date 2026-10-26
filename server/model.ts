@@ -65,6 +65,7 @@ export interface Snapshot {
   offices: Office[];        // 사무실을 둘 프로젝트 (세션·job 의 room 가운데 center·general 이 아닌 것, 이름 차례)
   limits?: Limits;          // Claude 사용 한도 — statusLine 이 남긴 파일에서. 없으면 모른다
   people?: Record<string, Person>;   // 사람이 화면에서 고친 이름·생김새 (지금 있는 에이전트의 것만, id 로)
+  rooms?: Record<string, string>;    // 사람이 화면에서 고친 부서 이름 (방 열쇠 → 이름, 지금 있는 방의 것만)
 }
 
 // 화면에서 고친 것 — 고친 칸만. 값의 목록은 web/src/scene/appearance.ts (서버 server/people.ts 가 그 목록으로 거른다)

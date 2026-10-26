@@ -3,7 +3,7 @@
 // 정치인·유명인 이름은 피한다 — 지어낸 이름이 아래 목록에 걸리면 다시 짓는다 (사용자 요청, 2026-10-23).
 import type { Agent } from '../types.ts';
 import { isFemale } from './appearance.ts';
-import { personOf } from './people.ts';
+import { personOf, customRoom } from './people.ts';
 
 const SURNAMES = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권', '황', '안', '송', '류', '전',
   '홍', '고', '문', '양', '손', '배', '백', '허', '남', '심', '노', '하', '곽', '성', '차', '주', '우', '구', '민', '진'];
@@ -64,6 +64,15 @@ const ALIASES: [RegExp, string][] = [[/kopricyberfossillab/g, '사이버연구�
 export function alias(s: string): string {
   for (const [re, to] of ALIASES) s = s.replace(re, to);
   return s;
+}
+
+// 방(부서)의 화면 이름 — 사람이 고친 것(서버가 모두에게, 부서 상자 이름을 두 번 눌러 고친다)이 먼저, 없으면 정해 둔 이름.
+// 열쇠는 Snapshot 의 room 값: 프로젝트 이름 · center · general · foreign(표지를 안 켠 다른 계정) · @계정
+export function roomName(key: string): string {
+  return customRoom(key) ?? defaultRoomName(key);
+}
+export function defaultRoomName(key: string): string {
+  return key === 'center' ? '고객센터' : key === 'general' ? '공용실' : key === 'foreign' ? '다른 계정' : key.startsWith('@') ? `${key.slice(1)} 계정` : alias(key);
 }
 
 // 부제목 — 세션 이름(사람이 붙인 것·자동 이름), 하위 에이전트는 종류, 다른 계정은 계정

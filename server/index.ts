@@ -1,7 +1,7 @@
 // 127.0.0.1 에서만 듣는다 — 세션 기록에는 코드와 대화가 담겨 있다(보내는 것은 도구 한 줄뿐이어도).
 //   GET /api/snapshot   지금 상태 한 번
 //   GET /api/events     SSE — 바뀔 때마다 Snapshot
-//   PUT /api/people     화면에서 고친 이름·생김새 (people.ts — 누구나, 좁게 거른다)
+//   PUT /api/people     화면에서 고친 이름·생김새·부서 이름 (people.ts — 누구나, 좁게 거른다)
 //   GET /healthz        ok + 판
 //   그 밖               web/dist 의 정적 파일
 import http from 'node:http';
@@ -10,8 +10,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Office } from './office.ts';
 import { ask, askToken, checkToken, ASK_MAX, type Turn } from './desk.ts';
-import { peopleFor, editPerson } from './people.ts';
-import { setPeople } from '../web/src/scene/people.ts';   // 상담원의 상태 요약도 고친 이름으로
+import { peopleFor, roomsFor, editPerson, editRoom } from './people.ts';
+import type { Snapshot } from './model.ts';
+import { setPeople, setRooms } from '../web/src/scene/people.ts';   // 상담원의 상태 요약도 고친 이름으로
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'web', 'dist');
@@ -29,8 +30,17 @@ const office = new Office(VERSION);
 function take() {
   const s = office.snapshot();
   const people = peopleFor(s.agents.map((a) => a.id));
+  const rooms = roomsFor(liveRooms(s));
   setPeople(people);
-  return people ? { ...s, people } : s;
+  setRooms(rooms);
+  return { ...s, ...(people ? { people } : {}), ...(rooms ? { rooms } : {}) };
+}
+// 이름을 고칠 수 있는 방 — 화면의 부서 상자(Panel.tsx groupOf)와 같은 열쇠
+function liveRooms(s: Snapshot): Set<string> {
+  const out = new Set(['center', 'general']);
+  for (const a of s.agents) out.add(a.kind === 'foreign' && !a.room.startsWith('@') ? 'foreign' : a.room);
+  for (const o of s.offices) out.add(o.name);
+  return out;
 }
 let current = take();
 let body = JSON.stringify(current);
@@ -95,7 +105,8 @@ async function handlePeople(req: http.IncomingMessage, res: http.ServerResponse)
   if (req.method !== 'PUT') { json(res, 405, { error: 'PUT 만' }); return; }
   let b: unknown;
   try { b = JSON.parse(await readBody(req, 4 * 1024)); } catch { json(res, 400, { error: '본문을 읽지 못했다' }); return; }
-  const r = editPerson(b, new Set(current.agents.map((a) => a.id)));
+  // { room, name } 이면 부서 이름, 아니면 사람
+  const r = b && typeof b === 'object' && 'room' in b ? editRoom(b, liveRooms(current)) : editPerson(b, new Set(current.agents.map((a) => a.id)));
   if (!r.ok) { json(res, r.status, { error: r.error }); return; }
   tick();   // 모두의 화면에 바로
   json(res, 200, { ok: true });
