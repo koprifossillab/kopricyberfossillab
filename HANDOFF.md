@@ -1,6 +1,6 @@
 # HANDOFF
 
-**2026-10-26** · **v0.9.0** — 얼굴을 두 번 눌러 생김새 고치기·고친 것을 모두와 같이([020](devlog/20261026_wetherilli_020_look_editor_shared_people.md)). v0.8.0 — 다른 계정도 본인이 켜면 보인다([koprifossillab P01](devlog/20261026_koprifossillab_P01_opt_in_other_accounts.md) → [wetherilli 019](devlog/20261026_wetherilli_019_opt_in_other_accounts.md)).
+**2026-10-26** · **v0.10.0** — 2인실·GSM 4인실·고객센터 1인실([021](devlog/20261026_wetherilli_021_small_offices_one_desk_center.md)). v0.9.0 — 얼굴을 두 번 눌러 생김새 고치기·고친 것을 모두와 같이([020](devlog/20261026_wetherilli_020_look_editor_shared_people.md)). v0.8.0 — 다른 계정도 본인이 켜면 보인다([koprifossillab P01](devlog/20261026_koprifossillab_P01_opt_in_other_accounts.md) → [wetherilli 019](devlog/20261026_wetherilli_019_opt_in_other_accounts.md)).
 **코드는 main 에 있고, 깔기(§0)는 아직** — 깔기 전에는 예전처럼 다른 계정은 「다른 계정」(바쁨/쉼만)으로 보인다.
 사내망 `http://paleolab/kopricyberfossillab/`, 서버는 systemd `kopricyberfossillab.service`(User=sclee, 127.0.0.1:8098) — 운영은 paleoadmin.
 이어서 할 사람은 여기부터.
@@ -25,8 +25,8 @@ nginx 조각을 고치면 `sudo bash deploy/host/install.sh`. 502 면 `systemctl
 
 | | 지금 |
 |---|---|
-| 서버 | `server/` — 1초 폴링, SSE. 계정 목록(`paths.ts`) · 세션 등록·job state·JSONL·하위 에이전트·tmux·ps·한도 파일. room(프로젝트·center·general)·offices(크기는 커밋 수, 10분 캐시) |
-| 화면 | 모듈 18가지를 프로젝트 목록대로 놓는다(`world.ts`). 그림은 `npm run bake`(17초) — 모듈마다 floor·objects 층, 가구 조각, 몸 432·머리 층 1264 |
+| 서버 | `server/` — 1초 폴링, SSE. 계정 목록(`paths.ts`) · 세션 등록·job state·JSONL·하위 에이전트·tmux·ps·한도 파일. room(프로젝트·center·general)·offices(크기는 커밋 수, 10분 캐시 — 화면은 이제 안 쓴다: GSM 4인실, 나머지 2인실) |
+| 화면 | 모듈 19가지를 프로젝트 목록대로 놓는다(`world.ts`). 그림은 `npm run bake`(17초) — 모듈마다 floor·objects 층, 가구 조각, 몸 432·머리 층 1264 |
 | 시험 | 31개 (`npm test`) — 판정·래치·방·한도·다른 계정(표지·여는 파일)·고친 것 거르기 + **벽 넘기**(주요 자리 모든 쌍) · 공룡 먹이 |
 | 한도 게이지 | sclee 의 statusLine 이 tee 를 거친다. 값은 **대화형 세션이 응답할 때만** 새로 쓰인다 — 아무도 안 쓰면 「n분 전 값」 |
 | 고친 이름·생김새 | `~/.local/share/kopricyberfossillab/people.json`(서버가 씀, `PUT /api/people` — 누구나, 좁게 거름) → `Snapshot.people`. 화면 줄임말은 `names.ts alias()` |

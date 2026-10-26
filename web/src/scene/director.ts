@@ -1,5 +1,6 @@
 // Snapshot → 캐릭터마다 갈 자리와 자세. 장소는 활동에서 정해진다:
-//   책상은 방에서 받는다 — 프로젝트 세션은 그 프로젝트 사무실, 고객센터 세션은 상담 책상, 프로젝트가 없으면 공용실
+//   책상은 방에서 받는다 — 프로젝트 세션은 그 프로젝트 사무실(차면 공용실), 프로젝트가 없거나 고객센터 세션(다른 세션의 지령)이면 공용실.
+//   고객센터의 상담 책상 하나는 상담원 것 — 상담원은 쉴 때도 고객센터 소파에 머문다(가끔 화장실만)
 //   code·read·run·think·spawn → 자기 책상(앉음)   wait → 책상 옆(서서 빨간 링)
 //   git → 코어 보관대   test → 현미경 책상   search → 자료실   idle → 휴게실 (소파·카페 의자에 앉거나 커피 머신 앞)
 //   휴게실 사람은 낮은 확률로 화장실(생김새의 성별대로)에 잠깐 다녀온다 — 시간 창마다 정해져 다시 그려도 같다
@@ -98,15 +99,15 @@ function assignDesks(w: World, agents: Agent[]): void {
     // 부장은 그 프로젝트의 부장실, 없으면 본부장실, 그것도 차면 제 방
     const want = a.role === 'boss'
       ? [`boss:${a.room}`, 'boss:hq', a.room].find((r) => w.desks.some((d, i) => d.room === r && (!taken.has(i) || deskOf.get(a.id) === i))) ?? a.room
-      : a.room;
+      : a.room === 'center' && a.kind !== 'desk' ? 'general' : a.room;   // 상담 책상은 상담원 것
     const has = deskOf.get(a.id);
     if (has !== undefined && room(has) === want) continue;
     // 방이 바뀌었으면 그 방에 빈 책상이 있을 때만 옮긴다 (없으면 있던 책상에 그대로)
     const free = w.desks.findIndex((_, i) => !taken.has(i) && room(i) === want);
     if (free < 0) {
       if (has === undefined) {
-        // 그 방이 꽉 찼거나 없으면 공용실 → 고객센터 차례로 (tmux 는 공용실에만)
-        const any = (a.kind === 'terminal' ? ['general'] : ['general', 'center']).map((r) => w.desks.findIndex((_, i) => !taken.has(i) && room(i) === r)).find((i) => i >= 0);
+        // 그 방이 꽉 찼거나 없으면 공용실로 (고객센터 책상은 상담원만)
+        const any = (a.kind === 'desk' ? ['center', 'general'] : ['general']).map((r) => w.desks.findIndex((_, i) => !taken.has(i) && room(i) === r)).find((i) => i >= 0);
         if (any !== undefined) { deskOf.set(a.id, any); taken.add(any); }
       }
       continue;
@@ -126,7 +127,7 @@ function seatHash(id: string, salt: number): number {
   return Math.abs(h);
 }
 function assignSeats(w: World, agents: Agent[]): void {
-  const want = new Set(agents.filter(resting).map((a) => a.id));
+  const want = new Set(agents.filter((a) => resting(a) && !(a.kind === 'desk' && w.deskRest.length)).map((a) => a.id));
   for (const id of seatAt.keys()) if (!want.has(id)) seatAt.delete(id);
   const taken = new Set(seatAt.values());
   for (const a of agents) {
@@ -186,6 +187,17 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
       } else {
         out.set(a.id, { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });
       }
+      continue;
+    }
+    if (resting(a) && a.kind === 'desk' && w.deskRest.length) {
+      // 상담원 — 고객센터 소파에서 쉰다. 다른 볼일(공룡·수족관·테라스)은 없고 화장실만 가끔
+      if (restroomTrip(a.id, now)) {
+        const side = isFemale(a.id) ? 'female' : 'male';
+        const list = w.restroom[side];
+        if (list.length) { out.set(a.id, { target: list[queue[side]++ % list.length], pose: 'stand', face: Math.PI, desk: null }); continue; }
+      }
+      const s = w.deskRest[0];
+      out.set(a.id, { target: s.at, pose: s.pose, face: s.face, desk: null, on: s.on, lift: s.lift, group: s.group });
       continue;
     }
     if (resting(a)) {

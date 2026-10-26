@@ -242,9 +242,9 @@ export function SidePanel({ snap, selected, onSelect }: {
           {snap && !snap.terminals.length && <p className="note">tmux 세션이 없다.</p>}
         </div>
         <ul className="legend">
-          <li><b>사무실</b> 프로젝트마다 — 크기는 커밋 수</li>
-          <li><b>고객센터</b> 다른 세션이 보낸 지령(최근 말 8개 중 절반 이상) · 상담원</li>
-          <li><b>공용실</b> 프로젝트를 모를 때 · 코어 보관대 = git · 현미경 = 시험</li>
+          <li><b>사무실</b> 프로젝트마다 2인실(GSM 은 4인실) — 차면 공용실로</li>
+          <li><b>고객센터</b> 상담원의 방 — 쉴 때도 여기 소파에서</li>
+          <li><b>공용실</b> 프로젝트를 모를 때 · 다른 세션이 보낸 지령을 받은 세션 · 코어 보관대 = git · 현미경 = 시험</li>
           <li><b>자료실</b> 웹 검색</li>
           <li><b>휴게실</b> 쉬는 세션 — 잡담, 가끔 화장실·공룡 먹이</li>
           <li><b>빨간 링</b> 확인을 기다린다 · <b>주황 모자</b> tmux</li>

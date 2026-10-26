@@ -7,6 +7,7 @@ import { Nav } from './nav.ts';
 import { seatOf, waitSpotOf } from './world.ts';
 import type { Rect } from './layout.ts';
 
+// 이름이 GSM 이면 4인실, 나머지는 2인실 — 크기(size)는 화면이 쓰지 않는다
 const OFFICES = [
   { name: 'DiaRUGA', size: 'm' as const }, { name: 'ForGIA', size: 's' as const }, { name: 'GSM', size: 'l' as const },
   { name: 'rash-company', size: 'm' as const }, { name: 'Cropobite', size: 's' as const }, { name: 'confoinfo', size: 's' as const },
@@ -39,6 +40,7 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
       ...w.desks.map((d, i) => [`책상${i}(${d.room})`, seatOf(d.at)] as [string, [number, number]]),
       ...w.desks.map((d, i) => [`대기${i}`, waitSpotOf(d.at)] as [string, [number, number]]),
       ...w.lounge.map((s, i) => [`휴게${i}`, s.at] as [string, [number, number]]),
+      ...w.deskRest.map((s, i) => [`상담원 소파${i}`, s.at] as [string, [number, number]]),
       ...w.core.map((p, i) => [`코어${i}`, p] as [string, [number, number]]),
       ...w.bench.map((p, i) => [`현미경${i}`, p] as [string, [number, number]]),
       ...w.search.map((s, i) => [`자료실${i}`, s.at] as [string, [number, number]]),

@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261026_wetherilli_021](20261026_wetherilli_021_small_offices_one_desk_center.md) | 2인실을 한 칸 폭으로 꾸밈, GSM 만 4인실·8인실 버림, 고객센터 1인실·상담원 소파 |
 | [20261026_wetherilli_020](20261026_wetherilli_020_look_editor_shared_people.md) | 생김새 고치기(머리 층 굽기 1264장), 이름·생김새를 서버에(누구나, 좁게 거름), 프로젝트 줄임말 |
 | [20261026_wetherilli_019](20261026_wetherilli_019_opt_in_other_accounts.md) | P01 구현 — 계정 목록·표지 확인·방 「계정/프로젝트」, 스킬은 공용 자리에 복사(/home/sclee 0750) |
 | [20261026_koprifossillab_P01](20261026_koprifossillab_P01_opt_in_other_accounts.md) | 다른 계정도 보이게 — 본인이 켜는 표지(스킬)·CAP_DAC_READ_SEARCH, ACL 을 버린 까닭(0600) |

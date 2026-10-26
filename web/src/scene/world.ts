@@ -17,15 +17,16 @@ import {
 export const MAX_ROWS = 3;   // 사무실 줄이 셋을 넘으면 남는 프로젝트는 공용실로
 const ROW_W = PER_ROW * OFFICE_W;
 
-// 프로젝트 → 사무실 모듈. 크기는 커밋 수(서버), 꾸밈은 프로젝트마다 (GSM 은 지도, rash-company 는 칙칙하게)
+// 프로젝트 → 사무실 모듈. GSM 만 4인실(지도), 나머지는 모두 2인실 — 책상이 모자라면 공용실로 (사용자, 2026-10-26).
+// 서버가 보내는 크기(커밋 수)는 이제 쓰지 않는다. rash-company 는 칙칙한 2인실
 function officeModule(o: Office): ModuleType {
   if (o.name === 'GSM') return 'office-gsm';
-  if (isRash(o.name) && o.size !== 's') return 'office-rash';
-  return o.size === 's' ? 'office-s' : o.size === 'l' ? 'office-l' : 'office';
+  if (isRash(o.name)) return 'office-rash';
+  return 'office-s';
 }
 const BACKWALL: Record<string, ModuleType> = {
   boss: 'backwall-boss', hq: 'backwall',
-  'office-s': 'backwall-s', office: 'backwall', 'office-l': 'backwall-l', 'office-gsm': 'backwall-l', 'office-rash': 'backwall-rash',
+  'office-s': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
 export interface Placed { type: ModuleType; at: [number, number]; label?: string }
@@ -41,6 +42,7 @@ export interface World {
   items: WorldItem[];
   blocks: Rect[];
   lounge: Seat[];                  // on 은 WorldItem.key
+  deskRest: Seat[];                // 상담원이 쉬는 자리
   core: [number, number][];
   bench: [number, number][];
   stand: [number, number][];
@@ -64,7 +66,7 @@ export function buildWorld(offices: Office[]): World {
   for (const o of sorted) {
     const type = officeModule(o);
     // 큰 사무실에는 부장실이 붙는다 — 한 줄에 같이 들어가야 한다
-    const withBoss = type === 'office-l' || type === 'office-gsm';
+    const withBoss = type === 'office-gsm';
     const w = MODULES[type].size[0] + (withBoss ? MODULES.boss.size[0] : 0);
     if (x + w > ROW_W + 1e-6) {
       if (rowsOf.length >= MAX_ROWS) continue;   // 자리가 없다 — 그 프로젝트는 공용실 책상으로
@@ -77,7 +79,6 @@ export function buildWorld(offices: Office[]): World {
   for (const row of rowsOf) {
     let end = row.reduce((m, r) => Math.max(m, r.x + MODULES[r.type].size[0]), 0);
     while (ROW_W - end >= OFFICE_WIDTH.m - 1e-6) { row.push({ type: 'office', x: end }); end += OFFICE_WIDTH.m; }
-    while (ROW_W - end >= OFFICE_WIDTH.s - 1e-6) { row.push({ type: 'office-s', x: end }); end += OFFICE_WIDTH.s; }
   }
   const rows = rowsOf.length;
   const rooms = rowsOf.flat().filter((r) => r.label && r.type !== 'boss').map((r) => r.label!);
@@ -103,7 +104,7 @@ export function buildWorld(offices: Office[]): World {
 
   const w: World = {
     w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D + TERRACE_D, modules, rooms,
-    desks: [], items: [], blocks: [], lounge: [], core: [], bench: [], stand: [], labels: [],
+    desks: [], items: [], blocks: [], lounge: [], deskRest: [], core: [], bench: [], stand: [], labels: [],
     restroom: { male: [], female: [] }, search: [], pen: null, aqua: null, breeze: [],
     door: [BUILDING_W + ENTRANCE_DOOR[0], entZ + ENTRANCE_DOOR[1]],   // 엘리베이터·계단 앞
   };
@@ -126,6 +127,7 @@ export function buildWorld(offices: Office[]): World {
       w.desks.push({ at: mv(d.at, o), kind: d.kind, room, module: i, item: `${i}:${d.item}` });
     }
     for (const s of def.lounge ?? []) w.lounge.push({ ...s, at: mv(s.at, o), on: s.on ? `${i}:${s.on}` : undefined });
+    for (const s of def.deskRest ?? []) w.deskRest.push({ ...s, at: mv(s.at, o), on: s.on ? `${i}:${s.on}` : undefined });
     w.core.push(...(def.core ?? []).map((p) => mv(p, o)));
     w.bench.push(...(def.bench ?? []).map((p) => mv(p, o)));
     if (m.type === 'front') w.stand.push(...(def.stand ?? []).map((p) => mv(p, o)));

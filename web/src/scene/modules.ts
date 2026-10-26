@@ -39,6 +39,7 @@ export interface ModuleDef {
   blocks: Rect[];                                   // 걸음을 막는 곳 (items 의 box 와 따로 — 의자는 걸음을 막지 않는다)
   desks: { at: [number, number]; kind: DeskKind; slot: Slot; item: string }[];
   lounge?: Seat[];
+  deskRest?: Seat[];                                // 상담원이 쉬는 자리 (고객센터 소파 — 휴게실로 가지 않는다)
   core?: [number, number][];
   bench?: [number, number][];
   stand?: [number, number][];                       // 갈 곳이 없을 때 서는 곳
@@ -92,13 +93,14 @@ function addProps(items: Item[], blocks: Rect[], list: ReturnType<typeof prop>[]
   for (const p of list) { items.push(p.item); blocks.push(p.block); }
 }
 
-// ---- 프로젝트 사무실 — 크기 셋: s(3.5×7, 책상 둘) · m(7×7, 넷) · l(14×7, 여덟). 앞 칸막이 가운데에 출입구, 오른쪽 칸막이
-export const OFFICE_WIDTH = { s: OFFICE_W / 2, m: OFFICE_W, l: OFFICE_W * 2 } as const;
+// ---- 프로젝트 사무실 — 크기 둘: s(7×7, 책상 둘 + 쉬는 구석) · m(7×7, 넷 — GSM 과 빈 사무실). 8인실(l)은 버렸다. 앞 칸막이 가운데에 출입구, 오른쪽 칸막이
+// s 는 전에 반 칸(3.5)이었다 — 책상 둘만 들어차 답답해서 m 만큼 넓히고 남는 앞쪽을 꾸민다 (사용자, 2026-10-26)
+export const OFFICE_WIDTH = { s: OFFICE_W, m: OFFICE_W } as const;
 // theme 'gsm': 지도 프로젝트(GSM) — 암석 표본·시추 코어·지구본·지질도 판·지도 탁자로 꾸민다
-function office(rash: boolean, size: 's' | 'm' | 'l' = 'm', theme?: 'gsm'): ModuleDef {
+function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm'): ModuleDef {
   const OFFICE_W = OFFICE_WIDTH[size];
-  const cols = size === 's' ? [1.75] : size === 'm' ? [1.9, 5.1] : [1.9, 5.1, 8.9, 12.1];
-  const deskAt: [number, number][] = [1.4, 4.2].flatMap((z) => cols.map((x) => [x, z] as [number, number]));
+  const cols = [1.9, 5.1];
+  const deskAt: [number, number][] = (size === 's' ? [1.4] : [1.4, 4.2]).flatMap((z) => cols.map((x) => [x, z] as [number, number]));
   const door_: [number, number] = [OFFICE_W / 2 - 0.7, OFFICE_W / 2 + 0.7];
   const deskKind: DeskKind = rash ? 'rashdesk' : 'desk';
   const wallKind: ItemKind = rash ? 'rashwall' : 'partition';
@@ -114,9 +116,22 @@ function office(rash: boolean, size: 's' | 'm' | 'l' = 'm', theme?: 'gsm'): Modu
   ];
   const blocks: Rect[] = [...deskAt.map(([x, z]) => box(x, z, 1.05, 0.5)), ...walls.map((r) => pad(r))];
   const R = OFFICE_W;   // 오른쪽 끝 — 소품 자리를 크기에 맞춘다
-  if (size === 's') {
-    addProps(items, blocks, [prop('bin', 'trash_bin', R - 0.35, 3.0), prop('succ', 'plant_succulent', R - 0.4, 6.4), prop('lamp', 'floor_lamp', 0.35, 6.4)]);
-  } else if (rash) {
+  if (size === 's' && !rash) {
+    // 책상 둘은 뒤 한 줄, 앞쪽은 쉬는 구석 — 오른쪽에 소파와 낮은 탁자, 왼쪽에 게시판·지구본·정수기. 가운데(문 → 책상)는 비운다
+    const sofa: [number, number] = [5.45, 6.4], low: [number, number] = [5.45, 5.15];
+    items.push(
+      { id: 'plant', kind: 'plant', prop: 'ficus', at: [R - 0.55, 0.5], box: box(R - 0.55, 0.5, 0.3, 0.3), h: 1.4 },
+      { id: 'plant2', kind: 'plant', prop: 'bamboo', at: [0.45, 4.3], box: box(0.45, 4.3, 0.3, 0.3), h: 1.3 },
+      { id: 'sofa', kind: 'sofa', at: sofa, rot: 0, box: box(sofa[0], sofa[1], 1, 0.45) },
+      { id: 'table', kind: 'table', at: low, box: box(low[0], low[1], 0.8, 0.35) },
+    );
+    blocks.push(box(R - 0.55, 0.5, 0.35, 0.35), box(0.45, 4.3, 0.35, 0.35), box(sofa[0], sofa[1], 1.05, 0.5), box(low[0], low[1], 0.85, 0.4));
+    addProps(items, blocks, [
+      prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
+      prop('bin', 'trash_bin', R - 0.35, 3.0), prop('cork', 'cork_board', 1.5, 6.85), prop('globe', 'globe', 1.6, 5.9),
+      prop('cooler', 'water_cooler', 0.4, 6.5), prop('tall', 'plant_tall', R - 0.4, 4.0),
+    ]);
+  } else if (rash) {   // 비밀연구실(rash-company) — 2인실이라 책상은 뒤 한 줄, 앞쪽은 잡동사니
     addProps(items, blocks, [prop('pile', 'paper_pile', 3.5, 0.4), prop('fan', 'old_fan', 0.4, 3.1), prop('oldcab', 'old_cabinet', 6.45, 3.0, -Math.PI / 2)]);
     items.push(
       { id: 'cabinet', kind: 'cabinet', at: [6.45, 0.45], box: box(6.45, 0.45, 0.35, 0.35) },
@@ -127,31 +142,21 @@ function office(rash: boolean, size: 's' | 'm' | 'l' = 'm', theme?: 'gsm'): Modu
     blocks.push(box(6.45, 0.45, 0.4, 0.4), box(0.85, 6.4, 0.75, 0.4), box(6.4, 6.35, 0.3, 0.3));
   } else {
     // 나무는 사무실마다 다르게 (사용자: 「나무 종류 다양하게」) — 큰 사무실은 야자, GSM 은 원뿔 나무, 보통은 고무나무. 앞 구석에 하나 더
-    const tree = theme === 'gsm' ? 'pine' : size === 'l' ? 'palm' : 'ficus';
+    const tree = theme === 'gsm' ? 'pine' : 'ficus';
     items.push({ id: 'plant', kind: 'plant', prop: tree, at: [R - 0.55, 0.5], box: box(R - 0.55, 0.5, 0.3, 0.3), h: 1.4 });
-    items.push({ id: 'plant2', kind: 'plant', prop: size === 'l' ? 'monstera' : 'bamboo', at: [0.45, 4.6], box: box(0.45, 4.6, 0.3, 0.3), h: 1.3 });
+    items.push({ id: 'plant2', kind: 'plant', prop: 'bamboo', at: [0.45, 4.6], box: box(0.45, 4.6, 0.3, 0.3), h: 1.3 });
     blocks.push(box(0.45, 4.6, 0.35, 0.35));
     blocks.push(box(R - 0.55, 0.5, 0.35, 0.35));
     addProps(items, blocks, [
-      prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
+      prop('shelf', theme === 'gsm' ? 'rock_shelf' : 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
       prop('bin', 'trash_bin', R - 0.4, 3.0), prop('cooler', 'water_cooler', 0.45, 6.35), prop('succ', 'plant_succulent', R - 0.45, 6.4),
     ]);
     if (theme === 'gsm') {
-      addProps(items, blocks, [
-        prop('rocks1', 'rock_shelf', 10.5, 0.3), prop('rocks2', 'rock_shelf', 7.0, 0.3), prop('core1', 'core_box', 7.0, 3.3),
-        prop('globe', 'globe', 3.5, 6.4), prop('core2', 'core_box', R - 0.6, 3.6, -Math.PI / 2),
-      ]);
-      items.push(
-        { id: 'map0', kind: 'mapboard', at: [5.5, 6.45], box: [4.9, 6.25, 6.1, 6.65] },
-        { id: 'map1', kind: 'mapboard', at: [9.0, 6.45], box: [8.4, 6.25, 9.6, 6.65] },
-        { id: 'maptable', kind: 'maptable', at: [11.6, 6.2], box: [10.9, 5.85, 12.3, 6.55] },
-      );
-      blocks.push([4.85, 6.2, 6.15, 6.7], [8.35, 6.2, 9.65, 6.7], [10.85, 5.8, 12.35, 6.6]);
-    } else if (size === 'l') addProps(items, blocks, [
-      // 큰 사무실 — 가운데 통로에 서버 랙과 화이트보드, 책장 하나 더, 복사기
-      prop('shelf2', 'bookshelf', 10.5, 0.3), prop('server', 'server_rack', 7.0, 0.5), prop('easel', 'whiteboard_easel', 7.0, 6.4),
-      prop('copier', 'copier', 10.5, 6.4), prop('globe', 'globe', 3.5, 6.4), prop('cork', 'cork_board', 12.6, 6.6),
-    ]);
+      // GSM 은 4인실 하나(전에는 8인실 — 사용자: 「GSM 정도만 4개 테이블짜리」). 앞 칸막이에 지질도 판, 왼쪽 앞에 지구본
+      addProps(items, blocks, [prop('globe', 'globe', 1.6, 6.4)]);
+      items.push({ id: 'map0', kind: 'mapboard', at: [5.5, 6.45], box: [4.9, 6.25, 6.1, 6.65] });
+      blocks.push([4.85, 6.2, 6.15, 6.7]);
+    }
   }
   return {
     size: [OFFICE_W, OFFICE_D],
@@ -163,17 +168,20 @@ function office(rash: boolean, size: 's' | 'm' | 'l' = 'm', theme?: 'gsm'): Modu
   };
 }
 
-// ---- 앞 블록 (31×8): 공용실 x 0..8 · 고객센터 8..17 · 휴게실 17..31. 뒤(복도 쪽) 칸막이에 방마다 출입구
+// ---- 앞 블록 (31×8): 공용실 x 0..12 · 고객센터 12..17 · 휴게실 17..31. 뒤(복도 쪽) 칸막이에 방마다 출입구
+// 고객센터는 상담원 한 사람의 방 — 전에는 상담 책상 넷(8..17)이었다. 사용자: 「고객센터는 어차피 상담원 한 명이 쓰니 1명짜리로」.
+// 남는 폭은 공용실에 — 다른 세션의 지령을 받은 세션(room center)이 이제 공용실 책상에 앉는다(director)
 function front(): ModuleDef {
   const W = BUILDING_W, D = FRONT_D;
   const walls: Rect[] = [
-    [0, -T / 2, 5.6, T / 2], [7.0, -T / 2, 11.8, T / 2], [13.1, -T / 2, 22.2, T / 2], [23.6, -T / 2, W, T / 2],   // 뒤
-    [8 - T / 2, T / 2, 8 + T / 2, D], [17 - T / 2, T / 2, 17 + T / 2, D],                                       // 방 사이
+    [0, -T / 2, 5.6, T / 2], [7.0, -T / 2, 14.0, T / 2], [15.3, -T / 2, 22.2, T / 2], [23.6, -T / 2, W, T / 2],   // 뒤
+    [12 - T / 2, T / 2, 12 + T / 2, D], [17 - T / 2, T / 2, 17 + T / 2, D],                                     // 방 사이
   ];
-  // 공용실: 일반 책상 둘, 코어 보관대(왼쪽 벽), 현미경 책상
-  const gen: [number, number][] = [[2.0, 1.4], [4.6, 1.4]];   // 위쪽 한 줄 — 가운데를 실험 테이블에 내준다
-  // 고객센터: 상담 책상 넷
-  const call: [number, number][] = [[10.3, 1.6], [14.6, 1.6], [10.3, 4.6], [14.6, 4.6]];
+  // 공용실: 일반 책상 넷(위쪽 한 줄 — 가운데를 실험 테이블에 내준다), 코어 보관대(왼쪽 벽), 현미경 실험대(오른쪽 칸막이)
+  const gen: [number, number][] = [[2.0, 1.4], [4.6, 1.4], [8.0, 1.4], [10.6, 1.4]];
+  // 고객센터: 상담 책상 하나(문에서 비켜 왼쪽), 쉴 때 앉는 소파와 낮은 탁자
+  const call: [number, number][] = [[13.6, 2.0]];
+  const csofa: [number, number] = [14.8, 6.55], clow: [number, number] = [14.8, 5.3];
   // 휴게실: 소파 둘이 낮은 탁자를 사이에 두고 마주 보고, 가운데 공룡 골격(받침대), 그 앞뒤로 카페 탁자 넷(의자 넷씩), 커피 머신
   // (사용자: 「휴게실 중앙에 커다란 공룡 골격 모형」 — 카페 탁자를 골격 앞뒤 두 줄로 밀었다)
   const sofas = [{ at: [20.5, 1.35] as [number, number], rot: Math.PI }, { at: [20.5, 5.85] as [number, number], rot: 0 }];
@@ -186,7 +194,7 @@ function front(): ModuleDef {
     .filter((s) => !(s.t >= 2 && s.k === 3));
   const coffee: [number, number] = [30.3, 0.6];
   const core = { x: 0.45, z: 5.8, len: 3.2 };
-  const bench = { x: 7.35, z: 4.6, len: 3.0 };   // 현미경 실험대 — 오른쪽 칸막이를 따라
+  const bench = { x: 11.35, z: 5.0, len: 3.0 };   // 현미경 실험대 — 오른쪽 칸막이를 따라
   const lab = { x: 4.0, z: 5.1, w: 2.6, d: 1.0 };   // 실험 테이블 — 시험관·플라스크·비커 (사용자: 「현미경 앞에서만 하니 밋밋하다」)
   const plants: [number, number, number, string][] = [[17.6, 7.4, 1.0, 'topiary'], [30.5, 7.4, 1.1, 'monstera'], [0.6, 7.5, 1.2, 'palm']];
 
@@ -194,12 +202,14 @@ function front(): ModuleDef {
     ...deskItems(gen, 'gen', 'desk'),
     ...deskItems(call, 'call', 'call'),
     ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as const, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
-    door('door0', 6.3, 0, 1.4, 'x'), door('door1', 12.45, 0, 1.3, 'x'), door('door2', 22.9, 0, 1.4, 'x'),
+    door('door0', 6.3, 0, 1.4, 'x'), door('door1', 14.65, 0, 1.3, 'x'), door('door2', 22.9, 0, 1.4, 'x'),
     { id: 'core', kind: 'core', at: [core.x, core.z], box: [0, core.z - core.len / 2, 0.85, core.z + core.len / 2] },
     { id: 'lab', kind: 'labtable', at: [lab.x, lab.z], box: box(lab.x, lab.z, lab.w / 2, lab.d / 2), h: lab.w },
     { id: 'bench', kind: 'bench', at: [bench.x, bench.z], box: [bench.x - 0.4, bench.z - bench.len / 2, bench.x + 0.4, bench.z + bench.len / 2] },
     ...sofas.map(({ at, rot }, i) => ({ id: `sofa${i}`, kind: 'sofa' as const, at, rot, box: box(at[0], at[1], 1, 0.45) })),
     { id: 'table0', kind: 'table', at: low, box: box(low[0], low[1], 0.8, 0.35) },
+    { id: 'csofa', kind: 'sofa', at: csofa, rot: 0, box: box(csofa[0], csofa[1], 1, 0.45) },
+    { id: 'ctable', kind: 'table', at: clow, box: box(clow[0], clow[1], 0.8, 0.35) },
     { id: 'skeleton', kind: 'skeleton', at: skel, box: box(skel[0], skel[1], SKELETON_SIZE[0] / 2, SKELETON_SIZE[1] / 2) },
     { id: 'skelsign', kind: 'skelsign', at: [29.1, 5.5], rot: -Math.PI / 4, box: box(29.1, 5.5, 0.2, 0.2) },
     ...cafe.map(([x, z], i) => ({ id: `cafe${i}`, kind: 'cafe' as const, at: [x, z] as [number, number], box: box(x, z, 0.5, 0.5) })),
@@ -215,6 +225,7 @@ function front(): ModuleDef {
     box(lab.x, lab.z, lab.w / 2 + 0.05, lab.d / 2 + 0.05),
     ...sofas.map(({ at }) => box(at[0], at[1], 1, 0.45)),
     box(low[0], low[1], 0.85, 0.4),
+    box(csofa[0], csofa[1], 1, 0.45), box(clow[0], clow[1], 0.85, 0.4),
     box(skel[0], skel[1], SKELETON_SIZE[0] / 2 + 0.05, SKELETON_SIZE[1] / 2 + 0.05),
     box(29.1, 5.5, 0.2, 0.2),
     ...cafe.map(([x, z]) => box(x, z, 0.5, 0.5)),
@@ -227,9 +238,9 @@ function front(): ModuleDef {
     prop('fossil', 'fossil_cabinet', 2.0, 7.5), prop('corebox', 'core_box', 6.6, 7.45), prop('rocks', 'rock_shelf', 1.7, 0.35),
     prop('server', 'server_rack', 0.45, 1.3, Math.PI / 2),   // 왼쪽 벽 (tmux 모니터가 있던 자리)
     prop('prep', 'prep_bench', 0.4, 3.25, Math.PI / 2),      // 화석 클리닝 작업대 — 왼쪽 벽, 코어 보관대 위
+    prop('copier', 'copier', 10.9, 7.4), prop('easel', 'whiteboard_easel', 8.6, 7.3),   // 공용실 앞쪽 (고객센터가 줄며 넘어왔다)
     // 고객센터
-    prop('cooler', 'water_cooler', 16.5, 0.5), prop('copier', 'copier', 12.45, 7.3), prop('easel', 'whiteboard_easel', 9.2, 7.3),
-    prop('bin', 'trash_bin', 16.6, 3.2), prop('skull', 'dino_skull_stand', 15.6, 7.3),
+    prop('cooler', 'water_cooler', 16.5, 0.5), prop('bin', 'trash_bin', 16.6, 3.2), prop('skull', 'dino_skull_stand', 12.7, 6.9),
     // 휴게실
     prop('fridge', 'mini_fridge', 29.2, 0.42), prop('micro', 'microwave_table', 27.8, 0.35), prop('umbrella', 'umbrella_stand', 17.5, 0.45),
     prop('tall', 'plant_tall', 17.5, 4.0), prop('bush', 'plant_bush', 23.0, 7.4),
@@ -248,8 +259,8 @@ function front(): ModuleDef {
   return {
     size: [W, D],
     floors: [
-      { rect: [0, 0, 8, D], color: 0xd3d1c7 },
-      { rect: [8, 0, 17, D], color: 0xcbdcd2 },
+      { rect: [0, 0, 12, D], color: 0xd3d1c7 },
+      { rect: [12, 0, 17, D], color: 0xcbdcd2 },
       { rect: [17, 0, W, D], color: 0xe4d9c6 },
     ],
     items, blocks,
@@ -271,15 +282,20 @@ function front(): ModuleDef {
     core: [[1.5, 4.8], [1.5, 5.8], [1.5, 6.8]],
     // 시험 자리 — 현미경 앞 셋과 실험 테이블 둘레 여섯. 시험 중인 사람은 10초쯤마다 옮겨 다닌다(director)
     bench: [
-      ...[3.6, 4.6, 5.6].map((z) => [6.6, z] as [number, number]),
+      ...[4.0, 5.0, 6.0].map((z) => [10.6, z] as [number, number]),
       ...[2.9, 4.0, 5.1].map((x) => [x, lab.z - 0.95] as [number, number]),
       ...[2.9, 4.0, 5.1].map((x) => [x, lab.z + 0.95] as [number, number]),
     ],
     stand: [[3.6, 7.2], [4.4, 7.2], [5.2, 7.2], [2.8, 7.2]],
+    // 상담원이 쉬는 자리 — 고객센터 소파 (휴게실로 가지 않는다, director)
+    deskRest: [
+      { at: [csofa[0] - 0.45, csofa[1] - 0.1], pose: 'sit', face: Math.PI, on: 'csofa', group: 'desk', lift: 0.14 },
+      { at: [csofa[0] + 0.45, csofa[1] - 0.1], pose: 'sit', face: Math.PI, on: 'csofa', group: 'desk', lift: 0.14 },
+    ],
     // 복도 쪽 칸막이의 문 위에
     // 문틀 가로대에 (휴게실은 이름 없이 — 사용자)
     labels: [
-      { name: '공용실', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4 }, { name: '고객센터', at: [12.45, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.3 },
+      { name: '공용실', at: [6.3, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4 }, { name: '고객센터', at: [14.65, 0], y: DOOR_TOP + 0.12, axis: 'x', span: 1.3 },
     ],
     flats: ['rug'],
     tall: ['leftwall'],
@@ -589,17 +605,14 @@ export const MODULES = {
   entrance: entrance(),
   office: office(false),
   'office-s': office(false, 's'),
-  'office-l': office(false, 'l'),
-  'office-gsm': office(false, 'l', 'gsm'),
-  'office-rash': office(true),
+  'office-gsm': office(false, 'm', 'gsm'),
+  'office-rash': office(true, 's'),
   front: front(),
   corridor: floorOnly(PER_ROW * OFFICE_W, CORRIDOR, 0xc9c6bb),
   hall: floorOnly(HALL_W, ROW_D, 0xc9c6bb),
   // 바깥 벽 — 바닥 없이 벽만
   leftwall: { size: [0, ROW_D], floors: [], items: [], blocks: [], desks: [], tall: ['leftwall'] } as ModuleDef,
   backwall: { size: [OFFICE_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
-  'backwall-s': { size: [OFFICE_W / 2, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
-  'backwall-l': { size: [OFFICE_W * 2, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
   'backwall-rash': { size: [OFFICE_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall-rash'] } as ModuleDef,
   'backwall-hall': { size: [HALL_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
 } satisfies Record<string, ModuleDef>;
