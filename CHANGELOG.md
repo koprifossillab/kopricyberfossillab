@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.8.0 — 2026-10-26
+
+- 다른 계정도 본인이 켜면 보인다 — 그 계정의 세션에서 「fl 에서 보이게 해줘」(스킬 `fl-visible`, 표지 `~/.claude/fl-visible`). 켠 계정은 sclee 처럼 활동·한 줄까지, 사무실은 「계정/프로젝트」, 프로젝트 밖이면 그 계정 부서. 끄면 1초 안에 「다른 계정」으로 (koprifossillab P01, wetherilli 019)
+- 서비스 유닛에 읽기 권한 `CAP_DAC_READ_SEARCH` — 깔기는 paleoadmin 이 `install-service.sh`·`install-skill.sh`
+
 ## 0.7.0 — 2026-10-24
 
 - 휴게실 가운데 티라노사우루스 골격(받침대·안내판) — 카페 탁자는 앞뒤 두 줄로, 쉬는 사람이 골격 앞에서 구경하고 이야기한다

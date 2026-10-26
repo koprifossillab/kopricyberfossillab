@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { SESSIONS_DIR, JOBS_DIR, PROJECTS_DIR } from './paths.ts';
+import { accounts, type Account } from './paths.ts';
 import { Transcript } from './transcript.ts';
 import { resolve, type Busy } from './latches.ts';
 import { alive, tmuxSessions, foreignClaudes } from './system.ts';
@@ -16,16 +16,17 @@ import type { Agent, Office as OfficeRoom, Snapshot, Terminal } from './model.ts
 const SMALL_COMMITS = 100;
 const LARGE_COMMITS = 1000;
 const COMMITS_TTL_MS = 10 * 60_000;
-const commits = new Map<string, { n: number; at: number }>();
-function commitCount(project: string, now: number): number {
-  const c = commits.get(project);
+const commits = new Map<string, { n: number; at: number }>();   // 방 이름 → 커밋 수
+function commitCount(room: string, dir: string, now: number): number {
+  const c = commits.get(room);
   if (c && now - c.at < COMMITS_TTL_MS) return c.n;
   let n = 0;
   try {
-    n = Number(execFileSync('git', ['-C', path.join(os.homedir(), 'projects', project), 'rev-list', '--count', 'HEAD'],
+    // 다른 계정의 저장소는 git 이 「주인이 다르다」며 거절한다 — 그 저장소 하나만 믿는다고 일러 준다
+    n = Number(execFileSync('git', ['-c', `safe.directory=${dir}`, '-C', dir, 'rev-list', '--count', 'HEAD'],
       { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).trim()) || 0;
   } catch { /* git 저장소가 아니면 0 — 작은 사무실 */ }
-  commits.set(project, { n, at: now });
+  commits.set(room, { n, at: now });
   return n;
 }
 
@@ -49,15 +50,24 @@ interface Registry {
 
 // 방: 다른 세션의 지령을 받아 처리하면 고객센터, 아니면 그 프로젝트의 사무실, 프로젝트를 모르면 공용실.
 // 프로젝트 = ~/projects 아래 첫 폴더 이름에서 worktree 꼬리(-wt-…)를 뗀 것 (GSM-wt-pan → GSM)
-const HOME = os.homedir();
-export function projectOf(cwd: string): string | null {
-  const rel = path.relative(path.join(HOME, 'projects'), cwd);
+// 표지를 켠 다른 계정은 「<계정>/<프로젝트>」(같은 이름의 내 프로젝트와 섞이지 않게), 프로젝트를 모르면 그 계정 부서 「@계정」
+export function projectOf(cwd: string, home = os.homedir()): string | null {
+  const rel = path.relative(path.join(home, 'projects'), cwd);
   if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
   return rel.split(path.sep)[0].replace(/-wt-.*$/, '') || null;
 }
-function roomOf(cwd: string, t: Transcript | null): Agent['room'] {
+export function roomOf(acct: Pick<Account, 'user' | 'home' | 'me'>, cwd: string, t: Pick<Transcript, 'room'> | null): Agent['room'] {
   if (t?.room() === 'center') return 'center';
-  return projectOf(cwd) ?? 'general';
+  const p = projectOf(cwd, acct.home);
+  if (acct.me) return p ?? 'general';
+  return p ? `${acct.user}/${p}` : `@${acct.user}`;
+}
+// 방 이름 → 그 프로젝트 폴더 (커밋 수를 셀 곳). 「@계정」·center·general 은 없다
+function projectDir(room: string, accts: Account[]): string | null {
+  const slash = room.indexOf('/');
+  if (slash < 0) return path.join(accts[0].home, 'projects', room);
+  const a = accts.find((x) => !x.me && x.user === room.slice(0, slash));
+  return a ? path.join(a.home, 'projects', room.slice(slash + 1)) : null;
 }
 
 function readJson<T>(file: string): T | null {
@@ -70,7 +80,7 @@ function listDir(dir: string): string[] {
 
 export class Office {
   private transcripts = new Map<string, Transcript>();   // 파일 경로 → 꼬리
-  private fileOf = new Map<string, string>();            // sessionId → 기록 파일
+  private fileOf = new Map<string, string>();            // 에이전트 id → 기록 파일
   private changed = new Map<string, { activity: string; at: number }>();
   private tmuxSeen = new Map<string, number>();
   private bornAt = Date.now();          // tmux 세션 이름 → 처음 본 때
@@ -88,57 +98,60 @@ export class Office {
   }
 
   // 기록 파일은 세션이 시작한 cwd 의 프로젝트 폴더에 있다. cwd 가 바뀌어도 찾게 전부 훑는다.
-  private findTranscript(sessionId: string): string | null {
-    const known = this.fileOf.get(sessionId);
+  private findTranscript(acct: Account, id: string, sessionId: string): string | null {
+    const known = this.fileOf.get(id);
     if (known && fs.existsSync(known)) return known;
-    for (const dir of listDir(PROJECTS_DIR)) {
-      const f = path.join(PROJECTS_DIR, dir, `${sessionId}.jsonl`);
-      if (fs.existsSync(f)) { this.fileOf.set(sessionId, f); return f; }
+    for (const dir of listDir(acct.projects)) {
+      const f = path.join(acct.projects, dir, `${sessionId}.jsonl`);
+      if (fs.existsSync(f)) { this.fileOf.set(id, f); return f; }
     }
     return null;
   }
 
-  private sessions(now: number): Agent[] {
+  // 다른 계정의 것은 id 앞에 「<계정>/」 — 내 것은 예전 id 그대로 (생김새·고친 이름이 id 에 묶여 있다)
+  private sessions(acct: Account, now: number): Agent[] {
     const agents: Agent[] = [];
-    for (const f of listDir(SESSIONS_DIR)) {
-      if (!f.endsWith('.json')) continue;
-      const r = readJson<Registry>(path.join(SESSIONS_DIR, f));
+    for (const f of listDir(acct.sessions)) {
+      if (!f.endsWith('.json')) continue;   // sessions/*.key 같은 것은 열지 않는다
+      const r = readJson<Registry>(path.join(acct.sessions, f));
       if (!r || r.spare || !alive(r.pid, r.procStart)) continue;
       if (r.cwd.startsWith(DESK_DIR)) continue;   // 상담원이 부른 claude -p — 상담원 캐릭터가 대신 보인다
       const isJob = r.kind === 'bg';
       let busy: Busy = r.status === 'busy' ? 'busy' : 'idle';
       if (isJob && r.jobId) {
-        const job = readJson<{ state?: string }>(path.join(JOBS_DIR, r.jobId, 'state.json'));
+        const job = readJson<{ state?: string }>(path.join(acct.jobs, r.jobId, 'state.json'));
         if (job?.state === 'blocked') busy = 'blocked';
         else if (job?.state === 'working') busy = 'busy';
         else if (job?.state) busy = 'idle';
       }
-      const file = this.findTranscript(r.sessionId);
+      const id = acct.me ? r.sessionId : `${acct.user}/${r.sessionId}`;
+      const file = this.findTranscript(acct, id, r.sessionId);
       const t = file ? this.transcript(file) : null;
       // 넘긴 터미널의 status 는 넘길 때의 값(busy)에 멈춰 있다 — 기록도 job 쪽이 쓴다
       const st = r.parkedJobId
         ? { activity: 'idle' as const, label: `백그라운드로 넘김 · job ${r.parkedJobId}` }
         : resolve(busy, t, now);
-      const id = r.sessionId;
+      const room = roomOf(acct, r.cwd, t);
       agents.push({
         id,
         kind: isJob ? 'job' : 'session',
         name: r.name || t?.title || id.slice(0, 8),
         project: path.basename(r.cwd) || r.cwd,
         ...st,
-        room: roomOf(r.cwd, t),
+        room,
+        ...(acct.me ? {} : { user: acct.user }),
         ...(t?.boss() || /^(pan|판)\b/i.test(r.name ?? '') || r.tmux?.startsWith('pan:') ? { role: 'boss' as const } : {}),
         tmux: r.tmux?.split(':')[0],
         startedAt: r.startedAt,
         changedAt: now,
       });
-      if (file) agents.push(...this.subagents(file, id, roomOf(r.cwd, t), now));
+      if (file) agents.push(...this.subagents(file, id, room, acct, now));
     }
     return agents;
   }
 
   // <프로젝트>/<세션>/subagents/agent-*.jsonl (+ .meta.json)
-  private subagents(sessionFile: string, parentId: string, room: Agent['room'], now: number): Agent[] {
+  private subagents(sessionFile: string, parentId: string, room: Agent['room'], acct: Account, now: number): Agent[] {
     const dir = path.join(sessionFile.replace(/\.jsonl$/, ''), 'subagents');
     const out: Agent[] = [];
     for (const f of listDir(dir)) {
@@ -158,6 +171,7 @@ export class Office {
         project: meta?.description || '',
         ...st,
         room,
+        ...(acct.me ? {} : { user: acct.user }),
         parentId,
         startedAt: mtime,
         changedAt: now,
@@ -166,8 +180,9 @@ export class Office {
     return out;
   }
 
-  private foreign(now: number): Agent[] {
-    return foreignClaudes(now).map((c) => ({
+  // 표지를 켠 계정의 claude 는 세션 등록으로 이미 보인다 — 두 번 세지 않게 뺀다
+  private foreign(visible: Set<string>, now: number): Agent[] {
+    return foreignClaudes(now).filter((c) => !visible.has(c.user)).map((c) => ({
       id: `foreign/${c.user}/${c.pid}`,
       kind: 'foreign' as const,
       name: `${c.user} · ${c.pid}`,
@@ -182,7 +197,8 @@ export class Office {
   }
 
   snapshot(now = Date.now()): Snapshot {
-    const agents = [...this.sessions(now), ...this.foreign(now)];
+    const accts = accounts();
+    const agents = [...accts.flatMap((a) => this.sessions(a, now)), ...this.foreign(new Set(accts.filter((a) => !a.me).map((a) => a.user)), now)];
     // changedAt 은 activity 가 바뀐 때만 움직인다
     const live = new Set<string>();
     for (const a of agents) {
@@ -198,12 +214,13 @@ export class Office {
       const f = this.fileOf.get(a.id);
       if (f) used.add(f);
     }
+    for (const id of this.fileOf.keys()) if (!live.has(id)) this.fileOf.delete(id);   // 표지를 끈 계정의 것도 남지 않게
     for (const [f, t] of this.transcripts) {
       const sub = f.includes('/subagents/');
       if (sub ? now - t.mtime > SUBAGENT_FRESH_MS * 2 : !used.has(f)) this.transcripts.delete(f);
     }
     agents.sort((a, b) => a.startedAt - b.startedAt);
-    const claudeTmux = new Set(agents.map((a) => a.tmux).filter(Boolean));
+    const claudeTmux = new Set(agents.filter((a) => !a.user).map((a) => a.tmux).filter(Boolean));   // tmux 는 내 것만 본다
     // 이 화면 서버를 돌리는 tmux 는 빼고 — 화면에 자기 자신이 사람으로 앉아 있으면 어색하다 (사용자)
     const terminals: Terminal[] = tmuxSessions().filter((s) => !s.self)
       .map(({ self: _self, ...s }) => ({ ...s, claude: claudeTmux.has(s.name) || s.command === 'claude' }));
@@ -234,15 +251,17 @@ export class Office {
       activity: desk.busy ? 'think' : 'idle', label: desk.busy ? '질문에 답하는 중' : '질문을 기다림',
       startedAt: this.bornAt, changedAt: desk.busy ? desk.since : desk.lastAt || this.bornAt,
     });
-    const offices: OfficeRoom[] = [...new Set(agents.filter((a) => (a.kind === 'session' || a.kind === 'job') && a.room !== 'center' && a.room !== 'general').map((a) => a.room))]
-      .sort().map((name) => {
-        const n = commitCount(name, now);
-        return { name, size: n < SMALL_COMMITS ? 's' as const : n >= LARGE_COMMITS ? 'l' as const : 'm' as const };
-      });
-    // 다른 계정의 부서 — 「@계정」. 기록을 못 읽어 커밋 수 대신 그 계정 세션 수로 크기를 정한다 (책상 s 2 · m 4 · l 8)
-    const foreignN = new Map<string, number>();
-    for (const a of agents) if (a.kind === 'foreign') foreignN.set(a.room, (foreignN.get(a.room) ?? 0) + 1);
-    for (const [name, n] of [...foreignN].sort()) offices.push({ name, size: n <= 2 ? 's' : n <= 4 ? 'm' : 'l' });
+    const rooms = [...new Set(agents.filter((a) => (a.kind === 'session' || a.kind === 'job') && a.room !== 'center' && a.room !== 'general' && !a.room.startsWith('@')).map((a) => a.room))].sort();
+    const offices: OfficeRoom[] = rooms.map((name) => {
+      const dir = projectDir(name, accts);
+      const n = dir ? commitCount(name, dir, now) : 0;
+      return { name, size: n < SMALL_COMMITS ? 's' as const : n >= LARGE_COMMITS ? 'l' as const : 'm' as const };
+    });
+    for (const k of commits.keys()) if (!rooms.includes(k)) commits.delete(k);   // 표지를 끈 계정의 것도 남지 않게
+    // 다른 계정의 부서 — 「@계정」. 커밋 수 대신 그 방의 사람 수로 크기를 정한다 (책상 s 2 · m 4 · l 8)
+    const deptN = new Map<string, number>();
+    for (const a of agents) if ((a.kind === 'foreign' || a.kind === 'session' || a.kind === 'job') && a.room.startsWith('@')) deptN.set(a.room, (deptN.get(a.room) ?? 0) + 1);
+    for (const [name, n] of [...deptN].sort()) offices.push({ name, size: n <= 2 ? 's' : n <= 4 ? 'm' : 'l' });
     return { version: this.version, host: os.hostname(), at: now, agents, terminals, offices, limits: readLimits(now) };
   }
 }

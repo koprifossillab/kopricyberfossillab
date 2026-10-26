@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261026_wetherilli_019](20261026_wetherilli_019_opt_in_other_accounts.md) | P01 구현 — 계정 목록·표지 확인·방 「계정/프로젝트」, 스킬은 공용 자리에 복사(/home/sclee 0750) |
 | [20261026_koprifossillab_P01](20261026_koprifossillab_P01_opt_in_other_accounts.md) | 다른 계정도 보이게 — 본인이 켜는 표지(스킬)·CAP_DAC_READ_SEARCH, ACL 을 버린 까닭(0600) |
 | [20261024_wetherilli_018](20261024_wetherilli_018_paleo_lab_people.md) | 공룡 골격·고생물 소품·계단과 엘리베이터·아래층 지붕·계정 부서·사람 같은 하위 에이전트·직원 개성·수족관 가림 — 세션 셋이 나눠 함 |
 | [20261024_wetherilli_017](20261024_wetherilli_017_rename_in_list.md) | 목록에서 이름 두 번 눌러 고치기(localStorage), 일하면서 잡담(work: 무리) |

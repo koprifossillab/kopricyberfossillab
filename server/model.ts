@@ -39,7 +39,7 @@ export interface Agent {
   parentId?: string;
   tmux?: string;            // 세션이 도는 tmux 자리 (예: pan)
   slot?: number;            // terminal 의 벽 모니터 번호 (Snapshot.terminals 의 차례)
-  user?: string;            // foreign 의 계정
+  user?: string;            // 다른 계정 — foreign, 또는 표지(fl-visible)를 켠 계정의 세션·job·하위 에이전트 (내 것은 없다)
   startedAt: number;        // ms
   changedAt: number;        // activity 가 마지막으로 바뀐 때
 }
