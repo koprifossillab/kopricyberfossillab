@@ -431,8 +431,10 @@ export function Stage({ agents, offices, selected, onSelect }: {
         chatter.keep(new Set(groups.keys()));
         if (!RM) groups.forEach((members, name) => {
           members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
-          const said = chatter.step(name, members.map((m) => m.agent.id), T,
-            (who) => members.find((m) => m.agent.id === who)?.agent.activity ?? 'think');
+          const said = chatter.step(name, members.map((m) => m.agent.id), T, (who) => {
+            const m = members.find((p) => p.agent.id === who);
+            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '' };
+          });
           if (!said) return;
           const a = members.find((m) => m.agent.id === said.who);
           if (!a) return;

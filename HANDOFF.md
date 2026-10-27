@@ -1,6 +1,6 @@
 # HANDOFF
 
-**2026-10-26** · **v0.11.0** — 부서 이름도 두 번 눌러 고치기([022](devlog/20261026_wetherilli_022_rename_departments.md)). v0.10.0 — 2인실·GSM 4인실·고객센터 1인실([021](devlog/20261026_wetherilli_021_small_offices_one_desk_center.md)). v0.9.0 — 얼굴을 두 번 눌러 생김새 고치기·고친 것을 모두와 같이([020](devlog/20261026_wetherilli_020_look_editor_shared_people.md)). v0.8.0 — 다른 계정도 본인이 켜면 보인다([koprifossillab P01](devlog/20261026_koprifossillab_P01_opt_in_other_accounts.md) → [wetherilli 019](devlog/20261026_wetherilli_019_opt_in_other_accounts.md)).
+**2026-10-27** · **v0.12.0** — 직원들 대사를 훨씬 다양하게([023](devlog/20261027_wetherilli_023_more_chatter.md), 화면만 — 빌드로 끝). v0.11.0 — 부서 이름도 두 번 눌러 고치기([022](devlog/20261026_wetherilli_022_rename_departments.md)). v0.10.0 — 2인실·GSM 4인실·고객센터 1인실([021](devlog/20261026_wetherilli_021_small_offices_one_desk_center.md)). v0.9.0 — 얼굴을 두 번 눌러 생김새 고치기·고친 것을 모두와 같이([020](devlog/20261026_wetherilli_020_look_editor_shared_people.md)). v0.8.0 — 다른 계정도 본인이 켜면 보인다([koprifossillab P01](devlog/20261026_koprifossillab_P01_opt_in_other_accounts.md) → [wetherilli 019](devlog/20261026_wetherilli_019_opt_in_other_accounts.md)).
 **깔기는 끝났다**(2026-10-26 17:23, v0.8.0 유닛·스킬) — 지금 도는 판은 v0.10.0(v0.11.0 은 재시작을 기다린다). 표지를 켠 계정은 paleoadmin 하나, 나머지는 「다른 계정」(바쁨/쉼만).
 사내망 `http://paleolab/kopricyberfossillab/`, 서버는 systemd `kopricyberfossillab.service`(User=sclee, 127.0.0.1:8098) — 운영은 paleoadmin.
 이어서 할 사람은 여기부터.

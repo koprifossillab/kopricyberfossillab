@@ -1,110 +1,76 @@
 // 휴게실 잡담 — 무리(카페 탁자·소파)에 둘 이상 있으면 대화 하나를 골라 돌아가며 말하고, 혼자면 가끔 혼잣말.
 // 일하는 중에도 — 무리 이름이 「work:」 로 시작하면(같은 사무실 책상·같은 일자리) 일 얘기 위주로, 휴게실보다 뜸하게.
 // 줄마다 보이는 시간은 글 길이로, 줄 사이·대화 사이의 쉼은 들쭉날쭉하게 — 같은 말이 같은 박자로 되풀이되지 않게.
-
-// 대화 — 한 줄씩 다른 사람이 말한다 (사람이 줄보다 적으면 돌아가며)
-export const DIALOGS: string[][] = [
-  ['커피 몇 잔째예요?', '세 잔… 아니 네 잔', '저도 오늘은 무리예요'],
-  ['PR 올렸어요?', '방금 올렸어요', 'CI 초록불이면 좋겠다'],
-  ['빌드 깨졌대요', '또요?', '제 거 아니에요 ㅎㅎ'],
-  ['점심 뭐 먹지', '송도 국밥?', '어제도 국밥이었잖아요', '그럼 김밥…'],
-  ['남극 코어 새로 왔대요', '깊이 몇 미터래요?', '이번엔 꽤 길대요'],
-  ['규조 사진 몇 장 남았어요?', '한 이천 장?', '오늘 안에 끝나겠네요'],
-  ['GSM 지도 새 판 봤어요?', '극지 배경지도 붙었던데요', '그거 예쁘더라'],
-  ['토큰 아껴 써요', '컨텍스트 꽉 찼어요', '/compact 한 번 해요'],
-  ['오늘 배포해요?', '판 세션이 한대요', '그럼 기다려야죠'],
-  ['시험 다 통과!', '오 진짜요?', '흔들리는 시험 하나 빼고요…'],
-  ['삼엽충 표본 정리 끝났어요?', '반쯤요', '눈 모양 사진이 어렵더라고요'],
-  ['밖에 비 와요', '우산 안 가져왔는데', '우산꽂이에 하나 있어요'],
-  ['커피 머신 또 물 비었어요', '제가 채울게요', '천사다'],
-  ['리뷰 봐주실 수 있어요?', '십 분만요', '감사해요!'],
-  ['머지 충돌 났어요', 'HANDOFF 파일이죠?', '어떻게 알았어요'],
-  ['devlog 번호 몇 번이에요?', '005요', '그럼 저는 006'],
-  ['이 화면 누가 만들었대요?', '판 세션이요', '우리 다 보이네 ㅋㅋ'],
-  ['공룡 방 생긴대요', '진짜요? 콤프소그나투스?', '먹이 줘도 된대요'],
-  ['서버 재부팅한대요', '언제요?', '퇴근하고요, 아마'],
-  ['권한 물어보는 거 귀찮다', 'auto 모드 쓰세요', '그래도 rm 은 물어봐야죠'],
-  ['요즘 바빠요?', '판이 세 개 걸려 있어요', '힘내요'],
-  ['간식 있어요?', '냉장고에 요거트', '제 거 아니면 드세요'],
-  ['노두 사진 봤어요?', '태백 거요?', '단면 진짜 깨끗하더라'],
-  ['회의 몇 시예요?', '세 시요', '그 전에 하나 끝내야지'],
-  ['이거 누가 짠 코드예요?', '…제가요', '아 좋네요 ㅎㅎ'],
-  ['파이썬 버전 올라갔대요', 'venv 다시 만들어야겠네', '아 그래서 깨졌구나'],
-  ['오늘 날씨 좋다', '산책 갈래요?', '커피 다 마시고요'],
-  ['문서는 한국어로 쓰는 거죠?', '네, 커밋도요', '알겠습니다'],
-  ['지금 몇 시예요?', '네 시 반', '벌써?'],
-  ['어제 그 버그 잡았어요?', '네, 오타였어요', '역시 오타'],
-  ['남극 가 보고 싶다', '세종기지?', '장보고기지도요'],
-  ['이번 판 이름 정했어요?', '0.4.0이요', '무난하네요'],
-  ['화장실 어디예요?', '입구 옆이요', '감사합니다'],
-  ['코드 리뷰 코멘트 많던데', '대부분 띄어쓰기예요', '그럼 다행'],
-  ['키보드 소리 좋다', '기계식이에요', '부럽다'],
-  ['저 이따 백그라운드로 넘어가요', '다시 와요', '네 결과 들고 올게요'],
-];
-
-// 혼잣말 — 무리에 혼자 있을 때 (커피 머신 앞이면 커피 쪽)
-export const SOLO: string[] = [
-  '음~', '…', '흠', '오늘도 힘내자', '조금만 쉬자', '다음 할 일이 뭐더라', '하암', '눈이 침침하다',
-  '컨텍스트 정리 좀 할까', '메일 확인해야지', '아 맞다 그거', '좋아 좋아', '이따 커밋해야지',
-];
-export const FEED: string[] = [
-  '옜다!', '냠냠 먹어', '귀엽다…', '손은 물지 마', '너 이름이 뭐니', '오늘 많이 먹네', '천천히 먹어', '꼬리 봐 ㅋㅋ',
-  '얘가 제일 빨라', '쟤는 맨날 둥지 옆에 있더라', '삼엽충은 안 먹니?', '쥐라기에서 왔니', '하나 더?', '배부르구나',
-];
-export const AQUA: string[] = ['물고기 예쁘다', '저 노란 애 봐', '니모다!', '멍때리기 좋다', '산호 색 좋네', '쟤는 맨날 숨어 있어', '물소리 좋다', '눈이 편해진다'];
-export const AQUA_DIALOGS: string[][] = [
-  ['저 줄무늬 이름이 뭐예요?', '안내판에 있던데', '나중에 봐야지'],
-  ['여기 오면 마음이 편해요', '그쵸, 빌드 기다릴 때 딱'],
-  ['먹이는 누가 줘요?', '아침에 누가 주더라고요', '공룡 먹이랑 헷갈리면 안 되는데 ㅋㅋ'],
-  ['남극 바다에도 이런 애들 있어요?', '훨씬 칙칙하대요', '그래도 보고 싶다'],
-];
-export const BREEZE: string[] = ['바람 좋다', '하아~', '하늘 맑네', '잠깐 머리 식히자', '밖이 낫다', '햇빛 좋다', '기지개 한 번', '오늘 노을 예쁘겠다'];
-export const SKEL: string[] = ['이빨 봐…', '팔 진짜 짧다', '실물은 세 배래', '이거 진짜 뼈예요?', '꼬리가 기네', '눈구멍 크다', '저 갈비 몇 개지'];
-export const SKEL_DIALOGS: string[][] = [
-  ['이거 진짜 화석이에요?', '모형이래요, 진짜는 박물관에', '그래도 멋있다'],
-  ['티라노 팔은 왜 짧아요?', '아직도 논쟁 중이래요', '귀엽긴 하다'],
-  ['저 다리뼈 하나가 제 키만 하겠네', '실물이면 더 크죠', '무섭다'],
-  ['깃털 있었대요?', '어릴 땐 있었을 수도요', '복슬복슬 티라노…'],
-];
-export const COFFEE: string[] = ['☕', '커피 향 좋다', '샷 추가할까', '아 뜨거', '디카페인은 없나', '한 잔 더?', '설탕 어디 있지'];
-
-// 일하면서 — 같은 사무실(책상)·같은 일자리(코어 보관대·실험대·자료실)끼리
-export const WORK_DIALOGS: string[][] = [
-  ['이 함수 어디서 불러요?', 'grep 해 보세요', '아 세 군데나…'],
-  ['타입 에러 났어요', '몇 개요?', '마흔 개요', '…하나 고치면 다 없어질 거예요'],
-  ['시험 돌려 봤어요?', '지금 돌리는 중', '초록불 기도합니다'],
-  ['이거 누가 고쳤어요?', 'git blame 해 봐요', '…저네요'],
-  ['변수 이름 뭐로 하지', 'tmp 만 아니면 돼요', 'tmp2 는요?'],
-  ['주석 한국어로 쓰는 거 맞죠?', '네, 커밋도요', '오케이'],
-  ['커밋 쪼개서 해요?', '고친 파일만요', 'add -A 는 금지죠'],
-  ['이 줄 왜 있는 거예요?', '지우면 깨져요', '…두겠습니다'],
-  ['빌드 몇 초 걸려요?', '사백 밀리초', '빠르다'],
-  ['리뷰 코멘트 달았어요', '아 봤어요', '고치면 말해 줘요'],
-  ['머지해도 돼요?', 'ff-only 로요', '넵'],
-  ['로그 너무 많이 찍히는데', '디버그 거 지우는 거 깜빡했다', 'ㅋㅋ'],
-  ['이거 끝나면 커피?', '콜', '십 분만요'],
-  ['규조 분류 몇 장째예요?', '천 장 넘었어요', '와'],
-  ['지도 타일 다 받았어요?', '남극 쪽만 남았어요', '거기가 제일 크죠'],
-  ['권한 물어보네요', '읽기만 하는 거예요', '그럼 괜찮죠'],
-  ['오타 찾았다', '어디요?', '세 번째 줄 ㅋㅋ'],
-  ['시험 하나 흔들려요', '시간 재는 거죠?', '네…'],
-  ['devlog 썼어요?', '버린 것도 써야죠', '그게 제일 어려워'],
-  ['이 정규식 맞아요?', '돌려 보면 알죠', '무섭다'],
-];
-export const WORK_SOLO: Record<string, string[]> = {
-  code: ['한 줄만 더', '이름 뭐로 하지', '여기 괄호 하나 빠졌네', '깔끔하다', '아 이거 아닌데', '되돌리기…'],
-  read: ['아 이렇게 돼 있구나', '이거 누가 짰더라', '흠흠', '주석 고맙다', '길다…'],
-  search: ['어디 있더라', '이 문서 맞나', '찾았다!', '판이 다르네'],
-  run: ['돌아라 돌아라', '빨리 끝나라', '오 된다', '경고는 못 본 걸로', '왜 멈췄지'],
-  think: ['흠…', '어떻게 하지', '잠깐만', '아 그거다', '그러니까…'],
-  git: ['커밋 메시지 뭐라 쓰지', '푸시!', '충돌만 없어라', '브랜치 맞지?'],
-  test: ['초록불 가자', '하나만 통과해라', '이번엔 된다', '빨간불…', '다 통과!'],
-  spawn: ['이건 맡겨야지', '부탁해요~', '나눠서 하자'],
-};
-const workSolo = (act: string) => pick(WORK_SOLO[act] ?? WORK_SOLO.think);
+// 대사는 lines.ts — 장소 것이 먼저, 가끔 지금 시각·요일·계절 것이 섞인다. 한 묶음은 다 쓸 때까지 같은 말을 다시 꺼내지 않는다.
+import * as L from './lines.ts';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
-const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
+
+// 섞은 주머니 — 묶음마다 차례를 섞어 두고 하나씩 꺼낸다. 다 꺼내면 다시 섞는다(방금 것이 바로 또 나오지 않게)
+const bags = new WeakMap<object, { order: number[]; last: number }>();
+export function draw<T>(list: T[]): T {
+  let b = bags.get(list);
+  if (!b) { b = { order: [], last: -1 }; bags.set(list, b); }
+  if (b.order.length === 0) {
+    const o = list.map((_, i) => i);
+    for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    if (o.length > 1 && o[o.length - 1] === b.last) [o[0], o[o.length - 1]] = [o[o.length - 1], o[0]];
+    b.order = o;
+  }
+  b.last = b.order.pop()!;
+  return list[b.last];
+}
+
+// 묶음 고르기 — [무게, 묶음] 가운데 빈 것은 빼고 무게대로
+function choose<T>(opts: [number, T[] | undefined][]): T {
+  const ok = opts.filter((o): o is [number, T[]] => !!o[1] && o[1].length > 0);
+  let r = Math.random() * ok.reduce((s, o) => s + o[0], 0);
+  for (const [w, list] of ok) if ((r -= w) <= 0) return draw(list);
+  return draw(ok[ok.length - 1][1]);
+}
+
+// 지금 — 시간대·요일·계절 (벽시계로)
+export function when(d = new Date()): { time: string; day: string | null; season: string } {
+  const h = d.getHours() + d.getMinutes() / 60, wd = d.getDay(), m = d.getMonth() + 1;
+  const time = h < 6 || h >= 22 ? 'night' : h < 11 ? 'morning' : h < 13.5 ? 'lunch' : h < 18 ? 'afternoon' : 'evening';
+  const day = wd === 0 || wd === 6 ? 'weekend' : wd === 1 ? 'mon' : wd === 5 ? 'fri' : null;
+  const season = m >= 3 && m <= 5 ? 'spring' : m <= 8 && m >= 6 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter';
+  return { time, day, season };
+}
+
+// 무리 이름 → 그 자리의 대화·혼잣말 묶음. 시각·요일·계절 것은 가끔 섞는다
+function dialogFor(group: string, act: string | null): string[] {
+  const w = when();
+  const extra: [number, string[][] | undefined][] = [[0.12, L.TIME_DIALOGS[w.time]], [0.06, w.day ? L.DAY_DIALOGS[w.day] : undefined], [0.05, L.SEASON_DIALOGS[w.season]]];
+  if (group === 'work:center') return choose([[0.5, L.CENTER_WORK_DIALOGS], [0.35, L.WORK_DIALOGS], [0.15, L.DIALOGS]]);
+  if (group.startsWith('work:')) {
+    const own = L.WORK_ACT_DIALOGS[group.slice(5)] ?? (act ? L.WORK_ACT_DIALOGS[act] : undefined);
+    return choose([[0.4, own], [0.45, L.WORK_DIALOGS], [0.15, L.DIALOGS], ...extra.map(([p, l]) => [p / 2, l] as [number, string[][] | undefined])]);
+  }
+  const place: Record<string, string[][]> = { aqua: L.AQUA_DIALOGS, skel: L.SKEL_DIALOGS, coffee: L.COFFEE_DIALOGS, breeze: L.BREEZE_DIALOGS, desk: L.CENTER_DIALOGS, sofa: L.SOFA_DIALOGS };
+  const own = group.startsWith('feed') ? L.FEED_DIALOGS : place[group];
+  return choose([[own && group !== 'sofa' ? 0.55 : 0.12, own], [0.45, L.DIALOGS], ...extra]);
+}
+function soloFor(group: string, act: string | null): string[] {
+  const w = when();
+  const extra: [number, string[] | undefined][] = [[0.1, L.TIME_SOLO[w.time]], [0.05, w.day ? L.DAY_SOLO[w.day] : undefined], [0.05, L.SEASON_SOLO[w.season]]];
+  if (group.startsWith('work:')) {
+    if (act && Math.random() < 0.75) return [draw(L.WORK_SOLO[act] ?? L.WORK_SOLO.think)];
+    return Math.random() < 0.15 ? draw(L.SOLO_SEQS) : [choose([[0.6, L.SOLO], ...extra])];
+  }
+  const place: Record<string, string[]> = { aqua: L.AQUA, skel: L.SKEL, coffee: L.COFFEE, breeze: L.BREEZE, desk: L.CENTER_SOLO };
+  const own = group.startsWith('feed') ? L.FEED : place[group];
+  if (own && Math.random() < 0.7) return [draw(own)];
+  return Math.random() < 0.2 ? draw(L.SOLO_SEQS) : [choose([[0.6, L.SOLO], ...extra])];
+}
+
+// 자리표 채우기 — {상대} 는 말 건네는 사람(다음에 말할 사람)의 이름, {방} 은 말하는 사람의 부서
+export interface Who { act: string; room: string; name: string }
+const call = (name: string) => `${name.length === 3 ? name.slice(1) : name} 님`;   // 지어 준 이름(성 + 두 글자)은 이름만
+export function fill(s: string, me: Who | undefined, them: Who | undefined): string {
+  return s.replace(/\{상대\}/g, them?.name ? call(them.name) : '저기요').replace(/\{방\}/g, me?.room || '우리 방');
+}
+
 // 글이 길면 오래 보인다 — 짧은 말도 2초는 남겨 읽을 틈을 준다 (사용자: 「1초씩은 메시지가 유지되도록」)
 const lineTime = (s: string) => Math.min(5.5, Math.max(2, 1.6 + s.length * 0.12));
 
@@ -115,8 +81,8 @@ export class Chatter {
   private talks = new Map<string, Talk>();
 
   // members: 그 무리에 앉아(서) 있는 사람 id. 돌려주는 것: 지금 말하는 사람과 말 (없으면 null)
-  // act: 혼잣말을 그 사람이 하는 일에 맞출 때 (일하는 무리)
-  step(group: string, members: string[], now: number, act?: (who: string) => string): { who: string; text: string } | null {
+  // info: 사람마다 하는 일·부서 이름·이름 — 혼잣말을 하는 일에 맞추고 자리표를 채운다
+  step(group: string, members: string[], now: number, info?: (who: string) => Who): { who: string; text: string } | null {
     const work = group.startsWith('work:');
     let t = this.talks.get(group);
     if (t && t.speakers.slice().sort().join(',') !== members.slice().sort().join(',')) {
@@ -134,31 +100,29 @@ export class Chatter {
     if (t.who && now < t.until) return { who: t.who, text: t.text };
     t.who = null;
     if (now < t.next) return null;
-    if (t.solo) {
-      // 혼자면 드문드문
-      const feeding = group.startsWith('feed');
-      t.text = work ? (act && Math.random() < 0.8 ? workSolo(act(members[0])) : pick(SOLO)) : feeding ? pick(FEED) : group === 'aqua' ? pick(AQUA) : group === 'skel' ? pick(SKEL) : group === 'breeze' ? pick(BREEZE) : group === 'coffee' ? pick(COFFEE) : pick(SOLO);
-      t.who = members[0];
-      t.until = now + lineTime(t.text);
-      t.next = t.until + (feeding ? rand(3, 8) : work ? rand(25, 60) : rand(12, 35));
-      return { who: t.who, text: t.text };
-    }
     if (t.i >= t.lines.length) {
-      // 새 대화 — 말을 꺼내는 사람도 고른다
-      // 일하는 중엔 일 얘기가 많고, 가끔 딴 얘기
-      t.lines = work ? (Math.random() < 0.75 ? pick(WORK_DIALOGS) : pick(DIALOGS))
-        : group === 'aqua' && Math.random() < 0.7 ? pick(AQUA_DIALOGS)
-        : group === 'skel' && Math.random() < 0.7 ? pick(SKEL_DIALOGS) : pick(DIALOGS);
+      // 새 말 — 혼자면 혼잣말(한 줄, 가끔 두세 줄 잇기), 여럿이면 대화 하나와 말을 꺼내는 사람
+      if (t.solo) {
+        t.lines = soloFor(group, info?.(members[0]).act ?? null);
+        t.speakers = [members[0]];
+      } else {
+        t.lines = dialogFor(group, info?.(members[0]).act ?? null);
+        const start = Math.floor(Math.random() * members.length);
+        t.speakers = [...members.slice(start), ...members.slice(0, start)];
+      }
       t.i = 0;
-      const start = Math.floor(Math.random() * members.length);
-      t.speakers = [...members.slice(start), ...members.slice(0, start)];
     }
-    t.text = t.lines[t.i];
-    t.who = t.speakers[t.i % t.speakers.length];
+    const who = t.speakers[t.i % t.speakers.length];
+    const them = t.speakers.length > 1 ? t.speakers[(t.i + 1) % t.speakers.length] : undefined;
+    t.text = fill(t.lines[t.i], info?.(who), them ? info?.(them) : undefined);
+    t.who = who;
     t.i++;
     t.until = now + lineTime(t.text);
-    // 줄 사이는 짧게, 대화가 끝나면 한참 조용히
-    t.next = t.until + (t.i < t.lines.length ? rand(1.0, 2.2) : work ? rand(20, 45) : rand(8, 22));
+    // 줄 사이는 짧게, 다 하면 한참 조용히 — 혼자면 더 드문드문, 공룡 먹이 줄 땐 자주
+    const more = t.i < t.lines.length;
+    t.next = t.until + (more ? rand(1.0, 2.2)
+      : t.solo ? (group.startsWith('feed') ? rand(3, 8) : work ? rand(25, 60) : rand(12, 35))
+      : work ? rand(20, 45) : rand(8, 22));
     return { who: t.who, text: t.text };
   }
 

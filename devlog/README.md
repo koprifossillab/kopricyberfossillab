@@ -13,6 +13,7 @@
 
 | 글 | 무엇 |
 |---|---|
+| [20261027_wetherilli_023](20261027_wetherilli_023_more_chatter.md) | 대사를 훨씬 많이 — lines.ts 로 떼고, 장소·하는 일·시각·요일·계절, 섞은 주머니, 이름 부르기 |
 | [20261026_wetherilli_022](20261026_wetherilli_022_rename_departments.md) | 부서 이름 두 번 눌러 고치기 — 명판까지, rooms.json 따로 · 서버 다시 띄우기를 sclee 가(sudoers 한 줄) |
 | [20261026_wetherilli_021](20261026_wetherilli_021_small_offices_one_desk_center.md) | 2인실을 한 칸 폭으로 꾸밈, GSM 만 4인실·8인실 버림, 고객센터 1인실·상담원 소파 |
 | [20261026_wetherilli_020](20261026_wetherilli_020_look_editor_shared_people.md) | 생김새 고치기(머리 층 굽기 1264장), 이름·생김새를 서버에(누구나, 좁게 거름), 프로젝트 줄임말 |
