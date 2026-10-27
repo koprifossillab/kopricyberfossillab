@@ -218,7 +218,7 @@
     },
     "wall0": {
      "sheet": "items.webp",
-     "sx": 861,
+     "sx": 1070,
      "sy": 5918,
      "w": 208,
      "h": 176,
@@ -227,7 +227,7 @@
     },
     "wall1": {
      "sheet": "items.webp",
-     "sx": 1070,
+     "sx": 1279,
      "sy": 5918,
      "w": 208,
      "h": 176,
@@ -1351,7 +1351,7 @@
     },
     "wall0": {
      "sheet": "items.webp",
-     "sx": 1279,
+     "sx": 1488,
      "sy": 5918,
      "w": 208,
      "h": 176,
@@ -1360,7 +1360,7 @@
     },
     "wall1": {
      "sheet": "items.webp",
-     "sx": 1488,
+     "sx": 1697,
      "sy": 5918,
      "w": 208,
      "h": 176,
@@ -1544,8 +1544,8 @@
     },
     "wall0": {
      "sheet": "items.webp",
-     "sx": 1697,
-     "sy": 5918,
+     "sx": 0,
+     "sy": 6107,
      "w": 208,
      "h": 176,
      "ox": -484,
@@ -1553,7 +1553,7 @@
     },
     "wall1": {
      "sheet": "items.webp",
-     "sx": 0,
+     "sx": 209,
      "sy": 6107,
      "w": 208,
      "h": 176,
@@ -1764,7 +1764,7 @@
     },
     "wall0": {
      "sheet": "items.webp",
-     "sx": 209,
+     "sx": 418,
      "sy": 6107,
      "w": 208,
      "h": 176,
@@ -1773,7 +1773,7 @@
     },
     "wall1": {
      "sheet": "items.webp",
-     "sx": 418,
+     "sx": 627,
      "sy": 6107,
      "w": 208,
      "h": 176,
@@ -2103,23 +2103,23 @@
      "ox": -37,
      "oy": -129
     },
-    "wall0": {
-     "sheet": "items.webp",
-     "sx": 627,
-     "sy": 6107,
-     "w": 208,
-     "h": 176,
-     "ox": -484,
-     "oy": 192
-    },
     "wall1": {
+     "sheet": "items.webp",
+     "sx": 861,
+     "sy": 5918,
+     "w": 208,
+     "h": 178,
+     "ox": -199,
+     "oy": 347
+    },
+    "wall0": {
      "sheet": "items.webp",
      "sx": 836,
      "sy": 6107,
      "w": 208,
      "h": 176,
-     "ox": -199,
-     "oy": 347
+     "ox": -484,
+     "oy": 192
     },
     "cooler": {
      "sheet": "items.webp",
@@ -2899,6 +2899,18 @@
    "items": {},
    "objects": {
     "sheet": "m-backwall-rash-objects.webp",
+    "sx": 0,
+    "sy": 0,
+    "w": 502,
+    "h": 534,
+    "ox": -6,
+    "oy": -271
+   }
+  },
+  "backwall-desert": {
+   "items": {},
+   "objects": {
+    "sheet": "m-backwall-desert-objects.webp",
     "sx": 0,
     "sy": 0,
     "w": 502,

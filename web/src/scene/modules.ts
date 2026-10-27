@@ -7,7 +7,7 @@ import { SKELETON_SIZE, type SkeletonKind } from './skeleton.ts';
 import type { StairKind } from './stairs.ts';
 
 export type ItemKind =
-  | 'desk' | 'call' | 'rashdesk' | 'chair' | 'rashchair' | 'partition' | 'rashwall'
+  | 'desk' | 'call' | 'rashdesk' | 'chair' | 'rashchair' | 'partition' | 'rashwall' | 'oldwall'
   | 'sofa' | 'table' | 'cafe' | 'stool' | 'coffee' | 'core' | 'bench' | 'plant' | 'shelf'
   | 'cabinet' | 'boxes' | 'deadplant' | 'doorframe'
   | 'stall' | 'sink' | 'sign-m' | 'sign-f' | 'rack' | 'bucket' | 'ladder'
@@ -28,7 +28,7 @@ export type DeskKind = 'desk' | 'call' | 'rashdesk' | 'bossdesk';
 export type Slot = 'project' | 'center' | 'general' | 'boss';   // boss: 부장실(프로젝트 붙은 것은 그 프로젝트, 아니면 본부장실)   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
 
 // span — 명판 가로 길이(세계 단위). 문틀 폭에 맞춘다 (사용자: 「이름판이 문틀보다 커서 이상하다」)
-export interface Plaque { name: string; room?: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss'; span?: number }
+export interface Plaque { name: string; room?: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss' | 'old'; span?: number; tilt?: number }   // tilt: 명판을 기울이는 각(도)
 
 export interface Seat { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; group: string; lift: number }
 
@@ -105,7 +105,7 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert'):
   const deskAt: [number, number][] = (size === 's' ? [1.4] : [1.4, 4.2]).flatMap((z) => cols.map((x) => [x, z] as [number, number]));
   const door_: [number, number] = [OFFICE_W / 2 - 0.7, OFFICE_W / 2 + 0.7];
   const deskKind: DeskKind = rash ? 'rashdesk' : 'desk';
-  const wallKind: ItemKind = rash ? 'rashwall' : 'partition';
+  const wallKind: ItemKind = rash ? 'rashwall' : theme === 'desert' ? 'oldwall' : 'partition';
   const walls: Rect[] = [
     [0, OFFICE_D - T / 2, door_[0], OFFICE_D + T / 2],        // 앞, 가운데에 출입구
     [door_[1], OFFICE_D - T / 2, OFFICE_W, OFFICE_D + T / 2],
@@ -177,7 +177,7 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert'):
     ...(theme === 'desert' ? { flats: ['desert'], desert: { roam: [0.9, 3.2, 5.9, 6.1] as Rect, home: DESERT_HOME } } : {}),
     desks: deskAt.map((at, i) => ({ at, kind: deskKind, slot: 'project' as const, item: `desk${i}` })),
     stand: [[OFFICE_W / 2, 6.2], [OFFICE_W / 2 - 0.6, 6.2], [OFFICE_W / 2 + 0.6, 6.2]],
-    tall: rash ? ['bulb'] : [],
+    tall: rash ? ['bulb'] : theme === 'desert' ? ['cobwebs'] : [],
   };
 }
 
@@ -628,6 +628,7 @@ export const MODULES = {
   leftwall: { size: [0, ROW_D], floors: [], items: [], blocks: [], desks: [], tall: ['leftwall'] } as ModuleDef,
   backwall: { size: [OFFICE_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
   'backwall-rash': { size: [OFFICE_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall-rash'] } as ModuleDef,
+  'backwall-desert': { size: [OFFICE_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall-desert'] } as ModuleDef,
   'backwall-hall': { size: [HALL_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
 } satisfies Record<string, ModuleDef>;
 

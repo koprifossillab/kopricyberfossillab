@@ -494,15 +494,24 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const id = `room:${r.name}:${r.at.join(',')}`;
           const name = r.room ? roomName(r.room) : r.name;   // 사람이 고친 부서 이름
           live.add(id);
-          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), esc(name), [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)`);
-          // 가로 길이를 문틀 폭에 — 화면에서 그 폭이 차지하는 가로 픽셀만큼, 글자는 그 안에 들어가게
+          // 가로 길이를 문틀 폭에 — 화면에서 그 폭이 차지하는 가로 픽셀만큼, 글자는 그 안에 들어가게.
+          // 한 줄로는 글자가 너무 작아지는 긴 이름(「선호와 함께 춤을」)은 가운데에 가까운 띄어쓰기에서 두 줄로 — 전에는 넘친 만큼 잘렸다
+          const ems = (t: string) => [...t].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 1 : 0.62), 0) + 0.8;
+          let html = esc(name), em = ems(name), px = 0;
           if (r.span) {
-            const el = labelEls.get(id)!;
             const [u0] = proj([0, 0, 0]);
             const [u1] = proj(r.axis === 'x' ? [r.span, 0, 0] : [0, 0, r.span]);
-            const px = Math.abs(u1 - u0) * k / dpr;
-            const ems = [...name].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 1 : 0.62), 0) + 0.8;
-            const fs = Math.max(6, Math.min(15, (px - 6) / ems));
+            px = Math.abs(u1 - u0) * k / dpr;
+            const cut = [...name.matchAll(/ /g)].map((m) => m.index!).sort((a, b) => Math.abs(a - name.length / 2) - Math.abs(b - name.length / 2))[0];
+            if ((px - 6) / em < 8 && cut !== undefined) {
+              const [a, b] = [name.slice(0, cut), name.slice(cut + 1)];
+              html = `${esc(a)}<br>${esc(b)}`; em = Math.max(ems(a), ems(b));
+            }
+          }
+          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), html, [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)${r.tilt ? ` rotate(${r.tilt}deg)` : ''}`);
+          if (r.span) {
+            const el = labelEls.get(id)!;
+            const fs = Math.max(6, Math.min(15, (px - 6) / em));
             const wpx = `${Math.round(px)}px`, fpx = `${fs.toFixed(1)}px`;
             if (el.style.width !== wpx) el.style.width = wpx;
             if (el.style.fontSize !== fpx) el.style.fontSize = fpx;

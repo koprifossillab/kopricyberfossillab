@@ -241,6 +241,49 @@ function partition([x0, z0, x1, z1]: Item['box']): THREE.Group {
   return g;
 }
 
+// ---- 사막 방 — 낡은 벽지(바랜 줄무늬, 벗겨진 자리, 물 얼룩)와 거미줄
+const OLD_PAPER = 0xc9b98f, OLD_STRIPE = 0xb8a67c, PEELED = 0xe6dcc2, STAIN = 0x9c8458;
+// 벽 한 면에 벽지 — 면은 (x0..x1 또는 z0..z1) 위에 붙고 n 은 바깥을 보는 쪽(+1/−1). 자리로 정해 굽기마다 같다
+function wallpaper(g: THREE.Group, axis: 'x' | 'z', a0: number, a1: number, at: number, n: number, h: number, seed: number): void {
+  const flat = (len: number, hh: number, c: number, a: number, y: number) => axis === 'x'
+    ? bx(g, len, hh, 0.006, c, a, y, at + n * 0.004, false)
+    : bx(g, 0.006, hh, len, c, at + n * 0.004, y, a, false);
+  for (let a = a0 + 0.18; a < a1 - 0.05; a += 0.36) flat(0.07, h * 0.94, OLD_STRIPE, a, h / 2);   // 바랜 세로 줄
+  const R = (k: number) => ((Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
+  const span = a1 - a0;
+  for (let i = 0; i < Math.max(1, Math.round(span / 1.6)); i++) {
+    const a = a0 + 0.3 + R(i) * (span - 0.6), y = h * (0.35 + R(i + 9) * 0.45);
+    flat(0.22 + R(i + 3) * 0.2, 0.14 + R(i + 5) * 0.16, PEELED, a, y);                            // 벗겨진 자리
+    flat(0.3 + R(i + 7) * 0.25, 0.1 + R(i + 2) * 0.12, STAIN, a0 + 0.3 + R(i + 11) * (span - 0.6), h * (0.12 + R(i + 4) * 0.3));   // 얼룩
+  }
+}
+function oldWall([x0, z0, x1, z1]: Item['box']): THREE.Group {
+  const g = new THREE.Group();
+  const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  bx(g, w, PARTITION_H, d, OLD_PAPER, cx, PARTITION_H / 2, cz);
+  bx(g, w + 0.02, 0.05, d + 0.02, 0xa8946a, cx, PARTITION_H + 0.025, cz, false);   // 때 탄 윗단
+  const seed = Math.round(cx * 7 + cz * 3);
+  if (w > d) for (const n of [-1, 1]) wallpaper(g, 'x', x0, x1, n > 0 ? z1 : z0, n, PARTITION_H, seed + n);
+  else for (const n of [-1, 1]) wallpaper(g, 'z', z0, z1, n > 0 ? x1 : x0, n, PARTITION_H, seed + n);
+  return g;
+}
+const WEB = new THREE.LineBasicMaterial({ color: 0xf6f4ee, transparent: true, opacity: 0.85 });
+// 거미줄 — 구석 c 에서 u·v 두 방향 사이로 부챗살과 처진 고리. r 은 크기
+function cobweb(g: THREE.Group, c: [number, number, number], u: [number, number, number], v: [number, number, number], r: number): void {
+  const P = (t: number, k: number): number[] => {
+    const a = (t * Math.PI) / 2, s = k * r;
+    return [0, 1, 2].map((i) => c[i] + (u[i] * Math.cos(a) + v[i] * Math.sin(a)) * s);
+  };
+  const pts: number[] = [];
+  const SP = 5;
+  for (let i = 0; i <= SP; i++) pts.push(...c, ...P(i / SP, 1));                       // 부챗살
+  for (const k of [0.3, 0.55, 0.8]) for (let i = 0; i < SP; i++) {                      // 고리 — 살 사이가 조금 처진다
+    const m = P((i + 0.5) / SP, k * 0.9);
+    pts.push(...P(i / SP, k), ...m, ...m, ...P((i + 1) / SP, k));
+  }
+  g.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)), WEB));
+}
+
 // ---- rash 방 — 칙칙하고 투박하게: 철제 책상, 배불뚝이 모니터, 판자벽, 서류함, 상자, 시든 화분
 function rashDesk(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
@@ -594,6 +637,7 @@ export function buildItem(it: Item): THREE.Group {
     case 'rashchair': return rashChair(x, z);
     case 'partition': return partition(it.box);
     case 'rashwall': return rashWall(it.box);
+    case 'oldwall': return oldWall(it.box);
     case 'sofa': return sofa(x, z, it.rot ?? Math.PI);
     case 'table': return table(x, z);
     case 'cafe': return cafe(x, z, Number(it.id.slice(4)));
@@ -694,6 +738,19 @@ export function buildTall(type: ModuleType): THREE.Group {
       bx(g, w, 3.2, 0.25, 0x8e877b, w / 2, 1.6, -0.125);                // 때 묻은 회갈색
       bx(g, 1.2, 0.8, 0.03, 0xa59a7e, w * 0.3, 1.9, 0.02, false);        // 누렇게 바랜 달력
       bx(g, 0.9, 0.5, 0.03, 0x7a705e, w * 0.75, 2.2, 0.02, false);       // 얼룩
+    }
+    if (t === 'backwall-desert') {                                       // 낡은 벽지 + 위 구석 거미줄
+      bx(g, w, 3.2, 0.25, OLD_PAPER, w / 2, 1.6, -0.125);
+      wallpaper(g, 'x', 0, w, 0, 1, 3.2, 5);
+      bx(g, w, 0.12, 0.04, 0x8f7b55, w / 2, 0.06, 0.02, false);          // 걸레받이
+      cobweb(g, [0.05, 3.15, 0.03], [1, 0, 0], [0, -1, 0], 0.7);
+      cobweb(g, [w - 0.05, 3.15, 0.03], [-1, 0, 0], [0, -1, 0], 0.55);
+    }
+    if (t === 'cobwebs') {                                               // 사막 방 — 책상 밑, 책장 위, 칸막이 구석
+      for (const x of [1.9, 5.1]) cobweb(g, [x - 0.86, 0.72, 1.82], [1, 0, 0], [0, -1, 0], 0.35);
+      cobweb(g, [4.08, 1.98, 0.13], [1, 0, 0], [0, -1, 0], 0.45);
+      cobweb(g, [6.93, 0.7, 6.93], [-1, 0, 0], [0, 0, -1], 0.5);
+      cobweb(g, [0.07, 0.7, 6.93], [1, 0, 0], [0, 0, -1], 0.4);
     }
     if (t === 'bulb') {                                                   // 천장에서 늘어진 맨 전구
       bx(g, 0.02, 0.7, 0.02, 0x2c2c2a, w / 2, 2.85, d / 2, false);

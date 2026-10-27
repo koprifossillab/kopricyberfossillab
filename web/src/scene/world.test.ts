@@ -15,7 +15,7 @@ const OFFICES = [
 ];
 
 function wallsOf(w: ReturnType<typeof buildWorld>): Rect[] {
-  return w.items.filter((it) => it.kind === 'partition' || it.kind === 'rashwall').map((it) => it.box);
+  return w.items.filter((it) => it.kind === 'partition' || it.kind === 'rashwall' || it.kind === 'oldwall').map((it) => it.box);
 }
 
 function crosses(path: [number, number][], from: [number, number], walls: Rect[]): Rect | null {

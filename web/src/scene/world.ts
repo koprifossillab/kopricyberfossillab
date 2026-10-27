@@ -29,7 +29,7 @@ function officeModule(o: Office): ModuleType {
 }
 const BACKWALL: Record<string, ModuleType> = {
   boss: 'backwall-boss', hq: 'backwall',
-  'office-s': 'backwall', 'office-desert': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
+  'office-s': 'backwall', 'office-desert': 'backwall-desert', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
 export interface Placed { type: ModuleType; at: [number, number]; label?: string }
@@ -161,7 +161,8 @@ export function buildWorld(offices: Office[]): World {
       w.labels.push({ name: m.type === 'hq' ? '본부장실' : `${m.label} 부장실`, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: 'boss' });
     }
     if (m.type.startsWith('office') && m.label) {
-      w.labels.push({ name: defaultRoomName(m.label), room: m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: m.type === 'office-rash' ? 'rash' : 'project' });
+      w.labels.push({ name: defaultRoomName(m.label), room: m.label, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: m.type === 'office-rash' ? 'rash' : m.type === 'office-desert' ? 'old' : 'project',
+        ...(m.type === 'office-desert' ? { tilt: -7 } : {}) });   // 사막 방 명판은 낡아 기울었다
     }
   });
   return w;
