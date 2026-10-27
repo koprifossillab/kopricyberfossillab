@@ -647,6 +647,7 @@ export function buildFloor(type: ModuleType): THREE.Group {
     if (i === 0) bx(g, x1 - x0, 0.5, z1 - z0, f.color, (x0 + x1) / 2, -0.25, (z0 + z1) / 2, false);
     else bx(g, x1 - x0, 0.01, z1 - z0, f.color, (x0 + x1) / 2, 0.008 + i * 0.004, (z0 + z1) / 2, false);
     if (i > 0) return;   // 격자는 첫 바닥에만 (겹친 바닥 위로 비치지 않게)
+    if (def.flats?.includes('desert')) return;   // 사막은 아래에서 모래 타일 줄을 따로
     for (let x = Math.ceil(x0); x <= x1; x++) pts.push(x, 0.005, z0, x, 0.005, z1);
     for (let z = Math.ceil(z0); z <= z1; z++) pts.push(x0, 0.005, z, x1, 0.005, z);
   });
@@ -655,8 +656,30 @@ export function buildFloor(type: ModuleType): THREE.Group {
       new THREE.LineBasicMaterial({ color: 0xb4b2a9, transparent: true, opacity: 0.45 })));
   }
   if (def.flats?.includes('rug')) bx(g, 4.6, 0.04, 5.8, 0xfaeeda, 20.5, 0.02, 3.6, false);   // 휴게실 소파 깔개
+  if (def.flats?.includes('desert')) desertFloor(g, def.size);
   if (def.flats?.includes('mat')) bx(g, 1.2, 0.03, 1.4, 0x5f5e5a, 0.7, 0.015, 1, false);    // 입구 깔개
   return g;
+}
+
+// 사막 바닥 — 모래색 타일(칸마다 색을 조금씩 다르게)과 흐린 줄눈, 바람 물결무늬, 자갈. 칸 색은 자리로 정해 굽기마다 같다
+function desertFloor(g: THREE.Group, [w, d]: [number, number]): void {
+  const SAND = [0xe2c48e, 0xdcbb82, 0xe8cc98, 0xd8b67c];
+  for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) {
+    bx(g, 0.96, 0.012, 0.96, SAND[(x * 7 + z * 13 + x * z) % SAND.length], x + 0.5, 0.006, z + 0.5, false);
+  }
+  bx(g, w, 0.004, d, 0xc4a26a, w / 2, 0.001, d / 2, false);   // 줄눈 (타일 사이로 보인다)
+  // 물결무늬 — 앞쪽 빈 바닥에 비스듬한 얕은 줄
+  for (let i = 0; i < 9; i++) {
+    const r = bx(g, 1.1 + (i % 3) * 0.4, 0.008, 0.05, 0xcfae74, 1.4 + (i % 3) * 1.8, 0.016, 3.4 + Math.floor(i / 3) * 1.0 + (i % 2) * 0.3, false);
+    r.rotation.y = 0.25;
+  }
+  // 자갈
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.035 + (i % 3) * 0.015, 0), new THREE.MeshLambertMaterial({ color: [0xa47a52, 0x8c6a48, 0xbf9a6c][i % 3], flatShading: true }));
+    m.position.set(0.6 + ((i * 37) % 58) / 10, 0.02, 2.9 + ((i * 23) % 38) / 10);
+    m.rotation.set(i, i * 2, 0);
+    g.add(m);
+  }
 }
 
 // 모듈의 큰 것 — 바깥 벽, rash 방 맨 전구. 가구(items)는 따로

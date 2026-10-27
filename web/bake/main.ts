@@ -13,7 +13,8 @@ import { OUTFITS, BUILD_LIST, BUILDS, BODY_H, BODY_Y0, shapeKey, HAIRS, HAIR_COL
 import { MODULES, type ModuleType } from '../src/scene/modules.ts';
 import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
 import { buildFish, FISH_KINDS } from '../src/scene/aquarium.ts';
-import { bodyKey, faceKey, hairKey, accKey, capKey, dinoKey, fishKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
+import { buildScorpion, buildCactus, SCORPION_FRAMES, CACTUS_FRAMES, type CactusPose } from '../src/scene/desert.ts';
+import { bodyKey, faceKey, hairKey, accKey, capKey, dinoKey, fishKey, scorpionKey, cactusKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
 
 const SCALE = 96;                                      // 세계 1 = 96 구운 픽셀 (화면 2배 밀도에서 또렷하게)
 const VIEW = new THREE.Vector3(18, 16.5, 18);          // 시제품 카메라 방향 (CX+18, 17, CZ+18) → (CX, 0.5, CZ)
@@ -185,6 +186,17 @@ async function bake() {
     const s = shoot(buildFish({ kind, rot: (d * 2 * Math.PI) / DIRS, frame }), foot);
     if (s) dinos.set('fish:' + fishKey(kind, frame, d), s);
   }
+  // 사막 방 — 전갈(다리 frame 둘)과 걷는 선인장(자기·깨기·걷기 frame 셋) × 방향
+  for (let f = 0; f < SCORPION_FRAMES; f++) for (let d = 0; d < DIRS; d++) {
+    const s = shoot(buildScorpion({ rot: (d * 2 * Math.PI) / DIRS, frame: f }), foot);
+    if (s) dinos.set('crit:' + scorpionKey(f, d), s);
+  }
+  for (const [pose, frames] of [['sleep', 1], ['awake', 1], ['walk', CACTUS_FRAMES]] as [CactusPose, number][]) {
+    for (let f = 0; f < frames; f++) for (let d = 0; d < DIRS; d++) {
+      const s = shoot(buildCactus({ rot: (d * 2 * Math.PI) / DIRS, frame: f, pose }), foot);
+      if (s) dinos.set('crit:' + cactusKey(pose, f, d), s);
+    }
+  }
   const dinoSheet = pack(dinos, 'dinos.webp', 1024);
   files['dinos.webp'] = dinoSheet.data;
 
@@ -203,7 +215,8 @@ async function bake() {
     up: up.toArray() as Atlas['up'],
     modules,
     bodies: Object.fromEntries(Object.entries(charSheet.rects).filter(([k]) => k.startsWith('b:')).map(([k, v]) => [k.slice(2), v])),
-    dinos: Object.fromEntries(Object.entries(dinoSheet.rects).filter(([k]) => !k.startsWith('fish:'))),
+    dinos: Object.fromEntries(Object.entries(dinoSheet.rects).filter(([k]) => !k.startsWith('fish:') && !k.startsWith('crit:'))),
+    critters: Object.fromEntries(Object.entries(dinoSheet.rects).filter(([k]) => k.startsWith('crit:')).map(([k, v]) => [k.slice(5), v])),
     fish: Object.fromEntries(Object.entries(dinoSheet.rects).filter(([k]) => k.startsWith('fish:')).map(([k, v]) => [k.slice(5), v])),
     heads: Object.fromEntries(Object.entries(charSheet.rects).filter(([k]) => k.startsWith('h:')).map(([k, v]) => [k.slice(2), v])),
   };

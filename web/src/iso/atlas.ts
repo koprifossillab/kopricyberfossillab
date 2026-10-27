@@ -26,8 +26,11 @@ export interface Atlas {
   heads: Record<string, SpriteRect>;              // 머리 층 — faceKey·hairKey·accKey·capKey, 기준점 = 머리 가운데 (0, HEAD_Y, 0), 보통 몸집
   dinos: Record<string, SpriteRect>;              // dinoKey(), 기준점 = 발
   fish?: Record<string, SpriteRect>;              // fishKey(), 기준점 = 몸 가운데
+  critters?: Record<string, SpriteRect>;          // 사막 방 — scorpionKey()·cactusKey(), 기준점 = 발
 }
 
+export const scorpionKey = (frame: number, dir: number) => `scorp-${frame}-${dir}`;
+export const cactusKey = (pose: string, frame: number, dir: number) => `cactus-${pose}-${frame}-${dir}`;
 export const fishKey = (kind: number, frame: number, dir: number) => `${kind}-${frame}-${dir}`;
 
 export const dinoKey = (color: number, pose: string, frame: number, dir: number) =>
@@ -69,7 +72,7 @@ export function loadAtlas(): Promise<Loaded> {
       if (m.objects) names.add(m.objects.sheet);
       for (const r of Object.values(m.items)) names.add(r.sheet);
     }
-    for (const r of [...Object.values(atlas.bodies), ...Object.values(atlas.heads), ...Object.values(atlas.dinos ?? {}), ...Object.values(atlas.fish ?? {})]) names.add(r.sheet);
+    for (const r of [...Object.values(atlas.bodies), ...Object.values(atlas.heads), ...Object.values(atlas.dinos ?? {}), ...Object.values(atlas.fish ?? {}), ...Object.values(atlas.critters ?? {})]) names.add(r.sheet);
     const sheets: Record<string, HTMLImageElement> = {};
     await Promise.all([...names].map((n) => new Promise<void>((ok, bad) => {
       const img = new Image();

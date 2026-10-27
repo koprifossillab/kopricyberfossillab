@@ -3,18 +3,20 @@
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office } from '../types.ts';
-import { bodyKey, headLayers, dinoKey, fishKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { bodyKey, headLayers, dinoKey, fishKey, scorpionKey, cactusKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { appearanceOf, liftOf, shapeOf } from '../scene/appearance.ts';
 import { FishTank } from './fish.ts';
 import { daylight, hourNow } from './daylight.ts';
 import { drawBackdrop } from './backdrop.ts';
 import { DinoPen } from './dinos.ts';
+import { Desert } from './desert.ts';
+import { SCORPION_STARTLE, CACTUS_STARTLE } from './lines.ts';
 import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
-import { buildWorld, type World, type WorldItem } from '../scene/world.ts';
-import { Chatter } from './chatter.ts';
+import { buildWorld, DESERT, type World, type WorldItem } from '../scene/world.ts';
+import { Chatter, draw as drawLine } from './chatter.ts';
 import { personName, roomName } from '../scene/names.ts';
 
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -94,6 +96,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let orderFor: World | null = null;
       let order: number[] = [];
       let pen: DinoPen | null = null;
+      let deserts: Desert[] = [];
+      const startled = new Map<string, { text: string; until: number; calm: number }>();   // 전갈·선인장에 놀란 사람 — 말과 다시 놀랄 수 있는 때
       let tank: FishTank | null = null;
       let tankItem: (string | undefined)[] = [];   // 수조 차례 → 그 수조 가구의 WorldItem.key (물고기를 그 그림 안에 그릴 때)
       let day = 1, lastSky = -1;
@@ -216,7 +220,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
             for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.at[1] + lz]);
           }
         }
-        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
+        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; deserts = w.desert.map((d) => new Desert(d.roam, d.home, d.room)); tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
           tankItem = (w.aqua?.tanks ?? []).map(({ box: [x0, z0, x1, z1] }) => {
             const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
             return w.items.find((it) => (it.kind === 'tank' || it.kind === 'tube') && cx > it.box[0] && cx < it.box[2] && cz > it.box[1] && cz < it.box[3])?.key;
@@ -289,6 +293,35 @@ export function Stage({ agents, offices, selected, onSelect }: {
               blit(r, ax, ay);
             },
           });
+        }
+        // 사막 방 — 전갈이 기고 선인장이 가끔 걷는다 (desert.ts). 가까이 온 사람은 놀라서 한마디(말풍선은 아래 잡담 뒤에)
+        for (const ds of deserts) {
+          const roam = w.desert.find((d) => d.room === ds.room)?.roam;
+          const near = roam ? actors.filter((a) => !a.leaving && a.x > roam[0] - 1 && a.x < roam[2] + 1 && a.z > roam[1] - 1.5 && a.z < roam[3] + 1) : [];
+          ds.step(Math.min(0.05, dt), near.filter((a) => !a.moving).map((a) => [a.x, a.z] as [number, number]));
+          for (const a of near) {
+            const st = startled.get(a.agent.id);
+            if (st && T < st.calm) continue;
+            const scorp = ds.scorpions.some((s) => Math.hypot(s.x - a.x, s.z - a.z) < 1.15);   // 책상 의자(z 2.25)와 전갈 길(z 3.2~) 사이도 닿게
+            const cac = ds.cactusAbout && Math.hypot(ds.cactus.x - a.x, ds.cactus.z - a.z) < 1.6;
+            if (!scorp && !cac) continue;
+            const text = drawLine(scorp ? SCORPION_STARTLE : CACTUS_STARTLE);
+            startled.set(a.agent.id, { text, until: T + Math.max(2.2, 1.6 + text.length * 0.12), calm: T + 30 + Math.random() * 40 });
+          }
+          for (const s of ds.scorpions) {
+            const r = atlas.critters?.[scorpionKey(s.moving ? s.frame : 0, dirOf(s.rot))];
+            if (!r) continue;
+            const [ax, ay] = proj([s.x, 0, s.z]);
+            figs.push({ x: s.x, z: s.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
+              draw: () => { poly(circle(s.x, s.z, 0.13), '#000', 0.12); blit(r, ax, ay); } });
+          }
+          const c = ds.cactus;
+          const r = atlas.critters?.[cactusKey(c.pose, c.pose === 'walk' ? c.frame : 0, dirOf(c.rot))];
+          if (r) {
+            const [ax, ay] = proj([c.x, 0, c.z]);
+            figs.push({ x: c.x, z: c.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
+              draw: () => { poly(circle(c.x, c.z, 0.22), '#000', 0.14); blit(r, ax, ay); } });
+          }
         }
         // 물고기·손님 — 수조 안을 헤엄치거나 모래 위를 긴다 (fish.ts). 수조 그림(뒤판·물·유리가 한 조각)은
         // 물건 층에 먼저 깔리고, 물고기는 그 위에 — 그 수조가 다시 덮으면 짙은 뒤판까지 물고기 위에 칠해져 안 보인다(wetherilli 017 전까지의 탈).
@@ -433,7 +466,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
           const said = chatter.step(name, members.map((m) => m.agent.id), T, (who) => {
             const m = members.find((p) => p.agent.id === who);
-            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '' };
+            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '', theme: m && DESERT.has(m.agent.room) ? 'desert' : undefined };
           });
           if (!said) return;
           const a = members.find((m) => m.agent.id === said.who);
@@ -442,6 +475,18 @@ export function Stage({ agents, offices, selected, onSelect }: {
           live.add(id);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);   // 이름표 대신 말풍선
           label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(said.text)}`,
+            [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
+        });
+        // 전갈·선인장에 놀란 말 — 잡담 위에 덮는다
+        startled.forEach((st, id) => {
+          if (T >= st.until) return;
+          const d = draws.find((dr) => dr.a.agent.id === id);
+          if (!d || d.a.leaving) return;
+          const { a } = d;
+          const bid = `bubble:${id}`;
+          live.add(bid);
+          labelEls.get(id)?.remove(); labelEls.delete(id);
+          label(bid, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(st.text)}`,
             [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         });
         // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)

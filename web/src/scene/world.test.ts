@@ -11,6 +11,7 @@ import type { Rect } from './layout.ts';
 const OFFICES = [
   { name: 'DiaRUGA', size: 'm' as const }, { name: 'ForGIA', size: 's' as const }, { name: 'GSM', size: 'l' as const },
   { name: 'rash-company', size: 'm' as const }, { name: 'Cropobite', size: 's' as const }, { name: 'confoinfo', size: 's' as const },
+  { name: 'shkim/phyloserver', size: 's' as const },   // 사막 방
 ];
 
 function wallsOf(w: ReturnType<typeof buildWorld>): Rect[] {
@@ -109,5 +110,20 @@ test('모듈 안의 가구 id 는 겹치지 않는다 (겹치면 그림 조각·
     const ids = def.items.map((it) => it.id);
     const dup = ids.filter((id, i) => ids.indexOf(id) !== i);
     assert.deepEqual(dup, [], type);
+  }
+});
+
+test('사막 방 — 전갈·선인장이 다니는 곳은 그 방 안이고 가구(걸음 막기)와 겹치지 않는다(선인장 잠자리는 빼고)', () => {
+  const w = buildWorld(OFFICES);
+  assert.equal(w.desert.length, 1);
+  const { roam, home, room } = w.desert[0];
+  assert.equal(room, 'shkim/phyloserver');
+  const m = w.modules.find((x) => x.label === room)!;
+  assert.equal(m.type, 'office-desert');
+  assert.ok(roam[0] > m.at[0] && roam[2] < m.at[0] + 7 && roam[1] > m.at[1] && roam[3] < m.at[1] + 7);
+  for (const b of w.blocks) {
+    if (home[0] > b[0] && home[0] < b[2] && home[1] > b[1] && home[1] < b[3]) continue;   // 선인장 잠자리
+    const overlap = b[0] < roam[2] && b[2] > roam[0] && b[1] < roam[3] && b[3] > roam[1];
+    assert.ok(!overlap, `걸음 막기 ${b.map((v) => v.toFixed(2)).join(',')} 가 사막 길과 겹친다`);
   }
 });

@@ -47,6 +47,7 @@ export interface ModuleDef {
   search?: { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; lift?: number }[];   // 자료 검색할 때 가는 곳
   aqua?: { view: typeof AQUA_VIEW; tanks: typeof TANKS };   // 수족관 관람 자리와 수조(물고기가 다니는 곳)
   breeze?: { at: [number, number]; face: number }[];   // 테라스 난간 — 바람 쐬러 서는 곳
+  desert?: { roam: Rect; home: [number, number] };   // 사막 방 — 전갈이 기는 곳, 걸어다니는 선인장이 자는 자리
   pen?: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] };   // 공룡 울타리
   // 방 이름 명판 — 벽에 붙인다. at 은 벽 위의 바닥 자리, y 는 높이, axis 는 벽이 뻗은 방향(x: +z 를 보는 벽, z: +x 를 보는 벽)
   labels?: Plaque[];
@@ -97,7 +98,8 @@ function addProps(items: Item[], blocks: Rect[], list: ReturnType<typeof prop>[]
 // s 는 전에 반 칸(3.5)이었다 — 책상 둘만 들어차 답답해서 m 만큼 넓히고 남는 앞쪽을 꾸민다 (사용자, 2026-10-26)
 export const OFFICE_WIDTH = { s: OFFICE_W, m: OFFICE_W } as const;
 // theme 'gsm': 지도 프로젝트(GSM) — 암석 표본·시추 코어·지구본·지질도 판·지도 탁자로 꾸민다
-function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm'): ModuleDef {
+// theme 'desert': 모래 바닥 사막 방 — 선인장·바위·소 머리뼈, 전갈이 기고 선인장 하나가 가끔 깨어 걷는다 (world.ts 의 DESERT)
+function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert'): ModuleDef {
   const OFFICE_W = OFFICE_WIDTH[size];
   const cols = [1.9, 5.1];
   const deskAt: [number, number][] = (size === 's' ? [1.4] : [1.4, 4.2]).flatMap((z) => cols.map((x) => [x, z] as [number, number]));
@@ -116,7 +118,17 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm'): ModuleDef 
   ];
   const blocks: Rect[] = [...deskAt.map(([x, z]) => box(x, z, 1.05, 0.5)), ...walls.map((r) => pad(r))];
   const R = OFFICE_W;   // 오른쪽 끝 — 소품 자리를 크기에 맞춘다
-  if (size === 's' && !rash) {
+  const DESERT_HOME: [number, number] = [5.5, 5.6];
+  if (theme === 'desert') {
+    // 책상 둘은 뒤 한 줄, 앞쪽은 비워 전갈이 기게 — 가장자리에 선인장·바위. 걸어다니는 선인장은 그림이 따로라(iso/desert.ts) 자리만 막는다
+    items.push({ id: 'plant', kind: 'prop', prop: 'saguaro', at: [R - 0.55, 0.55], box: box(R - 0.55, 0.55, 0.45, 0.25) });
+    blocks.push(box(R - 0.55, 0.55, 0.45, 0.3), box(DESERT_HOME[0], DESERT_HOME[1], 0.3, 0.3));
+    addProps(items, blocks, [
+      prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
+      prop('bin', 'trash_bin', R - 0.35, 3.0), prop('pear', 'prickly_pear', 0.45, 4.4), prop('barrel', 'barrel_cactus', R - 0.4, 4.1),
+      prop('rocks', 'desert_rocks', R - 0.6, 6.45), prop('skull', 'cow_skull', 1.55, 6.5), prop('cooler', 'water_cooler', 0.4, 6.5),
+    ]);
+  } else if (size === 's' && !rash) {
     // 책상 둘은 뒤 한 줄, 앞쪽은 쉬는 구석 — 오른쪽에 소파와 낮은 탁자, 왼쪽에 게시판·지구본·정수기. 가운데(문 → 책상)는 비운다
     const sofa: [number, number] = [5.45, 6.4], low: [number, number] = [5.45, 5.15];
     items.push(
@@ -160,8 +172,9 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm'): ModuleDef 
   }
   return {
     size: [OFFICE_W, OFFICE_D],
-    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: rash ? 0x8a857b : 0xd3d1c7 }],
+    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: rash ? 0x8a857b : theme === 'desert' ? 0xe2c48e : 0xd3d1c7 }],
     items, blocks,
+    ...(theme === 'desert' ? { flats: ['desert'], desert: { roam: [0.9, 3.2, 5.9, 6.1] as Rect, home: DESERT_HOME } } : {}),
     desks: deskAt.map((at, i) => ({ at, kind: deskKind, slot: 'project' as const, item: `desk${i}` })),
     stand: [[OFFICE_W / 2, 6.2], [OFFICE_W / 2 - 0.6, 6.2], [OFFICE_W / 2 + 0.6, 6.2]],
     tall: rash ? ['bulb'] : [],
@@ -607,6 +620,7 @@ export const MODULES = {
   'office-s': office(false, 's'),
   'office-gsm': office(false, 'm', 'gsm'),
   'office-rash': office(true, 's'),
+  'office-desert': office(false, 's', 'desert'),
   front: front(),
   corridor: floorOnly(PER_ROW * OFFICE_W, CORRIDOR, 0xc9c6bb),
   hall: floorOnly(HALL_W, ROW_D, 0xc9c6bb),

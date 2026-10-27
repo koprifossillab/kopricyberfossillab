@@ -39,8 +39,9 @@ export function when(d = new Date()): { time: string; day: string | null; season
 }
 
 // 무리 이름 → 그 자리의 대화·혼잣말 묶음. 시각·요일·계절 것은 가끔 섞는다
-function dialogFor(group: string, act: string | null): string[] {
+function dialogFor(group: string, act: string | null, theme?: string): string[] {
   const w = when();
+  if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.DESERT_DIALOGS);
   const extra: [number, string[][] | undefined][] = [[0.12, L.TIME_DIALOGS[w.time]], [0.06, w.day ? L.DAY_DIALOGS[w.day] : undefined], [0.05, L.SEASON_DIALOGS[w.season]]];
   if (group === 'work:center') return choose([[0.5, L.CENTER_WORK_DIALOGS], [0.35, L.WORK_DIALOGS], [0.15, L.DIALOGS]]);
   if (group.startsWith('work:')) {
@@ -51,8 +52,9 @@ function dialogFor(group: string, act: string | null): string[] {
   const own = group.startsWith('feed') ? L.FEED_DIALOGS : place[group];
   return choose([[own && group !== 'sofa' ? 0.55 : 0.12, own], [0.45, L.DIALOGS], ...extra]);
 }
-function soloFor(group: string, act: string | null): string[] {
+function soloFor(group: string, act: string | null, theme?: string): string[] {
   const w = when();
+  if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.DESERT_SOLO)];
   const extra: [number, string[] | undefined][] = [[0.1, L.TIME_SOLO[w.time]], [0.05, w.day ? L.DAY_SOLO[w.day] : undefined], [0.05, L.SEASON_SOLO[w.season]]];
   if (group.startsWith('work:')) {
     if (act && Math.random() < 0.75) return [draw(L.WORK_SOLO[act] ?? L.WORK_SOLO.think)];
@@ -65,7 +67,7 @@ function soloFor(group: string, act: string | null): string[] {
 }
 
 // 자리표 채우기 — {상대} 는 말 건네는 사람(다음에 말할 사람)의 이름, {방} 은 말하는 사람의 부서
-export interface Who { act: string; room: string; name: string }
+export interface Who { act: string; room: string; name: string; theme?: string }   // theme: 그 사람 방의 꾸밈 (desert)
 const call = (name: string) => `${name.length === 3 ? name.slice(1) : name} 님`;   // 지어 준 이름(성 + 두 글자)은 이름만
 export function fill(s: string, me: Who | undefined, them: Who | undefined): string {
   return s.replace(/\{상대\}/g, them?.name ? call(them.name) : '저기요').replace(/\{방\}/g, me?.room || '우리 방');
@@ -103,10 +105,12 @@ export class Chatter {
     if (t.i >= t.lines.length) {
       // 새 말 — 혼자면 혼잣말(한 줄, 가끔 두세 줄 잇기), 여럿이면 대화 하나와 말을 꺼내는 사람
       if (t.solo) {
-        t.lines = soloFor(group, info?.(members[0]).act ?? null);
+        const me = info?.(members[0]);
+        t.lines = soloFor(group, me?.act ?? null, me?.theme);
         t.speakers = [members[0]];
       } else {
-        t.lines = dialogFor(group, info?.(members[0]).act ?? null);
+        const me = info?.(members[0]);
+        t.lines = dialogFor(group, me?.act ?? null, me?.theme);
         const start = Math.floor(Math.random() * members.length);
         t.speakers = [...members.slice(start), ...members.slice(0, start)];
       }

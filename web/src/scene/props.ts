@@ -378,6 +378,60 @@ export const PROPS: Record<string, Prop> = {
     mesh(g, new THREE.SphereGeometry(0.025, 5, 4), 0xf4c0d1, 0, 0.3, 0);         // 꽃
   }),
 
+  // ── 사막 방 (선인장·소 머리뼈·바위) ──
+  saguaro: prop('기둥 선인장', [0.5, 0.5], (g) => {
+    const G = 0x4f8a3c, G_D = 0x3b6d2c;
+    mesh(g, cyl(0.17, 0.19, 1.6, 8), G, 0, 0.8, 0);
+    mesh(g, new THREE.SphereGeometry(0.17, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), G, 0, 1.6, 0);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.4; bx(g, 0.03, 1.55, 0.03, G_D, Math.sin(a) * 0.17, 0.8, Math.cos(a) * 0.17, false); }
+    for (const [s, y0, h] of [[-1, 0.6, 0.5], [1, 0.85, 0.4]] as const) {
+      const out = mesh(g, cyl(0.08, 0.08, 0.2, 7), G, s * 0.24, y0, 0);
+      out.rotation.z = Math.PI / 2;
+      mesh(g, cyl(0.08, 0.085, h, 7), G, s * 0.33, y0 + h / 2, 0);
+      mesh(g, new THREE.SphereGeometry(0.08, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), G, s * 0.33, y0 + h, 0);
+    }
+    mesh(g, cyl(0.24, 0.3, 0.06, 8), 0xc9a466, 0, 0.03, 0);                       // 발치에 쌓인 모래
+  }),
+
+  barrel_cactus: prop('공 선인장', [0.4, 0.4], (g) => {
+    pot(g, 0.17, 0.2, 0xc2703d);
+    const b = mesh(g, new THREE.SphereGeometry(0.15, 10, 7), 0x5a9440, 0, 0.32, 0);
+    b.scale.set(1, 0.9, 1);
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; bx(g, 0.012, 0.012, 0.012, 0xf2ead2, Math.sin(a) * 0.15, 0.33, Math.cos(a) * 0.15, false); }
+    for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; mesh(g, new THREE.SphereGeometry(0.028, 5, 4), 0xf6d34a, Math.sin(a) * 0.04, 0.45, Math.cos(a) * 0.04); }
+  }),
+
+  prickly_pear: prop('부채 선인장', [0.5, 0.4], (g) => {
+    pot(g, 0.18, 0.22, 0xb4602f);
+    const pad = (x: number, y: number, z: number, r: number, s: number) => {
+      const m = mesh(g, new THREE.SphereGeometry(s, 8, 6), 0x6a9e4a, x, y, z);
+      m.scale.set(1, 1.25, 0.28);
+      m.rotation.z = r;
+    };
+    pad(0, 0.42, 0, 0, 0.14);
+    pad(-0.13, 0.62, 0.01, 0.5, 0.1);
+    pad(0.12, 0.66, -0.01, -0.4, 0.11);
+    pad(-0.02, 0.8, 0.02, 0.1, 0.08);
+    for (const [x, y] of [[-0.18, 0.72], [0.17, 0.78], [-0.03, 0.9]]) mesh(g, new THREE.SphereGeometry(0.03, 5, 4), 0xc23a5a, x, y, 0.01);   // 열매
+  }),
+
+  cow_skull: prop('소 머리뼈', [0.5, 0.35], (g) => {
+    const sk = mesh(g, new THREE.BoxGeometry(0.16, 0.1, 0.26), BONE, 0, 0.06, 0.02);
+    sk.rotation.x = -0.15;
+    mesh(g, new THREE.BoxGeometry(0.1, 0.07, 0.1), BONE_D, 0, 0.04, 0.16);          // 코
+    for (const s of [-1, 1]) {
+      mesh(g, new THREE.SphereGeometry(0.025, 5, 4), 0x3a2e24, s * 0.05, 0.1, 0.1);  // 눈구멍
+      const horn = mesh(g, new THREE.ConeGeometry(0.03, 0.22, 5), BONE_D, s * 0.16, 0.12, -0.04);
+      horn.rotation.z = -s * 1.1;
+    }
+  }),
+
+  desert_rocks: prop('사막 바위', [0.7, 0.55], (g) => {
+    rock(g, 0.22, 0xb98a5a, 0, 0, 0, 1);
+    rock(g, 0.13, 0xa6784c, 0.24, 0, 0.12, 2);
+    rock(g, 0.09, 0xc79a68, -0.22, 0, 0.14, 4);
+  }),
+
   plant_bush: prop('화분(둥근)', [0.6, 0.6], (g) => {
     pot(g, 0.22, 0.35, 0x993c1d);
     bx(g, 0.5, 0.02, 0.02, 0xfaeeda, 0, 0.27, 0.205, false);                     // 화분 띠
