@@ -62,6 +62,7 @@ export interface World {
   dining: (Omit<Dining, 'seats'> & { seats: (Dining['seats'][number] & { key: string })[] })[];
   // 높이 — z ≥ z0 이면 아래층(y), 계단(landing·steps)은 위에서 아래로 이어진다. 아래층이 없으면 null
   lower: { z0: number; y: number; landing: Rect; steps: Rect } | null;
+  lift: [number, number] | null;   // 식당가 엘리베이터 앞 — 점원·바깥 손님이 드나드는 곳 (wetherilli 026)
   top: number;                     // 위층 건물의 깊이 (배경이 아래 두 층 벽을 여기에 세운다) — d 는 아래층까지
 }
 
@@ -115,7 +116,7 @@ export function buildWorld(offices: Office[]): World {
   modules.push({ type: 'downstairs', at: [0, top], y: -DOWN_DROP });   // 테라스 앞, 반 층 아래 식당가
 
   const w: World = {
-    w: BUILDING_W + ENTRANCE_W, d: top + DOWN_D, top, modules, rooms, dining: [], lower: null,
+    w: BUILDING_W + ENTRANCE_W, d: top + DOWN_D, top, modules, rooms, dining: [], lower: null, lift: null,
     desks: [], items: [], blocks: [], lounge: [], deskRest: [], core: [], bench: [], stand: [], labels: [],
     restroom: { male: [], female: [] }, search: [], desert: [], pen: null, aqua: null, breeze: [],
     door: [BUILDING_W + ENTRANCE_DOOR[0], entZ + ENTRANCE_DOOR[1]],   // 엘리베이터·계단 앞
@@ -169,8 +170,14 @@ export function buildWorld(offices: Office[]): World {
         shop: dn.shop,
         order: dn.order.map((p) => ({ ...p, at: mv(p.at, o) })),
         seats: dn.seats.map((st) => ({ ...st, at: mv(st.at, o), dish: mv(st.dish, o), dishY: st.dishY + (m.y ?? 0), key: `${i}:${st.on}` })),
+        staff: dn.staff && {
+          counter: { ...dn.staff.counter, at: mv(dn.staff.counter.at, o) },
+          stations: dn.staff.stations.map((s) => ({ ...s, at: mv(s.at, o), cook: s.cook && [s.cook[0] + o[0], s.cook[1] + (m.y ?? 0), s.cook[2] + o[1]] as [number, number, number] })),
+          wipe: dn.staff.wipe.map((s) => ({ ...s, at: mv(s.at, o) })),
+        },
       });
     }
+    if (def.lift) w.lift = mv(def.lift, o);
     if (def.flight) w.lower = { z0: o[1], y: m.y ?? 0, landing: mr(def.flight.landing, o), steps: mr(def.flight.steps, o) };
     // 사무실 명판 — 앞 칸막이 출입구 위 (빈 사무실은 이름 없이)
     if (m.type === 'boss' || m.type === 'hq') {

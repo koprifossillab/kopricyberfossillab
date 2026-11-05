@@ -31,11 +31,18 @@ export interface Dining {
   shop: Shop;
   order: { at: [number, number]; face: number }[];
   seats: { at: [number, number]; face: number; on: string; lift: number; table: string; dish: [number, number]; dishY: number }[];
+  // 점원 자리 (wetherilli 026) — counter: 카운터 안(손님을 본다), stations: 주방 조리대 앞(cook 은 김·지글거림이 오르는 곳, 모듈 안 높이),
+  // wipe: 마감 때 식탁 닦는 자리
+  staff?: {
+    counter: { at: [number, number]; face: number };
+    stations: { at: [number, number]; face: number; cook?: [number, number, number] }[];
+    wipe: { at: [number, number]; face: number }[];
+  };
 }
 
 export type DeskKind = 'desk' | 'call' | 'rashdesk' | 'bossdesk';
 export type Slot = 'project' | 'center' | 'general' | 'boss';   // boss: 부장실(프로젝트 붙은 것은 그 프로젝트, 아니면 본부장실)   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
-
+// span — 명판 가로 길이(세계 단위, 문틀 폭). 화면은 이제 쓰지 않는다 — 명판은 모두 화면 px 고정 폭(wetherilli 026, Stage PLAQUE_W)
 // span — 명판 가로 길이(세계 단위). 문틀 폭에 맞춘다 (사용자: 「이름판이 문틀보다 커서 이상하다」)
 export interface Plaque { name: string; room?: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss' | 'old' | 'burger' | 'gukbap'; span?: number; tilt?: number }   // tilt: 명판을 기울이는 각(도)
 
@@ -58,7 +65,8 @@ export interface ModuleDef {
   breeze?: { at: [number, number]; face: number }[];   // 테라스 난간 — 바람 쐬러 서는 곳
   desert?: { roam: Rect; home: [number, number] };   // 사막 방 — 전갈이 기는 곳, 걸어다니는 선인장이 자는 자리
   dining?: Dining[];                                // 아래층 식당 — 주문하는 곳과 먹는 자리 (wetherilli 025)
-  flight?: { landing: Rect; steps: Rect; drop: number };   // 위층(테라스)과 이어지는 계단 — 높이는 world.heightAt
+  flight?: { landing: Rect; steps: Rect; drop: number };
+  lift?: [number, number];                          // 식당가 엘리베이터 앞 — 점원·바깥 손님이 나타나고 사라지는 곳 (wetherilli 026)   // 위층(테라스)과 이어지는 계단 — 높이는 world.heightAt
   pen?: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] };   // 공룡 울타리
   // 방 이름 명판 — 벽에 붙인다. at 은 벽 위의 바닥 자리, y 는 높이, axis 는 벽이 뻗은 방향(x: +z 를 보는 벽, z: +x 를 보는 벽)
   labels?: Plaque[];
@@ -629,13 +637,15 @@ export const DOWN_W = BUILDING_W, DOWN_D = 8, DOWN_DROP = 1.8;
 export const FLIGHT = { landing: [1.0, 0, 2.3, 1.4] as Rect, steps: [2.3, 0, 5.3, 1.4] as Rect };   // 꼭대기 층참 · 내려가는 단(10단)
 export const TERRACE_GAP: [number, number] = [1.1, 2.2];   // 테라스 앞 난간 틈 (층참 폭 안)
 export const SHOP_X = { burger: 9.2, gukbap: 19.65 };       // 가게 왼쪽 칸막이
+export const LIFT: [number, number] = [0.85, 4.6];          // 엘리베이터 앞 (문은 왼 벽 x 0..0.5, z 3.9..5.3)
 function downstairs(): ModuleDef {
   const W = DOWN_W, D = DOWN_D;
   const items: Item[] = [], blocks: Rect[] = [];
   const fl = FLIGHT;
   items.push({ id: 'flight', kind: 'flight', at: [(fl.landing[0] + fl.steps[2]) / 2, (fl.landing[1] + fl.landing[3]) / 2], box: [fl.landing[0], fl.landing[1], fl.steps[2], fl.landing[3]], h: DOWN_DROP });
-  // 계단은 위(층참)와 아래 끝에서만 오르내린다 — 옆으로 들어가면 높이가 튄다. 층참 왼쪽과 계단 앞쪽(난간)을 막는다
-  blocks.push([0, 0, fl.landing[0], fl.landing[3] + 0.25], [fl.landing[0], fl.landing[3], fl.steps[2] - 0.4, fl.landing[3] + 0.25]);
+  // 계단은 위(층참)와 아래 끝에서만 오르내린다 — 옆으로 들어가면 높이가 튄다. 층참 왼쪽과 계단 앞쪽(난간)을 막는다.
+  // 앞쪽은 아래 끝 0.1 까지 — 0.4 를 열어 두었더니 엘리베이터(앞 왼쪽)에서 오는 길이 끝 단을 비스듬히 밟았다 (wetherilli 026)
+  blocks.push([0, 0, fl.landing[0], fl.landing[3] + 0.25], [fl.landing[0], fl.landing[3], fl.steps[2] - 0.1, fl.landing[3] + 0.25]);
   // 가게 사이 칸막이(앞은 통로로 열림)·앞과 오른쪽 유리창
   const walls: Rect[] = [[SHOP_X.burger - T / 2, 0, SHOP_X.burger + T / 2, 4.4], [SHOP_X.gukbap - T / 2, 0, SHOP_X.gukbap + T / 2, 4.4]];
   walls.forEach((r, i) => { items.push({ id: `wall${i}`, kind: 'partition', at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], box: r }); blocks.push(pad(r)); });
@@ -645,6 +655,7 @@ function downstairs(): ModuleDef {
     // 로비
     prop('sign', 'food_sign', 7.6, 2.3), prop('cooler', 'water_cooler', 0.4, 2.2), prop('tall0', 'plant_tall', 0.45, 7.35),
     prop('stand', 'menu_stand', 7.4, 5.6), prop('bush0', 'plant_bush', 8.55, 7.35),
+    prop('lift', 'diner_lift', LIFT[0] - 0.6, LIFT[1], Math.PI / 2),   // 식당가 엘리베이터 — 점원·바깥 손님 전용 (왼 벽, +x 를 본다)
     // 티렉스 버거 — 뒤에 주방, 계산대·키오스크, 탁자 두 줄
     prop('fryer', 'fryer', 10.6, 0.4), prop('grill', 'grill', 12.2, 0.4), prop('fountain', 'drink_fountain', 14.4, 0.35),
     prop('shake', 'shake_machine', 15.5, 0.35), prop('ffmenu', 'ff_menu', 12.4, 0.05),
@@ -666,6 +677,20 @@ function downstairs(): ModuleDef {
       burger.seats.push({ at, face, on: id, lift: 0.22, table: t, dish: [x + s * 0.18, z], dishY: 0.76 });
     }
   }));
+  // 점원 — 주방(튀김기·그릴·음료)과 카운터 사이 좁은 통로(z 1.0..1.5). 카운터 오른쪽 끝(x 14.8..16.3)으로 드나든다
+  burger.staff = {
+    counter: { at: [13.8, 1.25], face: 0 },
+    stations: [
+      { at: [12.2, 1.2], face: Math.PI, cook: [12.2, 0.95, 0.4] },   // 그릴 — 패티
+      { at: [10.6, 1.2], face: Math.PI, cook: [10.6, 1.05, 0.4] },   // 튀김기
+      { at: [14.4, 1.2], face: Math.PI },                           // 음료
+    ],
+    wipe: burger.seats.filter((st) => st.on.endsWith('s0')).map((st) => {
+      const t = items.find((it) => it.id === st.table)!;
+      const front = t.at[1] > 4.5;   // 앞 줄 탁자는 앞(+z)에서, 뒤 줄은 뒤에서 닦는다
+      return { at: [t.at[0], t.at[1] + (front ? 0.62 : -0.62)] as [number, number], face: front ? Math.PI : 0 };
+    }),
+  };
   const gukbap: Dining = { shop: 'gukbap', order: [[22.5, 2.6], [23.9, 2.6]].map(([x, z]) => ({ at: [x, z] as [number, number], face: Math.PI })), seats: [] };
   // 4인 식탁 — 의자는 앞뒤(z)에 둘씩
   [21.4, 24.2, 27.0, 29.8].forEach((x, c) => {
@@ -677,6 +702,16 @@ function downstairs(): ModuleDef {
       gukbap.seats.push({ at, face, on: id, lift: 0.22, table: t, dish: [x + dx, z + dz * 0.32], dishY: 0.745 });
     }
   });
+  // 점원 — 육수 솥·국수 솥·뚝배기 선반 앞, 카운터 안. 카운터 왼쪽(x 19.7..21.7)·오른쪽으로 드나든다. 마감엔 식탁 끝에서 닦는다
+  gukbap.staff = {
+    counter: { at: [23.7, 1.25], face: 0 },
+    stations: [
+      { at: [20.9, 1.25], face: Math.PI, cook: [20.9, 1.2, 0.5] },   // 육수 솥
+      { at: [22.3, 1.2], face: Math.PI, cook: [22.4, 1.0, 0.4] },    // 국수 솥
+      { at: [27.3, 0.95], face: Math.PI },                          // 뚝배기 선반
+    ],
+    wipe: [21.4, 24.2, 27.0, 29.8].map((x) => ({ at: [x - 0.95, 4.3] as [number, number], face: Math.PI / 2 })),
+  };
   return {
     size: [W, D],
     floors: [
@@ -687,6 +722,7 @@ function downstairs(): ModuleDef {
     items, blocks, desks: [],
     dining: [burger, gukbap],
     flight: { ...FLIGHT, drop: DOWN_DROP },
+    lift: LIFT,
     labels: [
       { name: '티렉스 버거', at: [10.0, 6.23], y: 1.92, axis: 'x', span: 0.84, style: 'burger' },
       { name: '장보고 국밥·국수', at: [20.5, 6.23], y: 1.92, axis: 'x', span: 0.84, style: 'gukbap' },

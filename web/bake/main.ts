@@ -7,15 +7,15 @@
 //   objects 가구와 벽
 // 가구(items)는 따로도 굽는다 — 캐릭터 앞에 다시 그려 가린다. 기준점은 모두 모듈 원점.
 import * as THREE from 'three';
-import { buildBody, buildFace, buildHair, buildAcc, buildCap, buildItem, buildFloor, buildTall } from '../src/scene/models.ts';
+import { buildBody, buildFace, buildHair, buildAcc, buildCap, buildHat, buildItem, buildFloor, buildTall } from '../src/scene/models.ts';
 import { PALETTE, FOREIGN_COLOR, DIRS, SKINS, HEAD_Y } from '../src/scene/layout.ts';
-import { OUTFITS, BUILD_LIST, BUILDS, BODY_H, BODY_Y0, shapeKey, HAIRS, HAIR_COLORS, ACCENTS, ACCS, ACCENT_ACC, HAIR_ACC, WIDE_ACC } from '../src/scene/appearance.ts';
+import { OUTFITS, CLERK, CLERK_COLORS, BUILD_LIST, BUILDS, BODY_H, BODY_Y0, shapeKey, HAIRS, HAIR_COLORS, ACCENTS, ACCS, ACCENT_ACC, HAIR_ACC, WIDE_ACC } from '../src/scene/appearance.ts';
 import { MODULES, type ModuleType } from '../src/scene/modules.ts';
 import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
 import { buildFish, FISH_KINDS } from '../src/scene/aquarium.ts';
 import { buildScorpion, buildCactus, SCORPION_FRAMES, CACTUS_FRAMES, type CactusPose } from '../src/scene/desert.ts';
 import { buildFood, FOODS } from '../src/scene/diner.ts';
-import { bodyKey, faceKey, hairKey, accKey, capKey, dinoKey, fishKey, scorpionKey, cactusKey, foodKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
+import { bodyKey, faceKey, hairKey, accKey, capKey, hatKey, dinoKey, fishKey, scorpionKey, cactusKey, foodKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
 
 const SCALE = 96;                                      // 세계 1 = 96 구운 픽셀 (화면 2배 밀도에서 또렷하게)
 const VIEW = new THREE.Vector3(18, 16.5, 18);          // 시제품 카메라 방향 (CX+18, 17, CZ+18) → (CX, 0.5, CZ)
@@ -150,6 +150,11 @@ async function bake() {
     const s = shoot(buildBody(color, shapeKey(o, b), sit), foot);
     if (s) chars.set('b:' + bodyKey(color, shapeKey(o, b), sit), s);
   }
+  // 식당가 점원 — 가게 색 셔츠 × 앞치마 × 몸집 (wetherilli 026)
+  for (const color of CLERK_COLORS) for (const b of BUILD_LIST) for (const sit of [false, true]) {
+    const s = shoot(buildBody(color, shapeKey('apron', b), sit), foot);
+    if (s) chars.set('b:' + bodyKey(color, shapeKey('apron', b), sit), s);
+  }
   // 머리 층 — 얼굴(피부) · 머리카락(모양 × 색) · 치장품(하나씩, 색 × 목의 것은 몸 굵기) · 모자, 모두 × 방향.
   // 보이지 않는 얼굴·몸을 함께 두어, 그 뒤로 돌아간 머리카락·넥타이·안경다리는 지운다. 그림 창은 그 층으로만 잡는다
   const headAt = new THREE.Vector3(0, HEAD_Y, 0);
@@ -172,6 +177,7 @@ async function bake() {
       for (const c of colors) for (const wide of WIDE_ACC.has(acc) ? [false, true] : [false]) layer(accKey(acc, c, wide, d), buildAcc(acc, c, wide, rot), wide);
     }
     layer(capKey(d), buildCap(rot));
+    for (const { hat } of Object.values(CLERK)) layer(hatKey(hat, d), buildHat(hat, rot));
   }
 
   // 공룡 조각 — 색 × (걷기 frame 셋 · 먹기 · 두리번) × 방향

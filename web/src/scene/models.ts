@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {
   SCREEN_OFF, CAP, HEAD_Y, SIT_LIFT, PARTITION_H, RASH_WALL_H, type Rect,
 } from './layout.ts';
-import { BUILDS, BODY_H, BODY_Y0, type Build, type Outfit, type Hair, type Acc } from './appearance.ts';
+import { BUILDS, BODY_H, BODY_Y0, apronOf, type Build, type Outfit, type Hair, type Acc, type Hat } from './appearance.ts';
 import { MODULES, DOOR_TOP, type Item, type ModuleType } from './modules.ts';
 import { PROPS } from './props.ts';
 import { buildAquaItem } from './aquarium.ts';
@@ -829,6 +829,10 @@ const lighten = (c: number, t: number) => {
   const ch = (s: number) => Math.round(((c >> s) & 255) + (255 - ((c >> s) & 255)) * t) << s;
   return ch(16) | ch(8) | ch(0);
 };
+const darken = (c: number, t: number) => {
+  const ch = (s: number) => Math.round(((c >> s) & 255) * (1 - t)) << s;
+  return ch(16) | ch(8) | ch(0);
+};
 const TROUSERS = 0x3d3d3a, SKIRT = 0x444441, COAT = 0xf4f3ee, SHIRT = 0xfafafa;
 
 // 캐릭터는 몸과 머리를 따로 굽고 화면이 겹친다 — 생김새(머리 모양·피부·옷 꼴)를 늘려도 조각 수가 곱해지지 않게.
@@ -867,6 +871,14 @@ export function buildBody(color: number, shape: string, sit: boolean): THREE.Gro
         seg(y0, 0.05, rr, rr, lighten(color, 0.6));
       }
       break;
+    case 'apron': {                                                               // 식당가 점원 — 셔츠는 색, 허리 아래 두른 앞치마와 끈 (몸이 원기둥이라 두른 꼴)
+      const ap = apronOf(color);
+      seg(0, H, 0.26, 0.32, color);
+      seg(H * 0.66, H * 0.2, 0.285, 0.29, ap);                                     // 가슴 받이
+      seg(0.02, H * 0.62, 0.3, 0.34, ap);                                         // 앞치마
+      seg(H * 0.6, 0.035, 0.305, 0.305, darken(ap, 0.35));                     // 허리끈
+      break;
+    }
     default: seg(0, H, 0.26, 0.32, color);
   }
   if (sit) { b.scale.y = 0.82; b.position.y = cy * (1 - 0.82); g.position.y = SIT_LIFT; }   // 가운데를 두고 줄인다
@@ -1020,3 +1032,26 @@ export function buildCap(rot: number): THREE.Group {
   return g;
 }
 
+
+// 식당가 점원 모자 (wetherilli 026) — 버거집 챙 모자(초록, 귤색 챙·띠), 국밥집 흰 두건(뒤에 매듭). 머리카락이 뚫고 나오지 않게 높게
+export function buildHat(hat: Hat, rot: number): THREE.Group {
+  const g = new THREE.Group();
+  const y = HEAD_Y;
+  if (hat === 'visor') {
+    mesh(g, new THREE.CylinderGeometry(0.25, 0.265, 0.17, 12), 0x2f8f5b, 0, y + 0.2, 0);
+    mesh(g, new THREE.CylinderGeometry(0.267, 0.267, 0.04, 12), 0xef8a2b, 0, y + 0.13, 0);
+    const brim = mesh(g, new THREE.BoxGeometry(0.36, 0.03, 0.22), 0xef8a2b, 0, y + 0.12, 0.26);
+    brim.rotation.x = 0.12;
+  } else {
+    const c = 0xf2ece0;
+    mesh(g, new THREE.SphereGeometry(0.272, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2.1), c, 0, y + 0.04, 0);
+    mesh(g, new THREE.CylinderGeometry(0.275, 0.275, 0.07, 12), darken(c, 0.12), 0, y + 0.08, 0);   // 접은 단
+    mesh(g, new THREE.SphereGeometry(0.06, 6, 4), c, 0, y + 0.1, -0.29);                              // 매듭
+    for (const s of [-1, 1]) {
+      const t = mesh(g, new THREE.BoxGeometry(0.06, 0.16, 0.02), c, s * 0.05, y - 0.0, -0.3);
+      t.rotation.z = s * 0.3;
+    }
+  }
+  g.rotation.y = rot;
+  return g;
+}

@@ -52,6 +52,13 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
       ...(w.aqua?.view ?? []).map((v, i) => [`수족관${i}`, v.at] as [string, [number, number]]),
       ...w.dining.flatMap((dn) => dn.order.map((p, i) => [`${dn.shop} 주문${i}`, p.at] as [string, [number, number]])),
       ...w.dining.flatMap((dn) => dn.seats.map((p, i) => [`${dn.shop} 자리${i}`, p.at] as [string, [number, number]])),
+      // 점원·바깥 손님 (wetherilli 026) — 엘리베이터, 카운터 안·조리대 앞·마감 때 닦는 자리
+      ['식당가 엘리베이터', w.lift!],
+      ...w.dining.flatMap((dn) => dn.staff ? [
+        [`${dn.shop} 카운터 안`, dn.staff.counter.at] as [string, [number, number]],
+        ...dn.staff.stations.map((p, i) => [`${dn.shop} 조리대${i}`, p.at] as [string, [number, number]]),
+        ...dn.staff.wipe.map((p, i) => [`${dn.shop} 닦기${i}`, p.at] as [string, [number, number]]),
+      ] : []),
     ];
     const bad: string[] = [];
     // 문에서 모든 자리로, 모든 자리에서 문으로, 그리고 휴게실 첫 자리와 서로
@@ -140,10 +147,15 @@ test('아래층 식당가 — 문에서 식당 자리까지 계단으로만 오�
   // 자리는 모두 아래층 바닥 높이
   for (const p of spots) assert.equal(heightAt(w, p[0], p[1]), w.lower!.y);
   const bad: string[] = [];
-  for (const to of spots) for (const [from, back] of [[w.door, false], [w.lounge[0].at, true]] as const) {
+  // 바깥 손님 — 엘리베이터에서 계단으로 올라 테라스 구경 자리까지도 (wetherilli 026)
+  const visits = [...(w.aqua?.view ?? []).map((v) => v.at), ...(w.pen?.feed ?? []).map((f) => f.at)];
+  for (const v of visits) for (const [from, back] of [[w.lift!, false], [w.lift!, true]] as const) checkWalk(from, v, back);
+  for (const to of spots) for (const [from, back] of [[w.door, false], [w.lounge[0].at, true]] as const) checkWalk(from, to, back);
+  assert.deepEqual(bad.slice(0, 10), [], `${bad.length}건`);
+  function checkWalk(from: [number, number], to: [number, number], back: boolean) {
     const [a, b] = back ? [to, from] : [from, to];
     const path = nav.findPath(a, b);
-    if (!path.length) { bad.push(`${a} → ${b}: 길 없음`); continue; }
+    if (!path.length) { bad.push(`${a} → ${b}: 길 없음`); return; }
     let p = a, h = heightAt(w, a[0], a[1]), stairs = false;
     for (const q of path) {
       const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 0.05));
@@ -158,5 +170,4 @@ test('아래층 식당가 — 문에서 식당 자리까지 계단으로만 오�
     }
     if (!stairs) bad.push(`${a} → ${b}: 계단을 지나지 않았다`);
   }
-  assert.deepEqual(bad.slice(0, 10), [], `${bad.length}건`);
 });

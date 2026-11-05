@@ -19,7 +19,7 @@ const ACC_NAME: Record<Acc, string> = {
   glasses: '안경', round: '동그란 안경', beard: '턱수염', mustache: '콧수염', headphones: '헤드폰', headband: '머리띠', beanie: '비니',
   tie: '넥타이', bowtie: '나비넥타이', lanyard: '사원증', scarf: '목도리', necklace: '목걸이',
 };
-const OUTFIT_NAME: Record<Outfit, string> = { suit: '정장', dress: '원피스', pants: '셔츠·바지', skirt: '치마', coat: '실험 가운', stripe: '줄무늬 니트' };
+const OUTFIT_NAME: Record<Outfit, string> = { suit: '정장', dress: '원피스', pants: '셔츠·바지', skirt: '치마', coat: '실험 가운', stripe: '줄무늬 니트', apron: '앞치마' };   // apron 은 점원만 — 고르는 목록(OUTFITS)엔 없다
 const BUILD_NAME: Record<Build, string> = { m: '보통', t: '키 크고 마른', s: '작은', w: '큰 몸집' };
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 

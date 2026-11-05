@@ -1,5 +1,5 @@
 import type { Agent } from '../types.ts';
-import { SKINS } from './layout.ts';
+import { SKINS, PALETTE } from './layout.ts';
 import { personOf, peopleVersion } from './people.ts';
 
 // 생김새 — 기본은 id 로 정해 늘 같다. 여자·남자 반반, 짜 둔 사람(머리 모양·머리 색·치장품·몸집)·피부·옷. tmux 사람은 모자를 쓴다.
@@ -11,7 +11,8 @@ export type Acc =
   | 'glasses' | 'round' | 'beard' | 'mustache' | 'headphones' | 'headband' | 'beanie'   // 머리
   | 'tie' | 'bowtie' | 'lanyard' | 'scarf' | 'necklace';                                // 목 — 머리 조각에 함께 굽는다
 export type Build = 'm' | 't' | 's' | 'w';   // 보통 · 키 크고 마른 · 키 작은 · 몸집 큰
-export type Outfit = 'suit' | 'dress' | 'pants' | 'skirt' | 'coat' | 'stripe';
+export type Outfit = 'suit' | 'dress' | 'pants' | 'skirt' | 'coat' | 'stripe' | 'apron';   // apron 은 식당가 점원만 (고르는 목록 OUTFITS 엔 없다)
+export type Hat = 'visor' | 'bandana';   // 점원 모자 — 버거집 챙 모자, 국밥집 두건
 export interface Persona { hair: Hair; hc: number; acc: Acc[]; build: Build; accent: number }
 
 // k: 몸 높이 배, r: 몸 굵기 배. 머리는 몸 꼭대기를 따라 lift 만큼 오르내린다
@@ -79,6 +80,7 @@ export const shapeKey = (o: Outfit, b: Build) => `${o}-${b}`;
 export interface Appearance {
   female: boolean; hair: Hair; hc: number; acc: Acc[]; accent: number;
   skin: number; outfit: Outfit; build: Build; cap: boolean;
+  hat?: Hat;   // 식당가 점원 (wetherilli 026)
 }
 export type Custom = Partial<Omit<Appearance, 'cap'>>;
 export const shapeOf = (L: Pick<Appearance, 'outfit' | 'build'>) => shapeKey(L.outfit, L.build);
@@ -121,3 +123,24 @@ export function appearanceOf(a: Pick<Agent, 'id' | 'kind'>): Appearance {
   return L;
 }
 
+
+// ── 식당가 점원·바깥 손님 (wetherilli 026) — 세션이 아니라 고칠 수 없다. 생김새는 id 로만 정한다.
+// 점원은 가게마다 옷으로 가른다: 버거집 초록 셔츠·귤색 앞치마·초록 챙 모자, 국밥집 남색 셔츠·생성 앞치마·흰 두건
+export const CLERK = {
+  burger: { color: 0x2f8f5b, apron: 0xef8a2b, hat: 'visor' as Hat },
+  gukbap: { color: 0x3b3f5c, apron: 0xe9dfc8, hat: 'bandana' as Hat },
+};
+export const CLERK_COLORS = Object.values(CLERK).map((c) => c.color);
+export const apronOf = (color: number) => Object.values(CLERK).find((c) => c.color === color)?.apron ?? 0xf4f3ee;
+export function npcLook(id: string, role: 'clerk' | 'guest', shop: keyof typeof CLERK): { look: Appearance; color: number } {
+  const female = bornFemale(id);
+  if (role === 'clerk') {
+    const L = defaultLook(id, female, true);   // 모자 밖으로 머리카락이 뚫고 나오지 않는 사람 가운데서
+    const acc = L.acc.filter((a) => FACE_ACC.includes(a));   // 머리에 쓰는 것·목의 것은 앞치마·모자와 겹친다
+    return { look: { ...L, acc, female, cap: false, outfit: 'apron', hat: CLERK[shop].hat }, color: CLERK[shop].color };
+  }
+  const L = defaultLook(id, female, false);
+  // 손님은 연구소 사람이 아니니 실험 가운은 입지 않는다
+  return { look: { ...L, female, cap: false, outfit: L.outfit === 'coat' ? 'pants' : L.outfit }, color: GUEST_COLORS[hash(id, 9) % GUEST_COLORS.length] };
+}
+const GUEST_COLORS = PALETTE;

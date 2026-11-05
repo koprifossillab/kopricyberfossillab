@@ -45,6 +45,7 @@ export const faceKey = (skin: number, dir: number) => `face-${hex6(skin)}-${dir}
 export const hairKey = (hair: string, hc: number, dir: number) => `hair-${hair}-${hex6(hc)}-${dir}`;
 export const accKey = (acc: string, color: number, wide: boolean, dir: number) => `acc-${acc}-${hex6(color)}${wide ? '-w' : ''}-${dir}`;
 export const capKey = (dir: number) => `cap-${dir}`;
+export const hatKey = (hat: string, dir: number) => `hat-${hat}-${dir}`;   // 식당가 점원 모자 (wetherilli 026)
 
 // 머리 층을 겹칠 차례. 얼굴 → (앞을 보면) 머리카락 → 얼굴·목의 것 / (등을 보이면) 얼굴·목의 것 → 머리카락 → 쓰는 것 → 모자.
 // 층마다 얼굴·몸에 가린 곳은 굽기에서 이미 지웠다 — 층끼리 가리는 것만 차례로 맞춘다(등 뒤에서는 긴 머리가 안경다리·목도리를 덮는다).
@@ -59,6 +60,7 @@ export function headLayers(atlas: Atlas, L: Appearance, dir: number): SpriteRect
     ...(front ? [hair, ...near] : [...near, hair]),
     ...acc(HEAD_ACC),
     ...(L.cap ? [atlas.heads[capKey(dir)]] : []),
+    ...(L.hat ? [atlas.heads[hatKey(L.hat, dir)]] : []),
   ].filter((r): r is SpriteRect => !!r);
 }
 
