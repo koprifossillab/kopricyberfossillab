@@ -11,7 +11,8 @@ import type { Rect } from './layout.ts';
 import type { Office } from '../types.ts';
 import {
   MODULES, TERRACE_D, DOOR_TOP, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, ENTRANCE_DOOR, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
-  type DeskKind, type ModuleType, type Plaque, type Seat, type Item,
+  DOWN_D, DOWN_DROP,
+  type DeskKind, type ModuleType, type Plaque, type Seat, type Item, type Dining,
 } from './modules.ts';
 
 export const MAX_ROWS = 3;   // 사무실 줄이 셋을 넘으면 남는 프로젝트는 공용실로
@@ -32,7 +33,7 @@ const BACKWALL: Record<string, ModuleType> = {
   'office-s': 'backwall', 'office-desert': 'backwall-desert', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
-export interface Placed { type: ModuleType; at: [number, number]; label?: string }
+export interface Placed { type: ModuleType; at: [number, number]; label?: string; y?: number }   // y: 바닥 높이 (아래층은 −DOWN_DROP)
 export interface WorldDesk { at: [number, number]; kind: DeskKind; room: string; module: number; item: string }
 export interface WorldItem extends Item { module: number; key: string }   // key = `${module}:${id}`
 
@@ -57,6 +58,11 @@ export interface World {
   desert: { roam: Rect; home: [number, number]; room: string }[];   // 사막 방마다 — 전갈·선인장이 다니는 곳
   labels: Plaque[];
   door: [number, number];
+  // 아래층 식당가 (wetherilli 025) — 자리는 세계 좌표, on 은 WorldItem.key. dishY 는 세계 높이(바닥 높이를 더했다)
+  dining: (Omit<Dining, 'seats'> & { seats: (Dining['seats'][number] & { key: string })[] })[];
+  // 높이 — z ≥ z0 이면 아래층(y), 계단(landing·steps)은 위에서 아래로 이어진다. 아래층이 없으면 null
+  lower: { z0: number; y: number; landing: Rect; steps: Rect } | null;
+  top: number;                     // 위층 건물의 깊이 (배경이 아래 두 층 벽을 여기에 세운다) — d 는 아래층까지
 }
 
 export const isRash = (project: string) => /^rash-company/.test(project);
@@ -105,9 +111,11 @@ export function buildWorld(offices: Office[]): World {
   modules.push({ type: 'service', at: [BUILDING_W, frontZ] });
   modules.push({ type: 'library', at: [BUILDING_W, 0] });
   modules.push({ type: 'terrace', at: [0, frontZ + FRONT_D] });   // 앞 블록 앞 야외 — 수족관·공룡 울타리·파라솔
+  const top = frontZ + FRONT_D + TERRACE_D;
+  modules.push({ type: 'downstairs', at: [0, top], y: -DOWN_DROP });   // 테라스 앞, 반 층 아래 식당가
 
   const w: World = {
-    w: BUILDING_W + ENTRANCE_W, d: frontZ + FRONT_D + TERRACE_D, modules, rooms,
+    w: BUILDING_W + ENTRANCE_W, d: top + DOWN_D, top, modules, rooms, dining: [], lower: null,
     desks: [], items: [], blocks: [], lounge: [], deskRest: [], core: [], bench: [], stand: [], labels: [],
     restroom: { male: [], female: [] }, search: [], desert: [], pen: null, aqua: null, breeze: [],
     door: [BUILDING_W + ENTRANCE_DOOR[0], entZ + ENTRANCE_DOOR[1]],   // 엘리베이터·계단 앞
@@ -155,7 +163,15 @@ export function buildWorld(offices: Office[]): World {
       w.restroom.male.push(...def.restroom.male.map((p) => mv(p, o)));
       w.restroom.female.push(...def.restroom.female.map((p) => mv(p, o)));
     }
-    for (const l of def.labels ?? []) w.labels.push({ ...l, at: mv(l.at, o) });
+    for (const l of def.labels ?? []) w.labels.push({ ...l, at: mv(l.at, o), y: l.y + (m.y ?? 0) });
+    for (const dn of def.dining ?? []) {
+      w.dining.push({
+        shop: dn.shop,
+        order: dn.order.map((p) => ({ ...p, at: mv(p.at, o) })),
+        seats: dn.seats.map((st) => ({ ...st, at: mv(st.at, o), dish: mv(st.dish, o), dishY: st.dishY + (m.y ?? 0), key: `${i}:${st.on}` })),
+      });
+    }
+    if (def.flight) w.lower = { z0: o[1], y: m.y ?? 0, landing: mr(def.flight.landing, o), steps: mr(def.flight.steps, o) };
     // 사무실 명판 — 앞 칸막이 출입구 위 (빈 사무실은 이름 없이)
     if (m.type === 'boss' || m.type === 'hq') {
       w.labels.push({ name: m.type === 'hq' ? '본부장실' : `${m.label} 부장실`, at: [o[0] + MODULES[m.type].size[0] / 2, o[1] + OFFICE_D], y: DOOR_TOP + 0.12, axis: 'x', span: 1.4, style: 'boss' });
@@ -166,6 +182,16 @@ export function buildWorld(offices: Office[]): World {
     }
   });
   return w;
+}
+
+// 걷는 자리의 바닥 높이 — 위층 0, 아래층 lower.y, 계단 층참은 0, 단은 x 로 0 → lower.y
+const inRect = (x: number, z: number, r: Rect) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
+export function heightAt(w: World, x: number, z: number): number {
+  const L = w.lower;
+  if (!L || z < L.z0) return 0;
+  if (inRect(x, z, L.landing)) return 0;
+  if (inRect(x, z, L.steps)) return L.y * Math.min(1, Math.max(0, (x - L.steps[0]) / (L.steps[2] - L.steps[0])));
+  return L.y;
 }
 
 export const seatOf = (d: [number, number]): [number, number] => [d[0], d[1] + CHAIR_DZ];

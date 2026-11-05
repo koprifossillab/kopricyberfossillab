@@ -2,6 +2,7 @@
 // 모두 바닥 가운데 (x, z), 발은 y=0, 앞은 +z. size 는 바닥 범위 [가로, 세로] — 걸음 막기에 쓴다.
 // rot 은 y 축 둘레(라디안). 벽에 거는 것(벽시계·게시판)은 뒷면이 z = -size[1]/2 에 닿는다.
 import * as THREE from 'three';
+import { DINER_PROPS } from './diner.ts';
 
 const mats = new Map<string, THREE.Material>();
 function mat(c: number): THREE.MeshLambertMaterial {
@@ -809,3 +810,6 @@ export const PROPS: Record<string, Prop> = {
     bx(g, 0.03, 0.06, 0.005, 0xd85a30, 0.6, y + 0.27, z + 0.028, false);          // 「지금」 표시
   }),
 };
+
+// 아래층 식당가 소품 (diner.ts) — 같은 이름 목록에 넣어 modules.ts 의 prop() 으로 놓는다
+Object.assign(PROPS, DINER_PROPS);

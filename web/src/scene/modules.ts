@@ -5,6 +5,7 @@ import { PROPS } from './props.ts';
 import { aquariumModule, AQUA_VIEW, TANKS, type AquaKind } from './aquarium.ts';
 import { SKELETON_SIZE, type SkeletonKind } from './skeleton.ts';
 import type { StairKind } from './stairs.ts';
+import type { Shop } from './meals.ts';
 
 export type ItemKind =
   | 'desk' | 'call' | 'rashdesk' | 'chair' | 'rashchair' | 'partition' | 'rashwall' | 'oldwall'
@@ -24,11 +25,19 @@ export type ItemKind =
 
 export interface Item { id: string; kind: ItemKind; at: [number, number]; box: Rect; h?: number; rot?: number; prop?: string }
 
+// 식당 하나 — order: 카운터·키오스크 앞에 서는 곳, seats: 먹는 자리(on 은 의자 item id, table 은 탁자 id — 같은 탁자 사람끼리 이야기한다),
+// dish: 음식을 놓는 식탁 위 자리, dishY: 식탁 윗면 높이 (음식 그림은 따로 구워 먹는 동안만 놓는다)
+export interface Dining {
+  shop: Shop;
+  order: { at: [number, number]; face: number }[];
+  seats: { at: [number, number]; face: number; on: string; lift: number; table: string; dish: [number, number]; dishY: number }[];
+}
+
 export type DeskKind = 'desk' | 'call' | 'rashdesk' | 'bossdesk';
 export type Slot = 'project' | 'center' | 'general' | 'boss';   // boss: 부장실(프로젝트 붙은 것은 그 프로젝트, 아니면 본부장실)   // 책상이 어느 방의 것인가 (project 는 모듈을 놓을 때 정해진다)
 
 // span — 명판 가로 길이(세계 단위). 문틀 폭에 맞춘다 (사용자: 「이름판이 문틀보다 커서 이상하다」)
-export interface Plaque { name: string; room?: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss' | 'old'; span?: number; tilt?: number }   // tilt: 명판을 기울이는 각(도)
+export interface Plaque { name: string; room?: string; at: [number, number]; y: number; axis: 'x' | 'z'; style?: 'rash' | 'project' | 'small' | 'boss' | 'old' | 'burger' | 'gukbap'; span?: number; tilt?: number }   // tilt: 명판을 기울이는 각(도)
 
 export interface Seat { at: [number, number]; pose: 'sit' | 'stand'; face: number; on?: string; group: string; lift: number }
 
@@ -48,6 +57,8 @@ export interface ModuleDef {
   aqua?: { view: typeof AQUA_VIEW; tanks: typeof TANKS };   // 수족관 관람 자리와 수조(물고기가 다니는 곳)
   breeze?: { at: [number, number]; face: number }[];   // 테라스 난간 — 바람 쐬러 서는 곳
   desert?: { roam: Rect; home: [number, number] };   // 사막 방 — 전갈이 기는 곳, 걸어다니는 선인장이 자는 자리
+  dining?: Dining[];                                // 아래층 식당 — 주문하는 곳과 먹는 자리 (wetherilli 025)
+  flight?: { landing: Rect; steps: Rect; drop: number };   // 위층(테라스)과 이어지는 계단 — 높이는 world.heightAt
   pen?: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] };   // 공룡 울타리
   // 방 이름 명판 — 벽에 붙인다. at 은 벽 위의 바닥 자리, y 는 높이, axis 는 벽이 뻗은 방향(x: +z 를 보는 벽, z: +x 를 보는 벽)
   labels?: Plaque[];
@@ -552,7 +563,8 @@ function terrace(): ModuleDef {
   glass.forEach((r, i) => { items.push({ id: `glass${i}`, kind: 'glasswall', at: [(r[0] + r[2]) / 2, 0], box: r }); blocks.push(pad(r)); });
   items.push(door('door0', 3.7, 0, 1.4, 'x'), door('door1', 18.7, 0, 1.4, 'x'), door('door2', 29.3, 0, 1.4, 'x'));
   // 바깥 난간 — 앞(z=D)·왼쪽(x=0)·오른쪽(x=W)
-  const rails: Rect[] = [[0, D - T / 2, W, D + T / 2], [-T / 2, T / 2, T / 2, D], [W - T / 2, T / 2, W + T / 2, D]];
+  // 앞 난간 왼쪽에 틈 — 아래층 식당가로 내려가는 계단 꼭대기(downstairs 의 FLIGHT.landing)와 맞춘다
+  const rails: Rect[] = [[0, D - T / 2, TERRACE_GAP[0], D + T / 2], [TERRACE_GAP[1], D - T / 2, W, D + T / 2], [-T / 2, T / 2, T / 2, D], [W - T / 2, T / 2, W + T / 2, D]];
   rails.forEach((r, i) => { items.push({ id: `rail${i}`, kind: 'railing', at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], box: r }); blocks.push(pad(r)); });
   // 수족관 — 벽·문틀은 빼고 수조·벤치·장식만
   const aq = aquariumModule();
@@ -581,6 +593,7 @@ function terrace(): ModuleDef {
     prop('tall0', 'plant_tall', 0.55, 6.4), prop('bush0', 'plant_bush', 6.6, 6.4), prop('bush1', 'plant_bush', 16.4, 6.4),
     prop('tall1', 'plant_tall', 30.4, 6.4), prop('succ0', 'plant_succulent', 0.5, 0.55), prop('lamp0', 'floor_lamp', 6.6, 0.5),
     // 공룡 울타리 왼쪽 — 발굴 구석: 발자국 판(울타리 쪽을 본다)·체 거르기·석고 재킷. 왼쪽 끝에 랩터 골격
+    prop('foodstand', 'menu_stand', 0.6, 5.5),   // 계단 앞 입간판 — 「아래층 식당가」
     prop('footprint', 'footprint_slab', 17.6, 2.6, Math.PI / 2), prop('sieve', 'sieve_station', 17.75, 4.3),
     prop('jacket', 'plaster_jacket', 18.3, 5.85), prop('raptor', 'raptor_skeleton', 1.4, 1.5),
   ]);
@@ -601,9 +614,85 @@ function terrace(): ModuleDef {
       rect: penRect, feeder: [dn.pen!.feeder[0] + PEN_X, dn.pen!.feeder[1] + 0.3],
       feed: dn.pen!.feed.map((f) => ({ at: [f.at[0] + PEN_X, f.at[1] + 0.3] as [number, number], face: f.face, dino: [f.dino[0] + PEN_X, f.dino[1] + 0.3] as [number, number] })),
     },
-    breeze: [[1.2, 6.55], [3.4, 6.55], [5.6, 6.55], [15.2, 6.55], [0.55, 2.5], [30.45, 2.5]].map(([x, z], i) => ({
-      at: [x, z] as [number, number], face: i < 4 ? 0 : i === 4 ? -Math.PI / 2 : Math.PI / 2,
+    // 앞 난간 1.2 자리는 계단 틈이 되어 뺐다
+    breeze: [[3.4, 6.55], [5.6, 6.55], [15.2, 6.55], [0.55, 2.5], [30.45, 2.5]].map(([x, z], i) => ({
+      at: [x, z] as [number, number], face: i < 3 ? 0 : i === 3 ? -Math.PI / 2 : Math.PI / 2,
     })),
+  };
+}
+
+// ---- 아래층 식당가 (31×8) — 테라스 앞에 반 층(DOWN_DROP) 낮게 붙는다 (사용자 2026-11-05: 「약간 복층 느낌으로 아래 층…
+// 테라스 쪽에서 계단으로 내려가는 식」, 높이는 반 층으로 정함). 왼쪽 뒤에 테라스에서 내려오는 계단(뒤 벽을 따라 +x 로 내려간다),
+// 로비, 패스트푸드점 「티렉스 버거」, 한식집 「장보고 국밥·국수」, 앞쪽에 통로. 상표·실제 상호는 쓰지 않는다(이름은 지었다).
+// 좌표는 모듈 안의 것 — 바닥이 y=0, 화면은 world.ts 가 −DOWN_DROP 만큼 내려 붙인다. 뒤 벽(1.3)은 테라스 바닥 판 밑에 닿는다
+export const DOWN_W = BUILDING_W, DOWN_D = 8, DOWN_DROP = 1.8;
+export const FLIGHT = { landing: [1.0, 0, 2.3, 1.4] as Rect, steps: [2.3, 0, 5.3, 1.4] as Rect };   // 꼭대기 층참 · 내려가는 단(10단)
+export const TERRACE_GAP: [number, number] = [1.1, 2.2];   // 테라스 앞 난간 틈 (층참 폭 안)
+export const SHOP_X = { burger: 9.2, gukbap: 19.65 };       // 가게 왼쪽 칸막이
+function downstairs(): ModuleDef {
+  const W = DOWN_W, D = DOWN_D;
+  const items: Item[] = [], blocks: Rect[] = [];
+  const fl = FLIGHT;
+  items.push({ id: 'flight', kind: 'flight', at: [(fl.landing[0] + fl.steps[2]) / 2, (fl.landing[1] + fl.landing[3]) / 2], box: [fl.landing[0], fl.landing[1], fl.steps[2], fl.landing[3]], h: DOWN_DROP });
+  // 계단은 위(층참)와 아래 끝에서만 오르내린다 — 옆으로 들어가면 높이가 튄다. 층참 왼쪽과 계단 앞쪽(난간)을 막는다
+  blocks.push([0, 0, fl.landing[0], fl.landing[3] + 0.25], [fl.landing[0], fl.landing[3], fl.steps[2] - 0.4, fl.landing[3] + 0.25]);
+  // 가게 사이 칸막이(앞은 통로로 열림)·앞과 오른쪽 유리창
+  const walls: Rect[] = [[SHOP_X.burger - T / 2, 0, SHOP_X.burger + T / 2, 4.4], [SHOP_X.gukbap - T / 2, 0, SHOP_X.gukbap + T / 2, 4.4]];
+  walls.forEach((r, i) => { items.push({ id: `wall${i}`, kind: 'partition', at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], box: r }); blocks.push(pad(r)); });
+  const glass: Rect[] = [[0, D - T / 2, W, D + T / 2], [W - T / 2, 0, W + T / 2, D - T / 2]];
+  glass.forEach((r, i) => { items.push({ id: `glass${i}`, kind: 'glasswall', at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], box: r }); blocks.push(pad(r)); });
+  addProps(items, blocks, [
+    // 로비
+    prop('sign', 'food_sign', 7.6, 2.3), prop('cooler', 'water_cooler', 0.4, 2.2), prop('tall0', 'plant_tall', 0.45, 7.35),
+    prop('stand', 'menu_stand', 7.4, 5.6), prop('bush0', 'plant_bush', 8.55, 7.35),
+    // 티렉스 버거 — 뒤에 주방, 계산대·키오스크, 탁자 두 줄
+    prop('fryer', 'fryer', 10.6, 0.4), prop('grill', 'grill', 12.2, 0.4), prop('fountain', 'drink_fountain', 14.4, 0.35),
+    prop('shake', 'shake_machine', 15.5, 0.35), prop('ffmenu', 'ff_menu', 12.4, 0.05),
+    prop('ffcounter', 'ff_counter', 12.4, 1.9), prop('kiosk0', 'kiosk', 16.6, 1.9), prop('kiosk1', 'kiosk', 17.5, 1.9),
+    prop('trayret', 'tray_return', 18.9, 1.9), prop('fftrash', 'trash_bin', 18.95, 0.45), prop('ffpylon', 'shop_pylon', 10.0, 6.1),
+    // 장보고 국밥·국수 — 뒤에 육수 솥·국수 솥·김치 냉장고·뚝배기 선반·셀프 코너, 계산대, 4인 식탁 넷
+    prop('cauldron', 'soup_cauldron', 20.9, 0.5), prop('noodle', 'noodle_boiler', 22.4, 0.4), prop('kfridge', 'kimchi_fridge', 25.4, 0.35),
+    prop('krmenu', 'kr_menu', 24.0, 0.05), prop('krshelf', 'kr_shelf', 27.3, 0.28), prop('selfbar', 'self_bar', 29.6, 0.3),
+    prop('krcounter', 'kr_counter', 23.2, 1.9), prop('krtrash', 'trash_bin', 30.55, 1.4), prop('krpylon', 'shop_pylon', 20.5, 6.1),
+  ]);
+  const burger: Dining = { shop: 'burger', order: [[11.0, 2.65], [12.4, 2.65], [13.8, 2.65], [16.6, 2.5], [17.5, 2.5]].map(([x, z]) => ({ at: [x, z] as [number, number], face: Math.PI })), seats: [] };
+  // 2인 탁자 — 의자는 양옆(x)에서 탁자를 본다
+  [10.8, 13.4, 16.0, 18.5].forEach((x, c) => [3.85, 5.35].forEach((z, r) => {
+    const t = `fft${c}_${r}`;
+    addProps(items, blocks, [prop(t, 'ff_table', x, z)]);
+    for (const s of [-1, 1]) {
+      const at: [number, number] = [x + s * 0.62, z], face = -s * Math.PI / 2, id = `${t}s${s < 0 ? 0 : 1}`;
+      addProps(items, blocks, [prop(id, 'ff_stool', at[0], at[1], face)]);
+      burger.seats.push({ at, face, on: id, lift: 0.22, table: t, dish: [x + s * 0.18, z], dishY: 0.76 });
+    }
+  }));
+  const gukbap: Dining = { shop: 'gukbap', order: [[22.5, 2.6], [23.9, 2.6]].map(([x, z]) => ({ at: [x, z] as [number, number], face: Math.PI })), seats: [] };
+  // 4인 식탁 — 의자는 앞뒤(z)에 둘씩
+  [21.4, 24.2, 27.0, 29.8].forEach((x, c) => {
+    const t = `krt${c}`, z = 4.3;
+    addProps(items, blocks, [prop(t, 'kr_table', x, z)]);
+    for (const [dx, dz, face] of [[-0.33, -0.68, 0], [0.33, -0.68, 0], [-0.33, 0.68, Math.PI], [0.33, 0.68, Math.PI]] as const) {
+      const at: [number, number] = [x + dx, z + dz], id = `${t}s${gukbap.seats.length % 4}`;
+      addProps(items, blocks, [prop(id, 'kr_stool', at[0], at[1], face)]);
+      gukbap.seats.push({ at, face, on: id, lift: 0.22, table: t, dish: [x + dx, z + dz * 0.32], dishY: 0.745 });
+    }
+  });
+  return {
+    size: [W, D],
+    floors: [
+      { rect: [0, 0, W, D], color: 0xd6d2c6 },                                   // 로비·통로 — 밝은 돌
+      { rect: [SHOP_X.burger, 0, SHOP_X.gukbap, 6.4], color: 0xf3e6c9 },          // 버거집 (체크무늬는 flats)
+      { rect: [SHOP_X.gukbap, 0, W, 6.4], color: 0xcfa676 },                       // 한식집 마루
+    ],
+    items, blocks, desks: [],
+    dining: [burger, gukbap],
+    flight: { ...FLIGHT, drop: DOWN_DROP },
+    labels: [
+      { name: '티렉스 버거', at: [10.0, 6.23], y: 1.92, axis: 'x', span: 0.84, style: 'burger' },
+      { name: '장보고 국밥·국수', at: [20.5, 6.23], y: 1.92, axis: 'x', span: 0.84, style: 'gukbap' },
+    ],
+    flats: ['diner'],
+    tall: ['backwall-down', 'leftwall-down'],
   };
 }
 
@@ -612,6 +701,7 @@ export const MODULES = {
   hq: bossRoom(true),
   'backwall-boss': { size: [BOSS_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
   terrace: terrace(),
+  downstairs: downstairs(),
   library: library(),
   'backwall-library': { size: [LIBRARY_W, 0], floors: [], items: [], blocks: [], desks: [], tall: ['backwall'] } as ModuleDef,
   service: service(),

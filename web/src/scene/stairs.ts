@@ -2,9 +2,9 @@
 // 새 세션은 여기로 올라오고(엘리베이터 앞에서 나타난다), 닫힌 세션은 여기로 내려간다 (사용자: 「입구 바깥쪽으로 아래로 내려가는 계단이나 엘리베이터」).
 // 계단은 바닥보다 낮게 그리지만 굽기에서 바닥과 따로 그려지므로 깊이 다툼은 없다 — 너무 깊으면 앞 바닥을 덮으니 몇 단만 보인다.
 import * as THREE from 'three';
-import type { Item, ItemKind } from './modules.ts';
+import { FLIGHT, type Item, type ItemKind } from './modules.ts';
 
-export const STAIR_KINDS = ['elevator', 'stairs'] as const;
+export const STAIR_KINDS = ['elevator', 'stairs', 'flight'] as const;
 export type StairKind = typeof STAIR_KINDS[number];
 
 const mats = new Map<string, THREE.Material>();
@@ -78,10 +78,48 @@ function stairs([x0, z0, x1, z1]: Item['box']): THREE.Group {
   return g;
 }
 
+// 아래층 식당가 계단 (wetherilli 025) — 모듈(downstairs) 바닥이 y=0, 꼭대기 층참은 y=drop(테라스 높이).
+// 층참(FLIGHT.landing)에서 +x 로 단(FLIGHT.steps)을 내려간다. 단은 바닥부터 쌓은 덩어리(밑이 비지 않게), 앞쪽(+z)에 난간,
+// 뒤는 아래층 뒤 벽(테라스 바닥 판 밑)에 붙는다
+const TREAD = 0xc9c4b6, TREAD_D = 0xa9a396, NOSING = 0xe0c070, SIDE = 0x8f8a7e;
+function flight(drop: number): THREE.Group {
+  const g = new THREE.Group();
+  const [lx0, z0, lx1, z1] = FLIGHT.landing, [sx0, , sx1] = FLIGHT.steps;
+  const d = z1 - z0, cz = (z0 + z1) / 2;
+  bx(g, lx1 - lx0, drop, d, SIDE, (lx0 + lx1) / 2, drop / 2, cz);                          // 층참 받침
+  bx(g, lx1 - lx0, 0.04, d, TREAD, (lx0 + lx1) / 2, drop + 0.02, cz, { cast: false });       // 층참 윗면
+  const N = 10, run = (sx1 - sx0) / N, rise = drop / N;
+  for (let i = 0; i < N; i++) {
+    const top = drop - rise * (i + 1);
+    const x = sx0 + run * (i + 0.5);
+    bx(g, run, top, d, SIDE, x, top / 2, cz);                                                 // 단 밑 덩어리
+    bx(g, run, 0.03, d, i % 2 ? TREAD : TREAD_D, x, top + 0.015, cz, { cast: false });        // 디딤판
+    bx(g, 0.04, 0.012, d - 0.04, NOSING, sx0 + run * i + 0.02, top + 0.032, cz, { cast: false });   // 미끄럼 방지 띠
+  }
+  // 앞쪽 난간 — 층참에서 아래 끝까지 손잡이가 기울어 내려온다
+  const zr = z1 - 0.04;
+  const post = (x: number, y0: number) => bx(g, 0.04, 0.95, 0.04, RAIL, x, y0 + 0.475, zr);
+  const yAt = (x: number) => x <= sx0 ? drop : Math.max(0, drop - ((x - sx0) / (sx1 - sx0)) * drop);
+  for (const x of [lx0 + 0.05, sx0, sx0 + (sx1 - sx0) / 2, sx1 - 0.25]) post(x, yAt(x) - (x > sx0 ? rise : 0));
+  const seg = (ax: number, bx_: number) => {
+    const ay = yAt(ax) + 0.95, by = yAt(bx_) + 0.95 - (bx_ > sx0 ? rise : 0);
+    const len = Math.hypot(bx_ - ax, by - ay);
+    const m = bx(g, len, 0.05, 0.05, RAIL, (ax + bx_) / 2, (ay + by) / 2, zr);
+    m.rotation.z = Math.atan2(by - ay, bx_ - ax);
+  };
+  seg(lx0 + 0.05, sx0);
+  seg(sx0, sx1 - 0.25);
+  // 층참 왼쪽에도 난간 (위층 쪽 틈만 연다)
+  bx(g, 0.04, 0.95, 0.04, RAIL, lx0 + 0.02, drop + 0.475, z0 + 0.25);
+  bx(g, 0.05, 0.05, d - 0.25, RAIL, lx0 + 0.02, drop + 0.95, (z0 + 0.25 + zr) / 2);
+  return g;
+}
+
 export function buildStairItem(it: Item): THREE.Group | null {
   switch (it.kind as ItemKind | StairKind) {
     case 'elevator': return elevator(it.box);
     case 'stairs': return stairs(it.box);
+    case 'flight': return flight(it.h ?? 1.8);
     default: return null;
   }
 }

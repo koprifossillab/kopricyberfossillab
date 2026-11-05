@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWorld } from './world.ts';
 import { Nav } from './nav.ts';
-import { seatOf, waitSpotOf } from './world.ts';
+import { seatOf, waitSpotOf, heightAt } from './world.ts';
 import type { Rect } from './layout.ts';
 
 // 이름이 GSM 이면 4인실, 나머지는 2인실 — 크기(size)는 화면이 쓰지 않는다
@@ -50,6 +50,8 @@ for (const offices of [OFFICES.slice(0, 2), OFFICES]) {
       ...w.stand.map((p, i) => [`서기${i}`, p] as [string, [number, number]]),
       ...(w.pen?.feed ?? []).map((f, i) => [`먹이${i}`, f.at] as [string, [number, number]]),
       ...(w.aqua?.view ?? []).map((v, i) => [`수족관${i}`, v.at] as [string, [number, number]]),
+      ...w.dining.flatMap((dn) => dn.order.map((p, i) => [`${dn.shop} 주문${i}`, p.at] as [string, [number, number]])),
+      ...w.dining.flatMap((dn) => dn.seats.map((p, i) => [`${dn.shop} 자리${i}`, p.at] as [string, [number, number]])),
     ];
     const bad: string[] = [];
     // 문에서 모든 자리로, 모든 자리에서 문으로, 그리고 휴게실 첫 자리와 서로
@@ -126,4 +128,35 @@ test('사막 방 — 전갈·선인장이 다니는 곳은 그 방 안이고 가
     const overlap = b[0] < roam[2] && b[2] > roam[0] && b[1] < roam[3] && b[3] > roam[1];
     assert.ok(!overlap, `걸음 막기 ${b.map((v) => v.toFixed(2)).join(',')} 가 사막 길과 겹친다`);
   }
+});
+
+test('아래층 식당가 — 문에서 식당 자리까지 계단으로만 오르내린다(걸음마다 높이가 튀지 않는다)', () => {
+  const w = buildWorld(OFFICES);
+  assert.ok(w.lower, '아래층이 있다');
+  assert.equal(w.dining.length, 2);
+  for (const dn of w.dining) assert.ok(dn.order.length >= 2 && dn.seats.length >= 8, dn.shop);
+  const nav = new Nav(w.w, w.d, w.blocks);
+  const spots = w.dining.flatMap((dn) => [...dn.order.map((p) => p.at), ...dn.seats.map((p) => p.at)]);
+  // 자리는 모두 아래층 바닥 높이
+  for (const p of spots) assert.equal(heightAt(w, p[0], p[1]), w.lower!.y);
+  const bad: string[] = [];
+  for (const to of spots) for (const [from, back] of [[w.door, false], [w.lounge[0].at, true]] as const) {
+    const [a, b] = back ? [to, from] : [from, to];
+    const path = nav.findPath(a, b);
+    if (!path.length) { bad.push(`${a} → ${b}: 길 없음`); continue; }
+    let p = a, h = heightAt(w, a[0], a[1]), stairs = false;
+    for (const q of path) {
+      const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 0.05));
+      for (let k = 1; k <= n; k++) {
+        const x = p[0] + ((q[0] - p[0]) * k) / n, z = p[1] + ((q[1] - p[1]) * k) / n;
+        const hh = heightAt(w, x, z);
+        if (Math.abs(hh - h) > 0.08) { bad.push(`${a} → ${b}: (${x.toFixed(2)}, ${z.toFixed(2)}) 에서 높이가 ${h.toFixed(2)} → ${hh.toFixed(2)}`); break; }
+        if (x > w.lower!.steps[0] && x < w.lower!.steps[2] && z > w.lower!.steps[1] && z < w.lower!.steps[3]) stairs = true;
+        h = hh;
+      }
+      p = q;
+    }
+    if (!stairs) bad.push(`${a} → ${b}: 계단을 지나지 않았다`);
+  }
+  assert.deepEqual(bad.slice(0, 10), [], `${bad.length}건`);
 });

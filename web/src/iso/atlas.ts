@@ -26,9 +26,11 @@ export interface Atlas {
   heads: Record<string, SpriteRect>;              // 머리 층 — faceKey·hairKey·accKey·capKey, 기준점 = 머리 가운데 (0, HEAD_Y, 0), 보통 몸집
   dinos: Record<string, SpriteRect>;              // dinoKey(), 기준점 = 발
   fish?: Record<string, SpriteRect>;              // fishKey(), 기준점 = 몸 가운데
-  critters?: Record<string, SpriteRect>;          // 사막 방 — scorpionKey()·cactusKey(), 기준점 = 발
+  critters?: Record<string, SpriteRect>;          // 사막 방 — scorpionKey()·cactusKey(), 기준점 = 발 · 음식 foodKey(), 기준점 = 식탁 윗면
 }
 
+// 아래층 식당 음식 — 먹는 사람 앞 식탁 위에 놓는다. 기준점 = 식탁 윗면 (wetherilli 025)
+export const foodKey = (kind: string, dir: number) => `food-${kind}-${dir}`;
 export const scorpionKey = (frame: number, dir: number) => `scorp-${frame}-${dir}`;
 export const cactusKey = (pose: string, frame: number, dir: number) => `cactus-${pose}-${frame}-${dir}`;
 export const fishKey = (kind: number, frame: number, dir: number) => `${kind}-${frame}-${dir}`;
