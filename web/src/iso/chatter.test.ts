@@ -18,7 +18,9 @@ test('대사 — 빈 줄이 없고 자리표는 {상대}·{방} 뿐', () => {
   // 혼잣말에는 {상대} 를 쓰지 않는다 — 말 건넬 사람이 없다
   for (const s of all([L.SOLO, L.SOLO_SEQS, L.WORK_SOLO, L.TIME_SOLO, L.DAY_SOLO, L.SEASON_SOLO, L.COFFEE, L.FEED, L.AQUA, L.SKEL, L.BREEZE, L.CENTER_SOLO,
     L.MENU_SOLO, L.MEAL_SOLO, L.QUEUE_SOLO, L.BURGER_QUEUE, L.GUKBAP_QUEUE, L.NOODLE_QUEUE, L.BURGER_EAT, L.GUKBAP_EAT, L.NOODLE_EAT,
-    L.TASTE, L.MEAL_GRUMBLE, L.MEAL_DONE]))
+    L.TASTE, L.MEAL_GRUMBLE, L.MEAL_DONE,
+    L.CLERK_ARRIVE, L.CLERK_LEAVE, L.CLERK_PREP, L.CLERK_PREP_BURGER, L.CLERK_PREP_GUKBAP, L.CLERK_IDLE, L.CLERK_BUSY, L.CLERK_QUIET, L.CLERK_CLOSE,
+    L.GUEST_BYE, L.GUEST_QUEUE, L.GUEST_PRAISE, L.GUEST_AQUA, L.GUEST_DINO]))
     assert.ok(!s.includes('{상대}'), s);
 });
 
@@ -121,4 +123,42 @@ test('식당 대화 — 계산대 앞은 주문·메뉴 얘기, 식탁은 먹는
   const eat = said('meal:burger:t0');
   assert.ok([...eat].some((s) => L.BURGER_EAT_DIALOGS.flat().includes(s)));
   assert.ok(![...eat].some((s) => L.GUKBAP_EAT_DIALOGS.flat().includes(s) && !L.BURGER_EAT_DIALOGS.flat().includes(s)));
+});
+
+// ── 점원·바깥 손님 (wetherilli 026)
+test('점원 혼잣말 — 하는 때·붐빔에 맞는다 (준비 땐 조리, 붐비면 「사람이 늘었네」, 한산하면 「조용하네」)', () => {
+  const pool = (...ls: string[][]) => new Set(ls.flat());
+  for (const s of soloSaid('staff', { role: 'clerk', phase: 'prep', shop: 'gukbap' })) assert.ok(pool(L.CLERK_PREP_GUKBAP, L.CLERK_PREP).has(s), s);
+  for (const s of soloSaid('staff', { role: 'clerk', phase: 'close', shop: 'burger' })) assert.ok(L.CLERK_CLOSE.includes(s), s);
+  const busy = soloSaid('staff', { role: 'clerk', phase: 'serve', crowd: 'busy', shop: 'burger' });
+  for (const s of busy) assert.ok(pool(L.CLERK_BUSY, L.CLERK_IDLE).has(s), s);
+  assert.ok(busy.has('요새 사람들이 늘었네'));
+  const quiet = soloSaid('staff', { role: 'clerk', phase: 'serve', crowd: 'quiet', shop: 'gukbap' });
+  for (const s of quiet) assert.ok(pool(L.CLERK_QUIET, L.CLERK_IDLE).has(s), s);
+  assert.ok(quiet.has('오늘 조용하네'));
+  // 뜸하게 — 혼자인 점원은 한 시간에 백 마디를 넘지 않는다 (쉼 25~55초)
+  const c = new Chatter();
+  let n = 0, prev: string | null = null;
+  for (let t = 0; t < 3600; t += 0.5) {
+    const s = c.step('staff', ['a'], t, () => ({ act: 'idle', room: '', name: '', role: 'clerk', phase: 'serve' }));
+    const cur = s ? `${s.text}` : null;
+    if (cur && cur !== prev) n++;
+    prev = cur;
+  }
+  assert.ok(n > 30 && n < 100, String(n));
+});
+
+test('계산대 — 점원이 있으면 점원이 먼저 말을 꺼내 손님과 주고받는다, 손님 말엔 「일부러 왔다」가 섞인다', () => {
+  const c = new Chatter();
+  const info = (w: string): Who => (w === 'k' ? { act: 'idle', room: '', name: '', role: 'clerk', shop: 'burger', crowd: 'normal' } : { act: 'idle', room: '공용실', name: `김${w}준` });
+  const talks = new Set([...L.ORDER_TALKS_BURGER, ...L.ORDER_TALKS_BUSY].map((d) => d[0]));
+  let clerkFirst = 0;
+  for (let t = 0; t < 20000; t += 0.5) {
+    const s = c.step('order:burger', ['a', 'k'], t, info);
+    if (s?.who === 'k') { assert.ok([...L.ORDER_TALKS_BURGER, ...L.ORDER_TALKS_BUSY].some((d) => d.some((x, i) => i % 2 === 0 && x === s.text)), s.text); if (talks.has(s.text)) clerkFirst++; }
+  }
+  assert.ok(clerkFirst > 5);
+  const eat = soloSaid('meal:gukbap:t0', { role: 'guest', food: 'noodle' });
+  assert.ok([...eat].some((s) => L.GUEST_PRAISE.noodle.includes(s)) && [...eat].some((s) => L.GUEST_PRAISE.any.includes(s)));
+  assert.ok(soloSaid('aqua', { role: 'guest' }).size > 0 && [...soloSaid('feed1', { role: 'guest' })].every((s) => L.GUEST_DINO.includes(s)));
 });

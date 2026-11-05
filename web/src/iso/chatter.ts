@@ -42,6 +42,8 @@ export function when(d = new Date()): { time: string; day: string | null; season
 // 무리 이름 → 그 자리의 대화·혼잣말 묶음. 시각·요일·계절 것은 가끔 섞는다
 function dialogFor(group: string, act: string | null, theme?: string, me?: Who): string[] {
   const w = when();
+  if (group === 'staff') return staffDialog(me);
+  if (me?.role === 'guest') { const g = guestDialog(group, me); if (g) return g; }
   if (group.startsWith('order:') || group.startsWith('meal:')) return mealDialog(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.DESERT_DIALOGS);
   const extra: [number, string[][] | undefined][] = [[0.12, L.TIME_DIALOGS[w.time]], [0.06, w.day ? L.DAY_DIALOGS[w.day] : undefined], [0.05, L.SEASON_DIALOGS[w.season]]];
@@ -56,6 +58,8 @@ function dialogFor(group: string, act: string | null, theme?: string, me?: Who):
 }
 function soloFor(group: string, act: string | null, theme?: string, me?: Who): string[] {
   const w = when();
+  if (group === 'staff') return [staffSolo(me)];
+  if (me?.role === 'guest') { const g = guestSolo(group, me); if (g) return [g]; }
   if (group.startsWith('order:') || group.startsWith('meal:')) return mealSolo(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.DESERT_SOLO)];
   const extra: [number, string[] | undefined][] = [[0.1, L.TIME_SOLO[w.time]], [0.05, w.day ? L.DAY_SOLO[w.day] : undefined], [0.05, L.SEASON_SOLO[w.season]]];
@@ -89,9 +93,54 @@ function mealSolo(group: string, me?: Who): string[] {
   return [choose([[0.5, eat], [0.25, L.TASTE], [0.18, meal], [0.07, L.SOLO]])];
 }
 
+// ── 식당가 점원·바깥 손님 (wetherilli 026)
+// 점원 무리 'staff' — 카운터에서 손님을 기다리거나 조리대에 선 점원들(가게가 달라도 한 무리 — 가게 사이로 말이 오간다).
+// 혼자면 하는 때(준비·마감)와 가게 붐빔(busy·quiet)에 맞춘 혼잣말, 둘 이상이면 그 대화. 너무 잦지 않게(Chatter.step 의 쉼)
+function staffSolo(me?: Who): string {
+  if (me?.phase === 'prep') return choose([[0.8, me.shop === 'burger' ? L.CLERK_PREP_BURGER : L.CLERK_PREP_GUKBAP], [0.2, L.CLERK_PREP]]);
+  if (me?.phase === 'close') return draw(L.CLERK_CLOSE);
+  if (me?.crowd === 'busy') return choose([[0.7, L.CLERK_BUSY], [0.3, L.CLERK_IDLE]]);
+  if (me?.crowd === 'quiet') return choose([[0.6, L.CLERK_QUIET], [0.4, L.CLERK_IDLE]]);
+  return draw(L.CLERK_IDLE);
+}
+function staffDialog(me?: Who): string[] {
+  if (me?.phase === 'prep') return draw(L.CLERK_PREP_DIALOGS);
+  if (me?.phase === 'close') return draw(L.CLERK_CLOSE_DIALOGS);
+  if (me?.crowd === 'busy') return choose([[0.75, L.CLERK_BUSY_DIALOGS], [0.25, L.CLERK_DIALOGS]]);
+  if (me?.crowd === 'quiet') return choose([[0.7, L.CLERK_QUIET_DIALOGS], [0.3, L.CLERK_DIALOGS]]);
+  return draw(L.CLERK_DIALOGS);
+}
+// 계산대 앞에 점원이 서 있으면 — 점원과 손님 한 사람이 주고받는다(점원이 먼저). 붐비면 바쁜 말
+function orderTalk(shop: string, crowd?: string): string[] {
+  const own = shop === 'burger' ? L.ORDER_TALKS_BURGER : L.ORDER_TALKS_GUKBAP;
+  return choose([[crowd === 'busy' ? 0.35 : 0.65, own], [crowd === 'busy' ? 0.65 : 0.35, L.ORDER_TALKS_BUSY]]);
+}
+// 바깥 손님 — 식당(줄·먹기)과 테라스 구경. 「일부러 여기까지 와서 먹을 만큼 맛있다」를 자주 (사용자 2026-11-05)
+function guestSolo(group: string, me: Who): string | null {
+  const food = foodOf(group, me);
+  if (group.startsWith('order:')) return choose([[0.5, L.GUEST_QUEUE], [0.3, food === 'burger' ? L.BURGER_QUEUE : food === 'noodle' ? L.NOODLE_QUEUE : L.GUKBAP_QUEUE], [0.2, L.MENU_SOLO]]);
+  if (group.startsWith('meal:')) return choose([[0.4, L.GUEST_PRAISE[food]], [0.3, L.GUEST_PRAISE.any], [0.3, food === 'burger' ? L.BURGER_EAT : food === 'noodle' ? L.NOODLE_EAT : L.GUKBAP_EAT]]);
+  if (group === 'aqua') return draw(L.GUEST_AQUA);
+  if (group.startsWith('feed')) return draw(L.GUEST_DINO);
+  return null;
+}
+function guestDialog(group: string, me: Who): string[] | null {
+  const burger = shopOf(group) === 'burger';
+  if (group.startsWith('order:')) return choose([[0.5, L.GUEST_QUEUE_DIALOGS], [0.25, L.MENU_DIALOGS], [0.25, burger ? L.BURGER_QUEUE_DIALOGS : L.GUKBAP_QUEUE_DIALOGS]]);
+  if (group.startsWith('meal:')) return choose([[0.35, burger ? L.GUEST_PRAISE_DIALOGS_BURGER : L.GUEST_PRAISE_DIALOGS_GUKBAP], [0.3, L.GUEST_PRAISE_DIALOGS], [0.2, L.GUEST_EAT_DIALOGS], [0.15, L.EAT_DIALOGS]]);
+  if (group === 'aqua') return draw(L.GUEST_AQUA_DIALOGS);
+  if (group.startsWith('feed')) return draw(L.GUEST_DINO_DIALOGS);
+  void me;
+  return null;
+}
+
 // 자리표 채우기 — {상대} 는 말 건네는 사람(다음에 말할 사람)의 이름, {방} 은 말하는 사람의 부서
 // theme: 그 사람 방의 꾸밈 (desert) · meal: 지금 끼니(scene/meals.ts mealOf) · food: 식당에서 시킨 것
-export interface Who { act: string; room: string; name: string; theme?: string; meal?: 'breakfast' | 'lunch' | 'dinner'; food?: 'burger' | 'gukbap' | 'noodle' }
+export interface Who {
+  act: string; room: string; name: string; theme?: string; meal?: 'breakfast' | 'lunch' | 'dinner'; food?: 'burger' | 'gukbap' | 'noodle';
+  // 세션이 아닌 사람 (wetherilli 026) — 점원(가게·하는 때·붐빔)과 바깥 손님
+  role?: 'clerk' | 'guest'; crowd?: 'busy' | 'quiet' | 'normal'; phase?: string; shop?: 'burger' | 'gukbap';
+}
 const call = (name: string) => `${name.length === 3 ? name.slice(1) : name} 님`;   // 지어 준 이름(성 + 두 글자)은 이름만
 export function fill(s: string, me: Who | undefined, them: Who | undefined): string {
   return s.replace(/\{상대\}/g, them?.name ? call(them.name) : '저기요').replace(/\{방\}/g, me?.room || '우리 방');
@@ -110,6 +159,7 @@ export class Chatter {
   // info: 사람마다 하는 일·부서 이름·이름 — 혼잣말을 하는 일에 맞추고 자리표를 채운다
   step(group: string, members: string[], now: number, info?: (who: string) => Who): { who: string; text: string } | null {
     const work = group.startsWith('work:');
+    const staff = group === 'staff';   // 점원끼리·점원 혼잣말 — 뜸하게
     const order = group.startsWith('order:'), eating = group.startsWith('meal:');   // 식당 — 머무는 때가 짧아 더 자주
     let t = this.talks.get(group);
     if (t && t.speakers.slice().sort().join(',') !== members.slice().sort().join(',')) {
@@ -134,10 +184,21 @@ export class Chatter {
         t.lines = soloFor(group, me?.act ?? null, me?.theme, me);
         t.speakers = [members[0]];
       } else {
-        const me = info?.(members[0]);
-        t.lines = dialogFor(group, me?.act ?? null, me?.theme, me);
-        const start = Math.floor(Math.random() * members.length);
-        t.speakers = [...members.slice(start), ...members.slice(0, start)];
+        const clerk = order ? members.find((m) => info?.(m)?.role === 'clerk') : undefined;
+        if (clerk && Math.random() < 0.7) {
+          // 점원이 주문을 받는다 — 점원 ↔ 줄 선 손님 하나
+          const others = members.filter((m) => m !== clerk);
+          const me = info?.(clerk);
+          t.lines = orderTalk(shopOf(group), me?.crowd);
+          t.speakers = [clerk, others[Math.floor(Math.random() * others.length)]];
+        } else {
+          // 손님끼리 — 점원은 빼고 (둘이 안 되면 손님 혼잣말)
+          const pool = clerk ? members.filter((m) => m !== clerk) : members;
+          const me = info?.(pool[0]);
+          t.lines = pool.length > 1 ? dialogFor(group, me?.act ?? null, me?.theme, me) : soloFor(group, me?.act ?? null, me?.theme, me);
+          const start = Math.floor(Math.random() * pool.length);
+          t.speakers = pool.length > 1 ? [...pool.slice(start), ...pool.slice(0, start)] : [pool[0]];
+        }
       }
       t.i = 0;
     }
@@ -150,8 +211,8 @@ export class Chatter {
     // 줄 사이는 짧게, 다 하면 한참 조용히 — 혼자면 더 드문드문, 공룡 먹이 줄 땐 자주
     const more = t.i < t.lines.length;
     t.next = t.until + (more ? rand(1.0, 2.2)
-      : t.solo ? (group.startsWith('feed') ? rand(3, 8) : order ? rand(5, 12) : eating ? rand(10, 25) : work ? rand(25, 60) : rand(12, 35))
-      : order ? rand(4, 10) : eating ? rand(6, 16) : work ? rand(20, 45) : rand(8, 22));
+      : t.solo ? (staff ? rand(25, 55) : group.startsWith('feed') ? rand(3, 8) : order ? rand(5, 12) : eating ? rand(10, 25) : work ? rand(25, 60) : rand(12, 35))
+      : staff ? rand(30, 60) : order ? rand(4, 10) : eating ? rand(6, 16) : work ? rand(20, 45) : rand(8, 22));
     return { who: t.who, text: t.text };
   }
 
