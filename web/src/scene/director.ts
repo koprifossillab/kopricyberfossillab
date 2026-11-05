@@ -14,7 +14,8 @@ import { PALETTE, FOREIGN_COLOR } from './layout.ts';
 import { SEAT_LIFT } from './modules.ts';
 import { seatOf, waitSpotOf, type World } from './world.ts';
 import { isFemale } from './appearance.ts';
-import { mealPlan, type Food } from './meals.ts';
+import { mealPlan, type Food, type Shop } from './meals.ts';
+import { clerksAt, guestsAt, type ClerkPhase, type Post } from './staff.ts';
 
 const TRIP_WINDOW = 90;   // 초 — 이 창마다 한 번 제비뽑기
 const TRIP_ODDS = 8;      // 8 분의 1
@@ -57,6 +58,15 @@ export interface Placement {
   group?: string;        // 휴게실에서 함께 이야기하는 무리 (식당: order:<가게> · meal:<가게>:<탁자>)
   food?: Food;           // 식당에서 시킨 것 — 먹는 동안 dish 자리에 그 그림을 놓는다
   dish?: { at: [number, number]; y: number; rot: number };
+  cook?: [number, number, number];   // 점원이 조리 중 — 이 자리(세계 좌표, 높이 포함)에 김·지글거림
+}
+
+// 세션이 아닌 사람 — 식당가 점원과 바깥 손님 (wetherilli 026, staff.ts). 자리는 같은 Map 에 id 로 들어간다.
+// crowd: 그 가게가 붐비나(busy)·한산하나(quiet) — 점원 대사가 고른다
+export type Crowd = 'busy' | 'quiet' | 'normal';
+export interface Extra {
+  id: string; role: 'clerk' | 'guest'; shop: Shop; crowd: Crowd;
+  post?: Post; phase?: ClerkPhase | 'order' | 'eat' | 'visit';
 }
 
 // 책상·휴게실 자리 번호는 건물마다 다르다 — 건물이 바뀌면 처음부터 다시 받는다
@@ -65,6 +75,11 @@ const seatAt = new Map<string, number>();   // 휴게실 자리
 let builtFor: World | null = null;
 const mealSeen = new Map<string, string>();      // 식당에 보낸 사람 → 그 끼니 (바빠졌는지 보려고)
 const mealBroken = new Map<string, string>();    // 먹다 불려 간 사람 → 그 끼니 (다시 보내지 않는다)
+// 바깥 손님 — 처음 볼 때 자리가 넉넉해야 온다(오지 않기로 하면 그 끼니엔 끝), 앉은 자리·구경 자리는 될 수 있으면 그대로
+const guestCame = new Map<string, boolean>();
+const guestSeat = new Map<string, string>();
+const guestSpot = new Map<string, string>();
+export const GUEST_MIN_FREE = 3;   // 가게에 빈자리가 이만큼은 있어야 손님이 온다 — 세션 사람 자리를 남긴다
 
 function hash(s: string): number {
   let h = 0;
@@ -181,7 +196,8 @@ function mealPlace(w: World, a: Agent, plan: NonNullable<ReturnType<typeof mealP
 }
 
 // hour — 화면의 지역 시각(시, 소수). forceMeal — 화면 확인용(?meal): 끼니와 상관없이 쉬는 사람이 다 식당을 오간다
-export function direct(w: World, agents: Agent[], now = Date.now(), opts: { hour?: number; forceMeal?: boolean } = {}): Map<string, Placement> {
+// extras — 주면 점원·바깥 손님을 채워 넣는다(자리는 돌려주는 Map 에 같이)
+export function direct(w: World, agents: Agent[], now = Date.now(), opts: { hour?: number; forceMeal?: boolean; extras?: Extra[] } = {}): Map<string, Placement> {
   if (builtFor !== w) { deskOf.clear(); seatAt.clear(); builtFor = w; }
   const hour = opts.hour ?? (() => { const d = new Date(now); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; })();
   const meals = { order: new Map<string, number>(), seats: new Set<string>(), tables: new Set<string>() };
@@ -309,7 +325,115 @@ export function direct(w: World, agents: Agent[], now = Date.now(), opts: { hour
           : { target: spot(BOARD_SPOTS, 'board'), pose: 'stand', face: Math.PI, desk: null });   // 책상이 모자라면 화이트보드 앞
     }
   }
+  if (opts.extras && w.dining.length) placeExtras(w, now, hour, !!opts.forceMeal, meals, queue, out, opts.extras);
   return out;
 }
+
+// 점원·바깥 손님 — 세션 사람 자리를 다 정한 뒤에 남은 곳으로. 손님 먼저(점원은 주문하는 사람이 있는지 보고 카운터에 선다)
+function placeExtras(
+  w: World, now: number, hour: number, force: boolean,
+  used: { order: Map<string, number>; seats: Set<string>; tables: Set<string> },
+  queue: { aqua: number; feed: number }, out: Map<string, Placement>, extras: Extra[],
+): void {
+  const sessionTables = new Set(used.tables);
+  const guests = guestsAt(now, hour, force);
+  const live = new Set(guests.map((g) => g.id));
+  for (const m of [guestCame, guestSeat, guestSpot]) for (const id of m.keys()) if (!live.has(id)) m.delete(id);
+  const freeSeats = (shop: Shop) => w.dining.find((d) => d.shop === shop)!.seats.filter((st) => !used.seats.has(st.key)).length;
+  const partyTable = new Map<string, string>();
+  const takenSpot = new Set<string>();
+  for (const g of guests) {
+    const dn = w.dining.find((d) => d.shop === g.shop);
+    if (!dn) continue;
+    if (!guestCame.has(g.id)) guestCame.set(g.id, freeSeats(g.shop) >= GUEST_MIN_FREE);
+    if (!guestCame.get(g.id)) continue;
+    let p: Placement | null = null;
+    if (g.phase === 'order') {
+      const n = used.order.get(dn.shop) ?? 0;
+      used.order.set(dn.shop, n + 1);
+      const o = dn.order[(n + g.seed) % dn.order.length];
+      const lap = Math.floor(n / dn.order.length);
+      p = { target: [o.at[0], o.at[1] + lap * 0.55], pose: 'stand', face: o.face, desk: null, group: `order:${dn.shop}` };
+    } else if (g.phase === 'eat') {
+      let st = dn.seats.find((x) => x.key === guestSeat.get(g.id) && !used.seats.has(x.key));
+      if (!st) {
+        const free = dn.seats.filter((x) => !used.seats.has(x.key));
+        const mate = partyTable.get(g.party);
+        // 같이 온 사람 곁 → 아무도 없는 탁자 → 세션 사람이 없는 탁자 → 아무 데나
+        const pools = [
+          free.filter((x) => x.table === mate),
+          free.filter((x) => !used.tables.has(`${dn.shop}:${x.table}`)),
+          free.filter((x) => !sessionTables.has(`${dn.shop}:${x.table}`)),
+          free,
+        ];
+        const pool = pools.find((l) => l.length);
+        if (pool) st = pool[g.seed % pool.length];
+      }
+      if (!st) { guestCame.set(g.id, false); continue; }   // 자리가 없다 — 그냥 나간다
+      guestSeat.set(g.id, st.key);
+      used.seats.add(st.key); used.tables.add(`${dn.shop}:${st.table}`);
+      partyTable.set(g.party, st.table);
+      p = {
+        target: st.at, pose: 'sit', face: st.face, desk: null, on: st.key, lift: st.lift, group: `meal:${dn.shop}:${st.table}`,
+        food: g.food, dish: { at: st.dish, y: st.dishY, rot: st.face + Math.PI },
+      };
+    } else {
+      // 테라스 구경 — 수족관 관람 자리나 공룡 먹이 주는 자리 가운데 세션 사람이 안 쓴 곳. 없으면 구경 없이 나간다
+      const opts: { k: string; at: [number, number]; face: number; pose: 'sit' | 'stand'; on?: string; lift?: number; group: string }[] = [];
+      (w.aqua?.view ?? []).forEach((v, i) => { if (i >= queue.aqua) opts.push({ k: `aqua${i}`, at: v.at, face: v.face, pose: v.pose, on: v.on, lift: v.lift, group: 'aqua' }); });
+      (w.pen?.feed ?? []).forEach((f, i) => { if (i >= queue.feed) opts.push({ k: `feed${i}`, at: f.at, face: f.face, pose: 'stand', group: `feed${i}` }); });
+      const free = opts.filter((o) => !takenSpot.has(o.k));
+      let o = free.find((x) => x.k === guestSpot.get(g.id));
+      if (!o && !guestSpot.has(g.id) && free.length) {
+        // 같이 온 사람과 같은 곳(수족관끼리·공룡끼리)
+        const mate = [...guestSpot.entries()].find(([id]) => id !== g.id && id.startsWith(g.party))?.[1];
+        const same = mate ? free.filter((x) => x.k.slice(0, 4) === mate.slice(0, 4)) : [];
+        const pool = same.length ? same : free;
+        o = pool[(g.seed >>> 5) % pool.length];
+      }
+      if (!o) { guestSpot.set(g.id, ''); continue; }
+      guestSpot.set(g.id, o.k);
+      takenSpot.add(o.k);
+      p = { target: o.at, pose: o.pose, face: o.face, desk: null, on: o.on, lift: o.lift, group: o.group };
+    }
+    out.set(g.id, p);
+    extras.push({ id: g.id, role: 'guest', shop: g.shop, crowd: 'normal', phase: g.phase });
+  }
+
+  // 가게마다 붐비나 — 주문하는 사람 + 앉은 사람(세션·손님). 넷 이상이거나 빈자리가 둘 이하면 붐빈다, 하나 이하면 한산하다
+  const crowd = (shop: Shop): Crowd => {
+    const dn = w.dining.find((d) => d.shop === shop)!;
+    const n = (used.order.get(shop) ?? 0) + dn.seats.filter((st) => used.seats.has(st.key)).length;
+    return n >= 4 || freeSeats(shop) <= 2 ? 'busy' : n <= 1 ? 'quiet' : 'normal';
+  };
+  for (const e of extras) e.crowd = crowd(e.shop);
+
+  for (const c of clerksAt(now, hour, force)) {
+    const st = w.dining.find((d) => d.shop === c.shop)?.staff;
+    if (!st) continue;
+    const slot = (sec: number, salt = 0) => Math.floor(now / 1000 / sec) + salt;
+    const station = (k: number) => { const s = st.stations[((k % st.stations.length) + st.stations.length) % st.stations.length]; return { target: s.at, pose: 'stand' as const, face: s.face, desk: null, cook: s.cook, group: 'staff' }; };
+    let p: Placement;
+    const customers = (used.order.get(c.shop) ?? 0) > 0;
+    if (c.phase === 'close') {
+      // 마감 — 식탁을 차례로 닦는다 (둘이면 반대쪽부터)
+      const k = slot(20) + c.seed + (c.post === 'kitchen' ? Math.floor(st.wipe.length / 2) : 0);
+      const s = st.wipe[k % st.wipe.length];
+      p = { target: s.at, pose: 'stand', face: s.face, desk: null, group: 'staff' };
+    } else if (c.post === 'kitchen' || c.phase === 'prep') {
+      // 준비 — 조리대를 40초마다 옮겨 다닌다. 둘이면 서로 다른 조리대
+      p = station(slot(40) + c.seed + (c.post === 'kitchen' ? 1 : 0));
+    } else if (customers) {
+      p = { target: st.counter.at, pose: 'stand', face: st.counter.face, desk: null, group: `order:${c.shop}` };   // 주문 받기
+    } else {
+      // 손님이 없으면 카운터와 조리대를 오간다 (30초 창마다, 열에 여섯은 카운터)
+      const k = slot(30);
+      p = mix01(c.id, k) < 0.6 ? { target: st.counter.at, pose: 'stand', face: st.counter.face, desk: null, group: 'staff' } : station(k + c.seed);
+    }
+    out.set(c.id, p);
+    extras.push({ id: c.id, role: 'clerk', shop: c.shop, crowd: crowd(c.shop), post: c.post, phase: c.phase });
+  }
+}
+const mix01 = (id: string, k: number) => (seatHash(id, k) % 1000) / 1000;
 
 

@@ -16,7 +16,7 @@ import type { Rect } from '../scene/layout.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
 import { buildWorld, heightAt, DESERT, type World, type WorldItem } from '../scene/world.ts';
-import { mealOf } from '../scene/meals.ts';
+import { mealOf, SHOP_NAME } from '../scene/meals.ts';
 import { Chatter, draw as drawLine, fill } from './chatter.ts';
 import { personName, roomName } from '../scene/names.ts';
 
@@ -24,6 +24,9 @@ const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-mot
 type V3 = [number, number, number];
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+const PLAQUE_W = 112, PLAQUE_FS = 12;   // 명판 폭·글자 (화면 px, styles.css .plaque 와 같게)
+// 말풍선 위 이름 — 점원·바깥 손님(세션이 아니다)은 「버거집 점원」·「손님」 (wetherilli 026)
+const nameOf = (a: Actor) => a.npc ? (a.npc.role === 'clerk' ? `${SHOP_NAME[a.npc.shop].split(' ')[0]} 점원` : '손님') : personName(a.agent);
 
 // 등각 차례 — 바닥 범위가 겹치지 않는 두 상자에서, A 가 B 의 완전히 왼쪽(x)이나 완전히 뒤(z)에 있으면 A 를 먼저 그린다.
 // 카메라가 +x·+z 쪽에서 내려다보므로 x+z 하나로는 긴 상자(칸막이·벽)끼리 틀린다 — 그래서 쌍으로 비교해 위상 정렬한다
@@ -240,11 +243,12 @@ export function Stage({ agents, offices, selected, onSelect }: {
         const draws: Draw[] = [];
         for (const a of actors) {
           const sit = sitting(a);
-          const L = appearanceOf(a.agent);   // 화면에서 고치면 바로 — 서버가 모두에게 보낸다
+          const L = a.look ?? appearanceOf(a.agent);   // 화면에서 고치면 바로 — 서버가 모두에게 보낸다 (점원·손님은 고칠 수 없다)
           const body = atlas.bodies[bodyKey(a.color, shapeOf(L), sit)];
           const head = headLayers(atlas, L, dirOf(a.rot));
           if (!body || !head.length) continue;
-          const bob = a.moving && !RM ? Math.abs(Math.sin(a.t * 10)) * 0.08 : 0;
+          const cooking = !!a.place.cook && !a.moving && !a.leaving;   // 점원이 조리대 앞 — 손을 놀리듯 잘게 들썩인다
+          const bob = RM ? 0 : a.moving ? Math.abs(Math.sin(a.t * 10)) * 0.08 : cooking ? Math.abs(Math.sin(a.t * 7)) * 0.025 : 0;
           const lift = sit ? (a.place.lift ?? 0) : 0;
           const s = 1;   // 하위 에이전트도 사람 크기 (전에는 0.72 — 사용자: 「에이전트도 사람같이」)
           const fy = heightAt(w, a.x, a.z);   // 아래층·계단
@@ -357,6 +361,24 @@ export function Stage({ agents, offices, selected, onSelect }: {
               ctx.globalAlpha = 1;
             } });
         }
+        // 조리 — 점원이 선 조리대 위에 김(솥)·연기(그릴·튀김기)가 오른다 (wetherilli 026)
+        if (!RM) for (const a of actors) {
+          const ck = a.place.cook;
+          if (!ck || a.moving || a.leaving) continue;
+          const [cx, cy, cz] = ck;
+          const [ax, ay] = proj([cx, cy, cz]);
+          figs.push({ x: cx, z: cz + 0.6, sit: false, x0: ax - 30, y0: ay - 60, x1: ax + 30, y1: ay,
+            draw: () => {
+              for (let k = 0; k < 4; k++) {
+                const ph = (T * 0.5 + k / 4 + (cx % 1)) % 1;
+                const [u, v] = proj([cx + Math.sin(ph * 5 + k * 1.7) * 0.12, cy + 0.05 + ph * 0.55, cz + Math.cos(k * 2.1) * 0.1]);
+                ctx.globalAlpha = 0.4 * (1 - ph);
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.ellipse(u, v, 0.05 * S * (1 + ph), 0.065 * S * (1 + ph), 0, 0, Math.PI * 2); ctx.fill();
+              }
+              ctx.globalAlpha = 1;
+            } });
+        }
         figs.sort((p, q) => (p.x + p.z) - (q.x + q.z));
         // 가구가 그림 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다
         // top — 그 가구 위에 놓인 것(식탁 위 음식): 그 가구가 덮지 않는다. 계단(flight) 위를 걷는 사람도 계단이 덮지 않는다 — 더 낮은 단은 앞에 있어도 발밑이다
@@ -445,6 +467,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
         hits = [];
         for (const d of draws) {
           const { a } = d;
+          if (a.npc) continue;   // 점원·손님은 누를 수 없고 이름표도 없다
           hits.push({ id: a.agent.id, x0: d.x0 * k + offX, y0: d.y0 * k + offY, x1: d.x1 * k + offX, y1: d.y1 * k + offY });
           if (a.leaving) continue;
           // 휴게실에 앉은 사람은 이름표를 숨긴다 (겹친다) — 말할 때 말풍선에 이름이 붙고, 고르면 보인다
@@ -492,6 +515,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
           members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
           const said = chatter.step(name, members.map((m) => m.agent.id), T, (who) => {
             const m = members.find((p) => p.agent.id === who);
+            if (m?.npc) return { act: 'idle', room: '', name: '', meal: mealOf(hourNow()) ?? undefined, food: m.place.food,
+              role: m.npc.role, crowd: m.npc.crowd, phase: m.npc.phase, shop: m.npc.shop };
             return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '', theme: m && DESERT.has(m.agent.room) ? 'desert' : undefined,
               meal: mealOf(hourNow()) ?? undefined, food: m?.place.food };
           });
@@ -501,7 +526,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const id = `bubble:${a.agent.id}`;
           live.add(id);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);   // 이름표 대신 말풍선
-          label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(said.text)}`,
+          label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(nameOf(a))}</small>${esc(said.text)}`,
             [a.x, heightAt(w, a.x, a.z) + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         });
         // 전갈·선인장에 놀란 말 — 잡담 위에 덮는다
@@ -520,41 +545,26 @@ export function Stage({ agents, offices, selected, onSelect }: {
         const clock = performance.now() / 1000;
         for (const d of draws) {
           const { a } = d;
-          if (!a.say || clock >= a.say.until || a.leaving) continue;
+          if (!a.say || clock >= a.say.until || (a.leaving && !a.npc)) continue;   // 점원 퇴근 인사·손님 한마디는 나가면서
           const bid = `bubble:${a.agent.id}`;
           live.add(bid);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);
           const text = fill(a.say.text, { act: a.agent.activity, room: roomName(a.agent.room), name: personName(a.agent) }, undefined);
-          label(bid, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(text)}`,
+          label(bid, 'bubble', `<small style="color:${hex(a.color)}">${esc(nameOf(a))}</small>${esc(text)}`,
             [a.x, d.fy + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         }
-        // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)
+        // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY).
+        // 크기는 이름표처럼 화면 픽셀로 고정 — 확대·축소와 상관없이 모든 명판(사무실·가게·부장실…)이 같은 폭(PLAQUE_W)·같은 글자 크기(styles.css .plaque).
+        // 이름이 길면 글자를 줄이지 않고 가운데에 가까운 띄어쓰기에서 두 줄로 (사용자 2026-11-05 — 전에는 문틀 폭에 맞춰 확대와 함께 커졌고 글자가 6~15px 로 바뀌었다)
         for (const r of w.labels) {
           const id = `room:${r.name}:${r.at.join(',')}`;
           const name = r.room ? roomName(r.room) : r.name;   // 사람이 고친 부서 이름
           live.add(id);
-          // 가로 길이를 문틀 폭에 — 화면에서 그 폭이 차지하는 가로 픽셀만큼, 글자는 그 안에 들어가게.
-          // 한 줄로는 글자가 너무 작아지는 긴 이름(「선호와 함께 춤을」)은 가운데에 가까운 띄어쓰기에서 두 줄로 — 전에는 넘친 만큼 잘렸다
-          const ems = (t: string) => [...t].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 1 : 0.62), 0) + 0.8;
-          let html = esc(name), em = ems(name), px = 0;
-          if (r.span) {
-            const [u0] = proj([0, 0, 0]);
-            const [u1] = proj(r.axis === 'x' ? [r.span, 0, 0] : [0, 0, r.span]);
-            px = Math.abs(u1 - u0) * k / dpr;
-            const cut = [...name.matchAll(/ /g)].map((m) => m.index!).sort((a, b) => Math.abs(a - name.length / 2) - Math.abs(b - name.length / 2))[0];
-            if ((px - 6) / em < 8 && cut !== undefined) {
-              const [a, b] = [name.slice(0, cut), name.slice(cut + 1)];
-              html = `${esc(a)}<br>${esc(b)}`; em = Math.max(ems(a), ems(b));
-            }
-          }
+          const ems = (t: string) => [...t].reduce((n, ch) => n + (/[가-힣·]/.test(ch) ? 1 : 0.62), 0);
+          let html = esc(name);
+          const cut = [...name.matchAll(/ /g)].map((m) => m.index!).sort((a, b) => Math.abs(a - name.length / 2) - Math.abs(b - name.length / 2))[0];
+          if (ems(name) * PLAQUE_FS > PLAQUE_W - 10 && cut !== undefined) html = `${esc(name.slice(0, cut))}<br>${esc(name.slice(cut + 1))}`;
           label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), html, [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)${r.tilt ? ` rotate(${r.tilt}deg)` : ''}`);
-          if (r.span) {
-            const el = labelEls.get(id)!;
-            const fs = Math.max(6, Math.min(15, (px - 6) / em));
-            const wpx = `${Math.round(px)}px`, fpx = `${fs.toFixed(1)}px`;
-            if (el.style.width !== wpx) el.style.width = wpx;
-            if (el.style.fontSize !== fpx) el.style.fontSize = fpx;
-          }
         }
         for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
 

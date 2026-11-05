@@ -1,11 +1,12 @@
 // 캐릭터의 움직임 — 갈 자리(director)를 받아 A* 길(nav)로 걷는다. 그리기와 떨어져 있다.
 import type { Agent } from '../types.ts';
 import { Nav } from '../scene/nav.ts';
-import { direct, colorOf, type Placement } from '../scene/director.ts';
+import { direct, colorOf, type Placement, type Extra } from '../scene/director.ts';
+import { npcLook, type Appearance } from '../scene/appearance.ts';
 import type { World } from '../scene/world.ts';
 import { DIRS } from '../scene/layout.ts';
 import { hourNow } from './daylight.ts';
-import { MEAL_GRUMBLE, MEAL_DONE } from './lines.ts';
+import { MEAL_GRUMBLE, MEAL_DONE, CLERK_ARRIVE, CLERK_LEAVE, GUEST_BYE } from './lines.ts';
 import { draw } from './chatter.ts';
 
 // 화면 확인용 — 주소에 ?meal 을 붙이면 끼니와 상관없이 쉬는 사람이 식당을 오간다
@@ -24,11 +25,21 @@ export interface Actor {
   leaving: boolean;          // 사라진 에이전트 — 문까지 걸어간 뒤 지운다
   t: number;                 // 걸음 흔들림 위상
   say?: { text: string; until: number };   // 혼자 하는 한마디 — 식사 중 불려 갈 때 불평, 다 먹고 일어날 때 (performance.now 초)
+  // 세션이 아닌 사람 — 식당가 점원·바깥 손님 (wetherilli 026). 누를 수 없고 이름표·목록에 없다. 엘리베이터로 드나든다
+  npc?: Extra;
+  look?: Appearance;
 }
+
+// 세션이 아닌 사람의 가짜 Agent — 그리기·자리 고르기가 Agent 를 받으므로. 쉬는 사람으로 둔다
+const npcAgent = (e: Extra): Agent => ({
+  id: e.id, kind: 'session', name: e.role === 'clerk' ? '점원' : '손님', project: '', activity: 'idle', label: '', room: 'general', startedAt: 0, changedAt: 0,
+});
+const sayTime = (text: string) => Math.min(6, Math.max(3, 1.8 + text.length * 0.13));
 
 export class Cast {
   actors = new Map<string, Actor>();
   private first = true;
+  private fresh = false;   // 건물이 막 바뀌었다 — 이번에 새로 만드는 점원·손님은 제자리에
   private world: World | null = null;
   private nav: Nav | null = null;
 
@@ -42,11 +53,32 @@ export class Cast {
       this.world = world;
       this.nav = new Nav(world.w, world.d, world.blocks);
       for (const a of this.actors.values()) a.path = [];   // 건물이 바뀌었다 — 길을 새로 찾는다
+      // 점원·손님은 새 건물의 제자리에서 다시 — 옛 건물 좌표의 엘리베이터에서 위층을 가로질러 걸어오지 않게
+      for (const [id, a] of this.actors) if (a.npc) this.actors.delete(id);
+      this.fresh = true;
     }
     const doorSpot = (): [number, number] => [...world.door];
-    const places = direct(world, agents, Date.now(), { hour: hourNow(), forceMeal: FORCE_MEAL });
+    const extras: Extra[] = [];
+    const places = direct(world, agents, Date.now(), { hour: hourNow(), forceMeal: FORCE_MEAL, extras });
     const clock = performance.now() / 1000;
     const live = new Set<string>();
+    const liftSpot = (): [number, number] => world.lift ? [...world.lift] : doorSpot();
+    for (const e of extras) {
+      live.add(e.id);
+      const place = places.get(e.id)!;
+      let actor = this.actors.get(e.id);
+      if (!actor || actor.leaving) {
+        const [x, z] = this.first || this.fresh ? place.target : liftSpot();
+        const { look, color } = npcLook(e.id, e.role, e.shop);
+        actor = { agent: npcAgent(e), place, color, look, x, z, rot: Math.PI, path: [], moving: false, leaving: false, t: Math.random() * 10 };
+        this.actors.set(e.id, actor);
+        if (e.role === 'clerk' && !this.first && e.phase === 'prep') { const text = draw(CLERK_ARRIVE); actor.say = { text, until: clock + sayTime(text) }; }
+      }
+      actor.npc = e;
+      const moved = actor.place.target[0] !== place.target[0] || actor.place.target[1] !== place.target[1];
+      actor.place = place;
+      if (moved || (!actor.path.length && Math.hypot(actor.x - place.target[0], actor.z - place.target[1]) > 0.01)) actor.path = this.path([actor.x, actor.z], place.target);
+    }
     for (const a of agents) {
       live.add(a.id);
       const place = places.get(a.id)!;
@@ -75,10 +107,15 @@ export class Cast {
     for (const actor of this.actors.values()) {
       if (live.has(actor.agent.id) || actor.leaving) continue;
       actor.leaving = true;
-      actor.place = { ...actor.place, target: doorSpot(), pose: 'stand', desk: null };
+      if (actor.npc) {   // 점원은 퇴근 인사, 손님은 가끔 한마디 — 엘리베이터로
+        const lines = actor.npc.role === 'clerk' ? CLERK_LEAVE : Math.random() < 0.5 ? GUEST_BYE : null;
+        if (lines) { const text = draw(lines); actor.say = { text, until: clock + sayTime(text) }; }
+      }
+      actor.place = { ...actor.place, target: actor.npc ? liftSpot() : doorSpot(), pose: 'stand', desk: null, group: undefined, food: undefined, dish: undefined, cook: undefined };
       actor.path = this.path([actor.x, actor.z], actor.place.target);
     }
     this.first = false;
+    this.fresh = false;
   }
 
   step(dtRaw: number): void {
@@ -94,6 +131,8 @@ export class Cast {
         if (d <= sp) { a.x = px; a.z = pz; a.path.shift(); a.moving = a.path.length > 0; }
         else { a.x += (dx / d) * sp; a.z += (dz / d) * sp; a.moving = true; a.rot = Math.atan2(dx, dz); }
         if (!a.path.length && a.leaving) this.actors.delete(id);
+      } else if (a.leaving) {
+        this.actors.delete(id);   // 갈 길이 없거나 이미 문 앞
       } else {
         let diff = a.place.face - a.rot;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));

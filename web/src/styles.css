@@ -36,11 +36,11 @@ h1 img{width:1.1em;height:1.1em;border-radius:22%;flex:none}
 .bubble{background:#fff;color:#25242c;border:1px solid var(--line);border-radius:10px;padding:2px 9px 3px;font-size:12px;white-space:nowrap;box-shadow:0 1px 3px #0002;position:relative;display:flex;flex-direction:column;align-items:center;line-height:1.3}
 .bubble small{font-size:10px;opacity:.85;font-weight:500}
 .bubble::after{content:'';position:absolute;left:50%;bottom:-5px;margin-left:-4px;border:4px solid transparent;border-top-color:#fff;border-bottom:0}
-.plaque{font-family:var(--display);font-size:13px;line-height:1.2;letter-spacing:.02em;color:#f5efe0;background:#3a3448;border:2px solid #c9a46a;border-radius:3px;padding:1px 2px 2px;text-align:center;box-sizing:border-box;overflow:hidden;white-space:nowrap;box-shadow:0 2px 0 #0003;user-select:none}
-.plaque.project{background:#2f4a3f;font-size:14px}
+/* 명판 — 모두 같은 폭·같은 글자, 화면 px 고정(확대와 상관없이). 긴 이름은 Stage 가 띄어쓰기에서 두 줄로 (PLAQUE_W·PLAQUE_FS 와 같게) */
+.plaque{font-family:var(--display);font-size:12px;width:112px;line-height:1.2;letter-spacing:.02em;color:#f5efe0;background:#3a3448;border:2px solid #c9a46a;border-radius:3px;padding:2px 4px 3px;text-align:center;box-sizing:border-box;overflow:hidden;white-space:nowrap;box-shadow:0 2px 0 #0003;user-select:none}
+.plaque.project{background:#2f4a3f}
 .plaque.boss{background:#4a2e1c;border-color:#e0c080;color:#fbe9c8}
-.plaque.small{font-size:10px;padding:0 5px;border-width:1px}
-.plaque.rash{background:#5a4a3a;border-color:#8a7a5a;color:#d8cdb5;font-family:var(--mono);font-size:12px;border-style:dashed}
+.plaque.rash{background:#5a4a3a;border-color:#8a7a5a;color:#d8cdb5;font-family:var(--mono);border-style:dashed}
 .tlbl{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:0 5px;white-space:nowrap}
 .side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;overflow:auto}
 .side h2{margin:4px 0 0;font-size:14px;font-weight:500;display:flex;justify-content:space-between;align-items:baseline}
@@ -151,6 +151,6 @@ h1 img{width:1.1em;height:1.1em;border-radius:22%;flex:none}
 .opts{display:flex;flex-direction:column;gap:8px;font-size:14px}
 .opts label{display:flex;gap:8px;align-items:center;cursor:pointer}
 .opts button{align-self:flex-start;font:inherit;font-size:13px;padding:4px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
-.plaque.burger{background:#2f8f5b;border-color:#ef8a2b;color:#fff6e3;font-size:14px}
-.plaque.gukbap{background:#8a5a32;border-color:#3a3330;color:#f6ead2;font-size:14px}
-.plaque.old{background:#6b5a3e;border-color:#a8946a;color:#f0e2bf;font-size:14px;border-style:dashed;filter:sepia(.35)}
+.plaque.burger{background:#2f8f5b;border-color:#ef8a2b;color:#fff6e3}
+.plaque.gukbap{background:#8a5a32;border-color:#3a3330;color:#f6ead2}
+.plaque.old{background:#6b5a3e;border-color:#a8946a;color:#f0e2bf;border-style:dashed;filter:sepia(.35)}
