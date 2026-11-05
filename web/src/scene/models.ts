@@ -702,7 +702,31 @@ export function buildFloor(type: ModuleType): THREE.Group {
   if (def.flats?.includes('rug')) bx(g, 4.6, 0.04, 5.8, 0xfaeeda, 20.5, 0.02, 3.6, false);   // 휴게실 소파 깔개
   if (def.flats?.includes('desert')) desertFloor(g, def.size);
   if (def.flats?.includes('mat')) bx(g, 1.2, 0.03, 1.4, 0x5f5e5a, 0.7, 0.015, 1, false);    // 입구 깔개
+  if (def.flats?.includes('diner')) dinerFloor(g);
   return g;
+}
+
+// 아래층 식당가 바닥 — 버거집 [9.2, 0, 19.65, 6.4] 크림·귤색 체크(옅게), 한식 [19.65, 0, 31, 6.4] 나무 마루 줄.
+// 바닥 판 색은 modules 가 정한다 — 여기는 그 위에 얇게 덮는 무늬만
+function dinerFloor(g: THREE.Group): void {
+  const Y = 0.04;   // 겹친 바닥 판(0.008 + i·0.004)보다 위 — 같은 높이면 윗면이 다투어 무늬가 깨진다
+  const T = 0.6;   // 체크 칸
+  for (let x = 9.2, i = 0; x < 19.65 - 1e-6; x += T, i++) for (let z = 0, j = 0; z < 6.4 - 1e-6; z += T, j++) {
+    const w = Math.min(T, 19.65 - x), d = Math.min(T, 6.4 - z);
+    bx(g, w, 0.01, d, (i + j) % 2 ? 0xf6ecd6 : 0xf3d2a8, x + w / 2, Y, z + d / 2, false);
+  }
+  const P = 0.32;   // 마루 널 폭 — 가로(x)로 길게, 이음매를 줄마다 엇갈리게
+  const WOODS = [0xc8955e, 0xbe8a54, 0xcf9e68, 0xb98451];
+  for (let z = 0, j = 0; z < 6.4 - 1e-6; z += P, j++) {
+    const d = Math.min(P, 6.4 - z) - 0.015;
+    let x = 19.65;
+    for (let k = 0; x < 31 - 1e-6; k++) {
+      const len = Math.min((k === 0 ? 0.8 + (j % 3) * 0.6 : 2.4), 31 - x);
+      bx(g, len - 0.015, 0.01, d, WOODS[(j * 3 + k) % WOODS.length], x + len / 2, Y, z + P / 2, false);
+      x += len;
+    }
+  }
+  bx(g, 11.35, 0.004, 6.4, 0x8a5a32, 25.325, Y - 0.006, 3.2, false);   // 널 사이 틈 (짙게 비친다)
 }
 
 // 사막 바닥 — 모래색 타일(칸마다 색을 조금씩 다르게)과 흐린 줄눈, 바람 물결무늬, 자갈. 칸 색은 자리로 정해 굽기마다 같다
@@ -752,6 +776,11 @@ export function buildTall(type: ModuleType): THREE.Group {
       cobweb(g, [6.93, 0.7, 6.93], [-1, 0, 0], [0, 0, -1], 0.5);
       cobweb(g, [0.07, 0.7, 6.93], [1, 0, 0], [0, 0, -1], 0.4);
     }
+    if (t === 'backwall-down') downWall(g);
+    if (t === 'leftwall-down') {                                         // 아래층 왼 벽 — 반 층 높이
+      bx(g, 0.25, 1.8, d || 8, 0x9a9890, -0.125, 0.9, (d || 8) / 2);
+      bx(g, 0.04, 0.12, d || 8, 0x6e6c66, 0.02, 0.06, (d || 8) / 2, false);   // 걸레받이
+    }
     if (t === 'bulb') {                                                   // 천장에서 늘어진 맨 전구
       bx(g, 0.02, 0.7, 0.02, 0x2c2c2a, w / 2, 2.85, d / 2, false);
       const b = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf6d98a }));
@@ -760,6 +789,39 @@ export function buildTall(type: ModuleType): THREE.Group {
     }
   }
   return g;
+}
+
+// 아래층 뒤 벽 (x 0..31, z −0.25..0, 높이 1.3) — 칸 셋: 로비 회색 타일 · 버거집 초록 타일과 크림 띠 · 한식 나무 널
+function downWall(g: THREE.Group): void {
+  const H = 1.3, Z = 0.012;
+  const zone = (x0: number, x1: number, c: number) => bx(g, x1 - x0, H, 0.25, c, (x0 + x1) / 2, H / 2, -0.125);
+  const tiles = (x0: number, x1: number, y0: number, y1: number, s: number, cs: number[]) => {
+    for (let x = x0, i = 0; x < x1 - 1e-6; x += s, i++) for (let y = y0, j = 0; y < y1 - 1e-6; y += s, j++) {
+      const w = Math.min(s, x1 - x), h = Math.min(s, y1 - y);
+      bx(g, w - 0.02, h - 0.02, 0.01, cs[(i * 3 + j * 5 + i * j) % cs.length], x + w / 2, y + h / 2, Z, false);
+    }
+  };
+  // 로비 — 회색 타일
+  zone(0, 9.2, 0x8f8e88);
+  tiles(0, 9.2, 0.12, H, 0.3, [0xb8b6ae, 0xb0aea6, 0xbdbbb4]);
+  // 버거집 — 초록 타일 아래, 크림 띠, 위는 크림
+  zone(9.2, 19.65, 0x22684a);
+  tiles(9.2, 19.65, 0.12, 0.8, 0.2, [0x2f8f5b, 0x2b8655, 0x349862]);
+  bx(g, 10.45, 0.14, 0.02, 0xf6ecd6, 14.425, 0.87, Z + 0.004, false);
+  bx(g, 10.45, 0.04, 0.025, 0xef8a2b, 14.425, 0.96, Z + 0.006, false);
+  bx(g, 10.45, 0.32, 0.01, 0xf6ecd6, 14.425, 1.14, Z, false);
+  // 한식 — 세로 나무 널, 가운데 가로 띠, 위 문틀 같은 짙은 테
+  zone(19.65, 31, 0x8a5a32);
+  const WOODS = [0xb5814f, 0xa9774a, 0xbd8a57];
+  for (let x = 19.65, i = 0; x < 31 - 1e-6; x += 0.22, i++) {
+    const w = Math.min(0.22, 31 - x);
+    bx(g, w - 0.02, H - 0.14, 0.01, WOODS[(i * 7) % 3], x + w / 2, 0.12 + (H - 0.14) / 2, Z, false);
+  }
+  bx(g, 11.35, 0.06, 0.03, 0x6b4426, 25.325, 0.75, Z + 0.01, false);
+  bx(g, 11.35, 0.06, 0.03, 0x6b4426, 25.325, H - 0.03, Z + 0.01, false);
+  // 걸레받이 (셋 다) · 칸 사이 기둥
+  bx(g, 31, 0.12, 0.03, 0x4a4844, 15.5, 0.06, Z + 0.01, false);
+  for (const x of [9.2, 19.65]) bx(g, 0.12, H, 0.06, 0x5f5e5a, x, H / 2, Z + 0.02, false);
 }
 
 // 색을 흰색 쪽으로 t 만큼

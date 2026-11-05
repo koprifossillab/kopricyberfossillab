@@ -14,7 +14,8 @@ import { MODULES, type ModuleType } from '../src/scene/modules.ts';
 import { buildDino, DINO_COLORS, DINO_FRAMES, type DinoPose } from '../src/scene/dino.ts';
 import { buildFish, FISH_KINDS } from '../src/scene/aquarium.ts';
 import { buildScorpion, buildCactus, SCORPION_FRAMES, CACTUS_FRAMES, type CactusPose } from '../src/scene/desert.ts';
-import { bodyKey, faceKey, hairKey, accKey, capKey, dinoKey, fishKey, scorpionKey, cactusKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
+import { buildFood, FOODS } from '../src/scene/diner.ts';
+import { bodyKey, faceKey, hairKey, accKey, capKey, dinoKey, fishKey, scorpionKey, cactusKey, foodKey, type Atlas, type SpriteRect, type ModuleSprites } from '../src/iso/atlas.ts';
 
 const SCALE = 96;                                      // 세계 1 = 96 구운 픽셀 (화면 2배 밀도에서 또렷하게)
 const VIEW = new THREE.Vector3(18, 16.5, 18);          // 시제품 카메라 방향 (CX+18, 17, CZ+18) → (CX, 0.5, CZ)
@@ -196,6 +197,11 @@ async function bake() {
       const s = shoot(buildCactus({ rot: (d * 2 * Math.PI) / DIRS, frame: f, pose }), foot);
       if (s) dinos.set('crit:' + cactusKey(pose, f, d), s);
     }
+  }
+  // 식당 — 먹는 음식(버거 쟁반·국밥·국수) × 방향. 기준점 = 식탁 윗면 가운데 (화면이 식탁 높이에 놓는다)
+  for (const kind of FOODS) for (let d = 0; d < DIRS; d++) {
+    const s = shoot(buildFood(kind, (d * 2 * Math.PI) / DIRS), foot);
+    if (s) dinos.set('crit:' + foodKey(kind, d), s);
   }
   const dinoSheet = pack(dinos, 'dinos.webp', 1024);
   files['dinos.webp'] = dinoSheet.data;
