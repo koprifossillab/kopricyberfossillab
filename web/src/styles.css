@@ -37,7 +37,7 @@ h1 img{width:1.1em;height:1.1em;border-radius:22%;flex:none}
 .bubble small{font-size:10px;opacity:.85;font-weight:500}
 .bubble::after{content:'';position:absolute;left:50%;bottom:-5px;margin-left:-4px;border:4px solid transparent;border-top-color:#fff;border-bottom:0}
 /* 명판 — 모두 같은 폭·같은 글자, 화면 px 고정(확대와 상관없이). 긴 이름은 Stage 가 띄어쓰기에서 두 줄로 (PLAQUE_W·PLAQUE_FS 와 같게) */
-.plaque{font-family:var(--display);font-size:12px;width:112px;line-height:1.2;letter-spacing:.02em;color:#f5efe0;background:#3a3448;border:2px solid #c9a46a;border-radius:3px;padding:2px 4px 3px;text-align:center;box-sizing:border-box;overflow:hidden;white-space:nowrap;box-shadow:0 2px 0 #0003;user-select:none}
+.plaque{font-family:var(--display);font-size:9px;width:76px;line-height:1.2;letter-spacing:.02em;color:#f5efe0;background:#3a3448;border:1px solid #c9a46a;border-radius:2px;padding:1px 3px 2px;text-align:center;box-sizing:border-box;overflow:hidden;white-space:nowrap;box-shadow:0 1px 0 #0003;user-select:none}
 .plaque.project{background:#2f4a3f}
 .plaque.boss{background:#4a2e1c;border-color:#e0c080;color:#fbe9c8}
 .plaque.rash{background:#5a4a3a;border-color:#8a7a5a;color:#d8cdb5;font-family:var(--mono);border-style:dashed}

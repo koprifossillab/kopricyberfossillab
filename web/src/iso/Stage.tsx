@@ -24,7 +24,8 @@ const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-mot
 type V3 = [number, number, number];
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
-const PLAQUE_W = 112, PLAQUE_FS = 12;   // 명판 폭·글자 (화면 px, styles.css .plaque 와 같게)
+const PLAQUE_W = 76, PLAQUE_FS = 9;   // 명판 폭·글자 (styles.css .plaque 와 같게) — 그린 뒤 문틀 폭에 맞춰 scale
+const DOOR_SPAN = 1.4;                 // 명판에 span 이 없을 때 (가게·고객센터…) 문틀 가로폭
 // 말풍선 위 이름 — 점원·바깥 손님(세션이 아니다)은 「버거집 점원」·「손님」 (wetherilli 026)
 const nameOf = (a: Actor) => a.npc ? (a.npc.role === 'clerk' ? `${SHOP_NAME[a.npc.shop].split(' ')[0]} 점원` : '손님') : personName(a.agent);
 
@@ -554,8 +555,9 @@ export function Stage({ agents, offices, selected, onSelect }: {
             [a.x, d.fy + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         }
         // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY).
-        // 크기는 이름표처럼 화면 픽셀로 고정 — 확대·축소와 상관없이 모든 명판(사무실·가게·부장실…)이 같은 폭(PLAQUE_W)·같은 글자 크기(styles.css .plaque).
-        // 이름이 길면 글자를 줄이지 않고 가운데에 가까운 띄어쓰기에서 두 줄로 (사용자 2026-11-05 — 전에는 문틀 폭에 맞춰 확대와 함께 커졌고 글자가 6~15px 로 바뀌었다)
+        // 모든 명판(사무실·가게·부장실…)은 한 꼴 — 폭 PLAQUE_W·글자 PLAQUE_FS(styles.css .plaque)로 지어 문틀 가로폭(span, 없으면 DOOR_SPAN)에 맞게 통째로 scale.
+        // 그래서 확대하면 문틀과 같이 커지고, 판과 글자의 비율은 어디서나 같다. 이름이 길면 글자를 줄이지 않고 가운데에 가까운 띄어쓰기에서 두 줄로
+        // (사용자 2026-11-05 — 한때 화면 px 고정이었는데 「너무 크다」, 「문틀 가로폭에 맞춘다」)
         for (const r of w.labels) {
           const id = `room:${r.name}:${r.at.join(',')}`;
           const name = r.room ? roomName(r.room) : r.name;   // 사람이 고친 부서 이름
@@ -564,7 +566,10 @@ export function Stage({ agents, offices, selected, onSelect }: {
           let html = esc(name);
           const cut = [...name.matchAll(/ /g)].map((m) => m.index!).sort((a, b) => Math.abs(a - name.length / 2) - Math.abs(b - name.length / 2))[0];
           if (ems(name) * PLAQUE_FS > PLAQUE_W - 10 && cut !== undefined) html = `${esc(name.slice(0, cut))}<br>${esc(name.slice(cut + 1))}`;
-          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), html, [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)${r.tilt ? ` rotate(${r.tilt}deg)` : ''}`);
+          const [u0] = proj([0, 0, 0]);
+          const [u1] = proj(r.axis === 'x' ? [r.span ?? DOOR_SPAN, 0, 0] : [0, 0, r.span ?? DOOR_SPAN]);
+          const fit = (Math.abs(u1 - u0) * k / dpr) / PLAQUE_W;
+          label(id, 'plaque' + (r.style ? ` ${r.style}` : ''), html, [r.at[0], r.y, r.at[1]], `translate(-50%, -50%) skewY(${r.axis === 'x' ? skewX : skewZ}deg)${r.tilt ? ` rotate(${r.tilt}deg)` : ''} scale(${fit.toFixed(3)})`);
         }
         for (const [id, el] of labelEls) if (!live.has(id)) { el.remove(); labelEls.delete(id); }
 
