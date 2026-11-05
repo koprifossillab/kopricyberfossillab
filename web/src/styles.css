@@ -151,4 +151,6 @@ h1 img{width:1.1em;height:1.1em;border-radius:22%;flex:none}
 .opts{display:flex;flex-direction:column;gap:8px;font-size:14px}
 .opts label{display:flex;gap:8px;align-items:center;cursor:pointer}
 .opts button{align-self:flex-start;font:inherit;font-size:13px;padding:4px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
+.plaque.burger{background:#2f8f5b;border-color:#ef8a2b;color:#fff6e3;font-size:14px}
+.plaque.gukbap{background:#8a5a32;border-color:#3a3330;color:#f6ead2;font-size:14px}
 .plaque.old{background:#6b5a3e;border-color:#a8946a;color:#f0e2bf;font-size:14px;border-style:dashed;filter:sepia(.35)}
