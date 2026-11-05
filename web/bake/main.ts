@@ -206,7 +206,7 @@ async function bake() {
   const dinoSheet = pack(dinos, 'dinos.webp', 1024);
   files['dinos.webp'] = dinoSheet.data;
 
-  const itemSheet = pack(items, 'items.webp', 2048);
+  const itemSheet = pack(items, 'items.webp', 4096);   // 높이가 8192(흔한 GPU 텍스처 한도)를 넘지 않게 — 2048 폭으로 8924 가 되자 확대하면 바닥이 사라졌다
   const charSheet = pack(chars, 'characters.webp', 2048);
   for (const [k, r] of Object.entries(itemSheet.rects)) {
     const [type, id] = k.split(':');
