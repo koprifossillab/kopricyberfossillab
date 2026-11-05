@@ -1,6 +1,7 @@
 // 휴게실 잡담 — 무리(카페 탁자·소파)에 둘 이상 있으면 대화 하나를 골라 돌아가며 말하고, 혼자면 가끔 혼잣말.
 // 일하는 중에도 — 무리 이름이 「work:」 로 시작하면(같은 사무실 책상·같은 일자리) 일 얘기 위주로, 휴게실보다 뜸하게.
 // 줄마다 보이는 시간은 글 길이로, 줄 사이·대화 사이의 쉼은 들쭉날쭉하게 — 같은 말이 같은 박자로 되풀이되지 않게.
+// 아래층 식당에선 계산대 앞(order:)·식탁(meal:) 무리 — 메뉴 고민·주문·맛·끼니 얘기, 머무는 때가 짧아 자주.
 // 대사는 lines.ts — 장소 것이 먼저, 가끔 지금 시각·요일·계절 것이 섞인다. 한 묶음은 다 쓸 때까지 같은 말을 다시 꺼내지 않는다.
 import * as L from './lines.ts';
 
@@ -39,8 +40,9 @@ export function when(d = new Date()): { time: string; day: string | null; season
 }
 
 // 무리 이름 → 그 자리의 대화·혼잣말 묶음. 시각·요일·계절 것은 가끔 섞는다
-function dialogFor(group: string, act: string | null, theme?: string): string[] {
+function dialogFor(group: string, act: string | null, theme?: string, me?: Who): string[] {
   const w = when();
+  if (group.startsWith('order:') || group.startsWith('meal:')) return mealDialog(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.DESERT_DIALOGS);
   const extra: [number, string[][] | undefined][] = [[0.12, L.TIME_DIALOGS[w.time]], [0.06, w.day ? L.DAY_DIALOGS[w.day] : undefined], [0.05, L.SEASON_DIALOGS[w.season]]];
   if (group === 'work:center') return choose([[0.5, L.CENTER_WORK_DIALOGS], [0.35, L.WORK_DIALOGS], [0.15, L.DIALOGS]]);
@@ -52,8 +54,9 @@ function dialogFor(group: string, act: string | null, theme?: string): string[] 
   const own = group.startsWith('feed') ? L.FEED_DIALOGS : place[group];
   return choose([[own && group !== 'sofa' ? 0.55 : 0.12, own], [0.45, L.DIALOGS], ...extra]);
 }
-function soloFor(group: string, act: string | null, theme?: string): string[] {
+function soloFor(group: string, act: string | null, theme?: string, me?: Who): string[] {
   const w = when();
+  if (group.startsWith('order:') || group.startsWith('meal:')) return mealSolo(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.DESERT_SOLO)];
   const extra: [number, string[] | undefined][] = [[0.1, L.TIME_SOLO[w.time]], [0.05, w.day ? L.DAY_SOLO[w.day] : undefined], [0.05, L.SEASON_SOLO[w.season]]];
   if (group.startsWith('work:')) {
@@ -66,8 +69,29 @@ function soloFor(group: string, act: string | null, theme?: string): string[] {
   return Math.random() < 0.2 ? draw(L.SOLO_SEQS) : [choose([[0.6, L.SOLO], ...extra])];
 }
 
+// 아래층 식당 — 무리 이름 'order:<가게>'(계산대 앞, 20~40초) · 'meal:<가게>:<탁자>'(먹는 중). 가게는 burger·gukbap.
+// 무엇을 시켰는지(food: burger·gukbap·noodle)와 끼니(meal)는 Stage 가 Who 로 넘긴다 — 없으면 가게로, 끼니 말은 뺀다
+const shopOf = (group: string) => (group.split(':')[1] === 'burger' ? 'burger' : 'gukbap');
+const foodOf = (group: string, me?: Who) => me?.food ?? (shopOf(group) === 'burger' ? 'burger' : 'gukbap');
+function mealDialog(group: string, me?: Who): string[] {
+  const burger = shopOf(group) === 'burger', meal = me?.meal ? L.MEAL_DIALOGS[me.meal] : undefined;
+  if (group.startsWith('order:'))
+    return choose([[0.35, burger ? L.BURGER_QUEUE_DIALOGS : L.GUKBAP_QUEUE_DIALOGS], [0.25, L.QUEUE_DIALOGS], [0.3, L.MENU_DIALOGS], [0.1, meal]]);
+  return choose([[0.38, burger ? L.BURGER_EAT_DIALOGS : L.GUKBAP_EAT_DIALOGS], [0.32, L.EAT_DIALOGS], [0.18, meal], [0.12, L.DIALOGS]]);
+}
+function mealSolo(group: string, me?: Who): string[] {
+  const food = foodOf(group, me), meal = me?.meal ? L.MEAL_SOLO[me.meal] : undefined;
+  if (group.startsWith('order:')) {
+    const order = food === 'burger' ? L.BURGER_QUEUE : food === 'noodle' ? L.NOODLE_QUEUE : L.GUKBAP_QUEUE;
+    return [choose([[0.4, order], [0.3, L.MENU_SOLO], [0.18, L.QUEUE_SOLO], [0.12, meal]])];
+  }
+  const eat = food === 'burger' ? L.BURGER_EAT : food === 'noodle' ? L.NOODLE_EAT : L.GUKBAP_EAT;
+  return [choose([[0.5, eat], [0.25, L.TASTE], [0.18, meal], [0.07, L.SOLO]])];
+}
+
 // 자리표 채우기 — {상대} 는 말 건네는 사람(다음에 말할 사람)의 이름, {방} 은 말하는 사람의 부서
-export interface Who { act: string; room: string; name: string; theme?: string }   // theme: 그 사람 방의 꾸밈 (desert)
+// theme: 그 사람 방의 꾸밈 (desert) · meal: 지금 끼니(scene/meals.ts mealOf) · food: 식당에서 시킨 것
+export interface Who { act: string; room: string; name: string; theme?: string; meal?: 'breakfast' | 'lunch' | 'dinner'; food?: 'burger' | 'gukbap' | 'noodle' }
 const call = (name: string) => `${name.length === 3 ? name.slice(1) : name} 님`;   // 지어 준 이름(성 + 두 글자)은 이름만
 export function fill(s: string, me: Who | undefined, them: Who | undefined): string {
   return s.replace(/\{상대\}/g, them?.name ? call(them.name) : '저기요').replace(/\{방\}/g, me?.room || '우리 방');
@@ -86,6 +110,7 @@ export class Chatter {
   // info: 사람마다 하는 일·부서 이름·이름 — 혼잣말을 하는 일에 맞추고 자리표를 채운다
   step(group: string, members: string[], now: number, info?: (who: string) => Who): { who: string; text: string } | null {
     const work = group.startsWith('work:');
+    const order = group.startsWith('order:'), eating = group.startsWith('meal:');   // 식당 — 머무는 때가 짧아 더 자주
     let t = this.talks.get(group);
     if (t && t.speakers.slice().sort().join(',') !== members.slice().sort().join(',')) {
       // 사람이 바뀌었다 — 대화는 새로 하되, 하던 말은 끝까지 보인다 (끊기면 읽을 틈이 없다)
@@ -96,7 +121,7 @@ export class Chatter {
     }
     if (!t) {
       // 처음엔 조금 뜸을 들인다 — 앉자마자 말하지 않게
-      t = { lines: [], i: 0, speakers: members, text: '', who: null, until: 0, next: now + rand(2, 8), solo: members.length < 2 };
+      t = { lines: [], i: 0, speakers: members, text: '', who: null, until: 0, next: now + (order ? rand(1, 4) : rand(2, 8)), solo: members.length < 2 };
       this.talks.set(group, t);
     }
     if (t.who && now < t.until) return { who: t.who, text: t.text };
@@ -106,11 +131,11 @@ export class Chatter {
       // 새 말 — 혼자면 혼잣말(한 줄, 가끔 두세 줄 잇기), 여럿이면 대화 하나와 말을 꺼내는 사람
       if (t.solo) {
         const me = info?.(members[0]);
-        t.lines = soloFor(group, me?.act ?? null, me?.theme);
+        t.lines = soloFor(group, me?.act ?? null, me?.theme, me);
         t.speakers = [members[0]];
       } else {
         const me = info?.(members[0]);
-        t.lines = dialogFor(group, me?.act ?? null, me?.theme);
+        t.lines = dialogFor(group, me?.act ?? null, me?.theme, me);
         const start = Math.floor(Math.random() * members.length);
         t.speakers = [...members.slice(start), ...members.slice(0, start)];
       }
@@ -125,8 +150,8 @@ export class Chatter {
     // 줄 사이는 짧게, 다 하면 한참 조용히 — 혼자면 더 드문드문, 공룡 먹이 줄 땐 자주
     const more = t.i < t.lines.length;
     t.next = t.until + (more ? rand(1.0, 2.2)
-      : t.solo ? (group.startsWith('feed') ? rand(3, 8) : work ? rand(25, 60) : rand(12, 35))
-      : work ? rand(20, 45) : rand(8, 22));
+      : t.solo ? (group.startsWith('feed') ? rand(3, 8) : order ? rand(5, 12) : eating ? rand(10, 25) : work ? rand(25, 60) : rand(12, 35))
+      : order ? rand(4, 10) : eating ? rand(6, 16) : work ? rand(20, 45) : rand(8, 22));
     return { who: t.who, text: t.text };
   }
 
