@@ -60,7 +60,9 @@ function quad(ctx: Ctx2D, proj: Proj, pts: [number, number, number][], fill: str
 // 지평선 — 땅 높이의 건물 뒤 모서리. 건물 양옆으로 먼 도시가 보이고, 그 아래는 땅
 const horizonOf = (proj: Proj) => proj([0, GROUND, 0])[1];
 
-function drawStatic(ctx: Ctx2D, proj: Proj, world: { w: number; d: number }, view: View, S: number, day: number): void {
+// wing — 아래층 식당가(wetherilli 025): 앞면(z=d)에서 x 0..wing.w, 깊이 wing.d 만큼 튀어나온 낮은 날개. 그 바닥(wing.y)은 화면이 그리고, 여기는 그 밑(1층)의 벽
+type Wing = { w: number; d: number; y: number };
+function drawStatic(ctx: Ctx2D, proj: Proj, world: { w: number; d: number; wing?: Wing }, view: View, S: number, day: number): void {
   const { x0, y0, x1, y1 } = view;
   const hv = horizonOf(proj);
   const night = 1 - day;
@@ -123,13 +125,15 @@ function drawStatic(ctx: Ctx2D, proj: Proj, world: { w: number; d: number }, vie
     }
   });
 
-  const { w, d } = world;
+  const { w, d, wing } = world;
+  const D = d + (wing?.d ?? 0);   // 땅의 앞 — 날개가 있으면 날개 앞
   // 땅 위 — 건물 둘레의 보도와 잔디 (앞면·오른쪽 면 쪽). 잔디가 바깥, 보도가 건물에 붙는다
   const grass = mix('#17321f', '#5a944f', day), walk = mix('#3a4258', '#c2c1b8', day);
-  quad(ctx, proj, [[0, GROUND, d], [w + 4, GROUND, d], [w + 4, GROUND, d + 4], [0, GROUND, d + 4]], grass);
-  quad(ctx, proj, [[w, GROUND, 0], [w + 4, GROUND, 0], [w + 4, GROUND, d + 4], [w, GROUND, d + 4]], grass);
-  quad(ctx, proj, [[0, GROUND, d], [w + 1.6, GROUND, d], [w + 1.6, GROUND, d + 1.6], [0, GROUND, d + 1.6]], walk);
-  quad(ctx, proj, [[w, GROUND, 0], [w + 1.6, GROUND, 0], [w + 1.6, GROUND, d + 1.6], [w, GROUND, d + 1.6]], walk);
+  quad(ctx, proj, [[0, GROUND, D], [w + 4, GROUND, D], [w + 4, GROUND, D + 4], [0, GROUND, D + 4]], grass);
+  quad(ctx, proj, [[w, GROUND, 0], [w + 4, GROUND, 0], [w + 4, GROUND, D + 4], [w, GROUND, D + 4]], grass);
+  quad(ctx, proj, [[0, GROUND, D], [w + 1.6, GROUND, D], [w + 1.6, GROUND, D + 1.6], [0, GROUND, D + 1.6]], walk);
+  quad(ctx, proj, [[w, GROUND, 0], [w + 1.6, GROUND, 0], [w + 1.6, GROUND, D + 1.6], [w, GROUND, D + 1.6]], walk);
+  if (wing) quad(ctx, proj, [[wing.w, GROUND, d], [w + 1.6, GROUND, d], [w + 1.6, GROUND, D], [wing.w, GROUND, D]], walk);   // 날개 오른쪽 옆
 
   // 3. 이 건물의 아래 두 층 — 앞면(z=d)과 오른쪽 면(x=w). 오른쪽 면은 조금 어둡게
   const lamp = '#f2c14e';
@@ -171,19 +175,39 @@ function drawStatic(ctx: Ctx2D, proj: Proj, world: { w: number; d: number }, vie
     // 바닥 줄 — 땅과 닿는 곳
     quad(ctx, proj, [F.at(0, GROUND + 0.25), F.at(F.len, GROUND + 0.25), F.at(F.len, GROUND), F.at(0, GROUND)], mix('#1a2038', '#8b909b', day));
   });
+  // 날개 밑 — 앞면(z=D)과 오른쪽 면(x=wing.w), 날개 바닥 판 아래부터 땅까지. 창 한 줄
+  if (wing) {
+    const top = wing.y - 0.5;
+    const wf = [
+      { len: wing.w, at: (s: number, y: number): [number, number, number] => [s, y, D], wall: faces[0].wall, band: faces[0].band, glass: faces[0].glass, shade: 1 },
+      { len: wing.d, at: (s: number, y: number): [number, number, number] => [wing.w, y, D - s], wall: faces[1].wall, band: faces[1].band, glass: faces[1].glass, shade: 0.88 },
+    ];
+    wf.forEach((F, fi) => {
+      quad(ctx, proj, [F.at(0, top), F.at(F.len, top), F.at(F.len, GROUND), F.at(0, GROUND)], F.wall);
+      quad(ctx, proj, [F.at(0, top), F.at(F.len, top), F.at(F.len, top - 0.35), F.at(0, top - 0.35)], F.band);
+      const n = Math.floor(F.len / BAY), pad = (F.len - n * BAY) / 2;
+      const wy0 = top - 0.7, wy1 = Math.max(GROUND + 0.5, top - 2.2);
+      for (let i = 0; i < n; i++) {
+        const s0 = pad + i * BAY + 0.22, s1 = pad + (i + 1) * BAY - 0.22;
+        const lit = hash(8, fi, i) < 0.08 + 0.47 * night * night;
+        quad(ctx, proj, [F.at(s0, wy0), F.at(s1, wy0), F.at(s1, wy1), F.at(s0, wy1)], lit ? mix(F.glass, hexOf(mix('#000000', lamp, F.shade)), 0.25 + 0.75 * night) : F.glass);
+      }
+      quad(ctx, proj, [F.at(0, GROUND + 0.25), F.at(F.len, GROUND + 0.25), F.at(F.len, GROUND), F.at(0, GROUND)], mix('#1a2038', '#8b909b', day));
+    });
+  }
   // 1층 입구 — 앞면 가운데쯤 유리문과 차양. 밤엔 불빛, 낮엔 유리
   const ex = Math.min(w - 2, Math.max(2, w * 0.62));
-  quad(ctx, proj, [[ex - 1.2, GROUND + 2.4, d], [ex + 1.2, GROUND + 2.4, d], [ex + 1.2, GROUND, d], [ex - 1.2, GROUND, d]], mix('#7fa9cf', lamp, 0.3 + 0.7 * night));
-  quad(ctx, proj, [[ex - 1.5, GROUND + 2.75, d], [ex + 1.5, GROUND + 2.75, d], [ex + 1.5, GROUND + 2.75, d + 0.9], [ex - 1.5, GROUND + 2.75, d + 0.9]], mix('#475073', '#5d6b8f', day));
+  quad(ctx, proj, [[ex - 1.2, GROUND + 2.4, D], [ex + 1.2, GROUND + 2.4, D], [ex + 1.2, GROUND, D], [ex - 1.2, GROUND, D]], mix('#7fa9cf', lamp, 0.3 + 0.7 * night));
+  quad(ctx, proj, [[ex - 1.5, GROUND + 2.75, D], [ex + 1.5, GROUND + 2.75, D], [ex + 1.5, GROUND + 2.75, D + 0.9], [ex - 1.5, GROUND + 2.75, D + 0.9]], mix('#475073', '#5d6b8f', day));
 
   // 가로수 — 보도 바깥 잔디에, 뒤(위쪽 화면)에서 앞으로 그린다
   const trees: [number, number][] = [];
-  for (let x = 2; x < w + 2; x += 4.2) trees.push([x, d + 2.6]);
-  for (let z = 2; z < d; z += 4.2) trees.push([w + 2.6, z]);
+  for (let x = 2; x < w + 2; x += 4.2) trees.push([x, D + 2.6]);
+  for (let z = 2; z < D; z += 4.2) trees.push([w + 2.6, z]);
   trees.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
   const trunk = mix('#2a1f1a', '#6b4f3a', day), leaf = mix('#163a26', '#3f7d43', day), leafHi = mix('#1f4d33', '#62a35a', day);
   for (const [x, z] of trees) {
-    if (Math.abs(x - ex) < 2.2 && z > d) continue;   // 입구 앞은 비운다
+    if (Math.abs(x - ex) < 2.2 && z > D) continue;   // 입구 앞은 비운다
     const [bx, by] = proj([x, GROUND, z]);
     const [cx, cy] = proj([x, GROUND + 2.2, z]);
     ctx.fillStyle = trunk;
@@ -218,14 +242,14 @@ function drawStars(ctx: CanvasRenderingContext2D, proj: Proj, view: View, t: num
 }
 
 export function drawBackdrop(ctx: CanvasRenderingContext2D, proj: (p: [number, number, number]) => [number, number],
-  world: { w: number; d: number }, view: { x0: number; y0: number; x1: number; y1: number }, t: number, daylight: number): void {
+  world: { w: number; d: number; wing?: Wing }, view: { x0: number; y0: number; x1: number; y1: number }, t: number, daylight: number): void {
   const day = Math.min(1, Math.max(0, daylight));
   const m = ctx.getTransform();
   const cw = ctx.canvas.width, ch = ctx.canvas.height;
   // 세계 1 의 구운 픽셀 길이 — proj 로 잰다: (1,0,0) 과 (0,0,1) 은 화면에서 가로로 √2·S 떨어진다
   const [ax, ay] = proj([0, 0, 0]), [bx, by] = proj([1, 0, 0]), [cx, cy] = proj([0, 0, 1]);
   const S = Math.hypot(bx - cx, by - cy) / Math.SQRT2 || 96;
-  const key = [m.a, m.b, m.c, m.d, Math.round(m.e), Math.round(m.f), cw, ch, world.w, world.d, ax, ay,
+  const key = [m.a, m.b, m.c, m.d, Math.round(m.e), Math.round(m.f), cw, ch, world.w, world.d, world.wing?.d ?? 0, ax, ay,
     Math.round(view.x0), Math.round(view.y0), Math.round(view.x1), Math.round(view.y1), Math.round(day * 100)].join(',');
   if (!cache || cache.key !== key) {
     const canvas = cache && cache.canvas.width === cw && cache.canvas.height === ch ? cache.canvas : makeCanvas(cw, ch);

@@ -4,6 +4,13 @@ import { Nav } from '../scene/nav.ts';
 import { direct, colorOf, type Placement } from '../scene/director.ts';
 import type { World } from '../scene/world.ts';
 import { DIRS } from '../scene/layout.ts';
+import { hourNow } from './daylight.ts';
+import { MEAL_GRUMBLE, MEAL_DONE } from './lines.ts';
+import { draw } from './chatter.ts';
+
+// 화면 확인용 — 주소에 ?meal 을 붙이면 끼니와 상관없이 쉬는 사람이 식당을 오간다
+const FORCE_MEAL = typeof location !== 'undefined' && new URLSearchParams(location.search).has('meal');
+const inMeal = (p: Placement) => !!p.group && (p.group.startsWith('order:') || p.group.startsWith('meal:'));
 
 const SPEED = 2.2;
 
@@ -16,6 +23,7 @@ export interface Actor {
   moving: boolean;
   leaving: boolean;          // 사라진 에이전트 — 문까지 걸어간 뒤 지운다
   t: number;                 // 걸음 흔들림 위상
+  say?: { text: string; until: number };   // 혼자 하는 한마디 — 식사 중 불려 갈 때 불평, 다 먹고 일어날 때 (performance.now 초)
 }
 
 export class Cast {
@@ -36,7 +44,8 @@ export class Cast {
       for (const a of this.actors.values()) a.path = [];   // 건물이 바뀌었다 — 길을 새로 찾는다
     }
     const doorSpot = (): [number, number] => [...world.door];
-    const places = direct(world, agents);
+    const places = direct(world, agents, Date.now(), { hour: hourNow(), forceMeal: FORCE_MEAL });
+    const clock = performance.now() / 1000;
     const live = new Set<string>();
     for (const a of agents) {
       live.add(a.id);
@@ -46,6 +55,14 @@ export class Cast {
         const [x, z] = this.first ? place.target : doorSpot();
         actor = { agent: a, place, color: 0, x, z, rot: Math.PI, path: [], moving: false, leaving: false, t: Math.random() * 10 };
         this.actors.set(a.id, actor);
+      }
+      // 식당을 떠난다 — 바빠져서면 불평, 끼니가 끝나서면 한마디 (먹는 자리에서 일어날 때만 — 주문하다 가면 불평만)
+      if (inMeal(actor.place) && !inMeal(place)) {
+        const busy = a.activity !== 'idle';
+        if (busy || actor.place.group!.startsWith('meal:')) {
+          const text = draw(busy ? MEAL_GRUMBLE : MEAL_DONE);
+          actor.say = { text, until: clock + Math.min(6, Math.max(3, 1.8 + text.length * 0.13)) };
+        }
       }
       const moved = actor.place.target[0] !== place.target[0] || actor.place.target[1] !== place.target[1];
       actor.agent = a;

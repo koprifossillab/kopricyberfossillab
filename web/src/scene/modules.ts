@@ -649,11 +649,11 @@ function downstairs(): ModuleDef {
     prop('fryer', 'fryer', 10.6, 0.4), prop('grill', 'grill', 12.2, 0.4), prop('fountain', 'drink_fountain', 14.4, 0.35),
     prop('shake', 'shake_machine', 15.5, 0.35), prop('ffmenu', 'ff_menu', 12.4, 0.05),
     prop('ffcounter', 'ff_counter', 12.4, 1.9), prop('kiosk0', 'kiosk', 16.6, 1.9), prop('kiosk1', 'kiosk', 17.5, 1.9),
-    prop('trayret', 'tray_return', 18.9, 1.9), prop('fftrash', 'trash_bin', 18.95, 0.45), prop('ffpylon', 'shop_pylon', 10.0, 6.1),
+    prop('trayret', 'tray_return', 18.9, 1.9), prop('fftrash', 'ff_trash', 18.95, 0.45), prop('ffpylon', 'shop_pylon', 10.0, 6.1),
     // 장보고 국밥·국수 — 뒤에 육수 솥·국수 솥·김치 냉장고·뚝배기 선반·셀프 코너, 계산대, 4인 식탁 넷
     prop('cauldron', 'soup_cauldron', 20.9, 0.5), prop('noodle', 'noodle_boiler', 22.4, 0.4), prop('kfridge', 'kimchi_fridge', 25.4, 0.35),
     prop('krmenu', 'kr_menu', 24.0, 0.05), prop('krshelf', 'kr_shelf', 27.3, 0.28), prop('selfbar', 'self_bar', 29.6, 0.3),
-    prop('krcounter', 'kr_counter', 23.2, 1.9), prop('krtrash', 'trash_bin', 30.55, 1.4), prop('krpylon', 'shop_pylon', 20.5, 6.1),
+    prop('krcounter', 'kr_counter', 23.2, 1.9), prop('krtrash', 'kr_trash', 30.55, 1.4), prop('krpylon', 'shop_pylon', 20.5, 6.1),
   ]);
   const burger: Dining = { shop: 'burger', order: [[11.0, 2.65], [12.4, 2.65], [13.8, 2.65], [16.6, 2.5], [17.5, 2.5]].map(([x, z]) => ({ at: [x, z] as [number, number], face: Math.PI })), seats: [] };
   // 2인 탁자 — 의자는 양옆(x)에서 탁자를 본다

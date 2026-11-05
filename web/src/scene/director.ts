@@ -4,6 +4,8 @@
 //   code·read·run·think·spawn → 자기 책상(앉음)   wait → 책상 옆(서서 빨간 링)
 //   git → 코어 보관대   test → 현미경 책상   search → 자료실   idle → 휴게실 (소파·카페 의자에 앉거나 커피 머신 앞)
 //   휴게실 사람은 낮은 확률로 화장실(생김새의 성별대로)에 잠깐 다녀온다 — 시간 창마다 정해져 다시 그려도 같다
+//   끼니(아침 7–8·점심 12–14·저녁 18–20)에는 쉬는 사람이 제비로 아래층 식당가에 간다 — 카운터·키오스크에서 주문 → 자리에서 먹기 → 돌아오기 (meals.ts).
+//   먹다가 바빠지면 일하러 가고, 그 끼니엔 다시 오지 않는다(불평 말풍선은 cast.ts)
 //   하위 에이전트 → 부모 책상 곁   다른 계정 → 바쁘면 화이트보드 앞, 아니면 휴게실
 //   tmux 사람 → 명령이 돌면 공용실 책상(차 있으면 서는 자리), 아니면 휴게실
 // 책상과 휴게실 자리는 한 번 받으면 떠날 때까지 그대로 — 남이 일어나도 자리를 옮기지 않는다.
@@ -12,6 +14,7 @@ import { PALETTE, FOREIGN_COLOR } from './layout.ts';
 import { SEAT_LIFT } from './modules.ts';
 import { seatOf, waitSpotOf, type World } from './world.ts';
 import { isFemale } from './appearance.ts';
+import { mealPlan, type Food } from './meals.ts';
 
 const TRIP_WINDOW = 90;   // 초 — 이 창마다 한 번 제비뽑기
 const TRIP_ODDS = 8;      // 8 분의 1
@@ -51,13 +54,17 @@ export interface Placement {
   desk: number | null;   // 모니터를 켤 책상 (world.desks 의 번호)
   on?: string;           // 앉는 가구 (WorldItem.key — 그 가구가 캐릭터를 가리지 않는다)
   lift?: number;         // 앉은 그림을 더 올리는 만큼
-  group?: string;        // 휴게실에서 함께 이야기하는 무리
+  group?: string;        // 휴게실에서 함께 이야기하는 무리 (식당: order:<가게> · meal:<가게>:<탁자>)
+  food?: Food;           // 식당에서 시킨 것 — 먹는 동안 dish 자리에 그 그림을 놓는다
+  dish?: { at: [number, number]; y: number; rot: number };
 }
 
 // 책상·휴게실 자리 번호는 건물마다 다르다 — 건물이 바뀌면 처음부터 다시 받는다
 const deskOf = new Map<string, number>();
 const seatAt = new Map<string, number>();   // 휴게실 자리
 let builtFor: World | null = null;
+const mealSeen = new Map<string, string>();      // 식당에 보낸 사람 → 그 끼니 (바빠졌는지 보려고)
+const mealBroken = new Map<string, string>();    // 먹다 불려 간 사람 → 그 끼니 (다시 보내지 않는다)
 
 function hash(s: string): number {
   let h = 0;
@@ -150,8 +157,34 @@ function assignSeats(w: World, agents: Agent[]): void {
   }
 }
 
-export function direct(w: World, agents: Agent[], now = Date.now()): Map<string, Placement> {
+// 식당 자리 — 주문 자리는 차례로(넘치면 뒤에 줄), 먹는 자리는 사람마다 정해 둔 자리부터 빈 곳. 반쯤은 이미 누가 앉은 탁자에 낀다(같이 먹으며 이야기)
+function mealPlace(w: World, a: Agent, plan: NonNullable<ReturnType<typeof mealPlan>>, used: { order: Map<string, number>; seats: Set<string>; tables: Set<string> }): Placement | null {
+  const dn = w.dining.find((d) => d.shop === plan.shop);
+  if (!dn || !dn.order.length || !dn.seats.length) return null;
+  if (plan.phase === 'order') {
+    const n = used.order.get(dn.shop) ?? 0;
+    used.order.set(dn.shop, n + 1);
+    const o = dn.order[(n + plan.seed) % dn.order.length];
+    const lap = Math.floor(n / dn.order.length);
+    return { target: [o.at[0], o.at[1] + lap * 0.55], pose: 'stand', face: o.face, desk: null, group: `order:${dn.shop}` };
+  }
+  const free = dn.seats.map((_, i) => i).filter((i) => !used.seats.has(dn.seats[i].key));
+  if (!free.length) return null;
+  const join = free.filter((i) => used.tables.has(`${dn.shop}:${dn.seats[i].table}`));
+  const pool = join.length && plan.seed % 2 ? join : free;
+  const st = dn.seats[pool[(plan.seed >>> 3) % pool.length]];
+  used.seats.add(st.key); used.tables.add(`${dn.shop}:${st.table}`);
+  return {
+    target: st.at, pose: 'sit', face: st.face, desk: null, on: st.key, lift: st.lift, group: `meal:${dn.shop}:${st.table}`,
+    food: plan.food, dish: { at: st.dish, y: st.dishY, rot: st.face + Math.PI },
+  };
+}
+
+// hour — 화면의 지역 시각(시, 소수). forceMeal — 화면 확인용(?meal): 끼니와 상관없이 쉬는 사람이 다 식당을 오간다
+export function direct(w: World, agents: Agent[], now = Date.now(), opts: { hour?: number; forceMeal?: boolean } = {}): Map<string, Placement> {
   if (builtFor !== w) { deskOf.clear(); seatAt.clear(); builtFor = w; }
+  const hour = opts.hour ?? (() => { const d = new Date(now); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; })();
+  const meals = { order: new Map<string, number>(), seats: new Set<string>(), tables: new Set<string>() };
   const live = new Set(agents.map((a) => a.id));
   for (const id of deskOf.keys()) if (!live.has(id)) deskOf.delete(id);
   assignDesks(w, agents);
@@ -177,6 +210,18 @@ export function direct(w: World, agents: Agent[], now = Date.now()): Map<string,
 
   for (const a of agents) {
     const desk = deskOf.get(a.id) ?? null;
+    // 끼니 — 쉬는 사람(하위 에이전트 빼고, 상담원 포함)은 제비에 뽑히면 식당에. 먹다 바빠진 사람은 그 끼니엔 다시 안 온다
+    if (a.kind !== 'subagent' && w.dining.length) {
+      const plan = mealPlan(a.id, now, hour, opts.forceMeal);
+      const seen = mealSeen.get(a.id);
+      if (seen && (!plan || plan.key !== seen)) mealSeen.delete(a.id);
+      if (plan && seen === plan.key && !resting(a)) { mealBroken.set(a.id, plan.key); mealSeen.delete(a.id); }
+      if (mealBroken.has(a.id) && mealBroken.get(a.id) !== plan?.key) mealBroken.delete(a.id);
+      if (plan && resting(a) && mealBroken.get(a.id) !== plan.key) {
+        const p = mealPlace(w, a, plan, meals);
+        if (p) { mealSeen.set(a.id, plan.key); out.set(a.id, p); continue; }
+      }
+    }
     if (a.kind === 'subagent' && desk === null) {   // 책상을 못 받은 하위 에이전트는 부모 곁에 선다
       const pd = a.parentId ? deskOf.get(a.parentId) : undefined;
       const n = children.get(a.parentId ?? '') ?? 0;

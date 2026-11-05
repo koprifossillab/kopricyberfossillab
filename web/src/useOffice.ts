@@ -49,6 +49,8 @@ function demo(set: (s: Snapshot) => void): () => void {
     code: 'Edit · viewer.ts', read: 'Grep · Thalassiosira', search: 'WebSearch · Compsognathus', think: '생각 중', git: 'Bash · git push',
     test: 'Bash · pytest', wait: 'AskUserQuestion', idle: '응답 완료 · 다음 지시 대기', spawn: 'Agent · Review UI', run: 'Bash · ls',
   };
+  // ?meal(식당 화면 확인)이면 활동을 드물게 바꾼다 — 쉬는 사람이 식당까지 걸어가 앉을 틈이 있게
+  const churn = new URLSearchParams(location.search).has('meal') ? 0.03 : 0.35;
   const t0 = Date.now();
   const base: Agent[] = ['Claude-A', 'Claude-B', 'gsm-pan', 'diaruga', 'pan'].map((n, i) => ({
     id: `demo-${i}`, kind: i === 2 ? 'job' : 'session', name: n, project: ['GSM', 'DiaRUGA', 'GSM', 'DiaRUGA', 'projects'][i],
@@ -56,7 +58,7 @@ function demo(set: (s: Snapshot) => void): () => void {
   }));
   const tick = () => {
     for (const a of base) {
-      if (Math.random() < 0.35) { a.activity = acts[Math.floor(Math.random() * acts.length)]; a.label = labels[a.activity]; a.changedAt = Date.now(); }
+      if (Math.random() < churn) { a.activity = acts[Math.floor(Math.random() * acts.length)]; a.label = labels[a.activity]; a.changedAt = Date.now(); }
     }
     const agents: Agent[] = base.map((a) => ({ ...a }));
     if (base[0].activity === 'spawn' || base[0].activity === 'think') {

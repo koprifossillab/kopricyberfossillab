@@ -3,7 +3,7 @@
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office } from '../types.ts';
-import { bodyKey, headLayers, dinoKey, fishKey, scorpionKey, cactusKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { bodyKey, headLayers, dinoKey, fishKey, scorpionKey, cactusKey, foodKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { appearanceOf, liftOf, shapeOf } from '../scene/appearance.ts';
 import { FishTank } from './fish.ts';
 import { daylight, hourNow } from './daylight.ts';
@@ -15,8 +15,9 @@ import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
-import { buildWorld, DESERT, type World, type WorldItem } from '../scene/world.ts';
-import { Chatter, draw as drawLine } from './chatter.ts';
+import { buildWorld, heightAt, DESERT, type World, type WorldItem } from '../scene/world.ts';
+import { mealOf } from '../scene/meals.ts';
+import { Chatter, draw as drawLine, fill } from './chatter.ts';
 import { personName, roomName } from '../scene/names.ts';
 
 const RM = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -101,7 +102,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let tank: FishTank | null = null;
       let tankItem: (string | undefined)[] = [];   // 수조 차례 → 그 수조 가구의 WorldItem.key (물고기를 그 그림 안에 그릴 때)
       let day = 1, lastSky = -1;
-      let lamps: [number, number][] = [];
+      let lamps: [number, number, number][] = [];   // 천장 조명 웅덩이 [x, 바닥 높이, z]
       let bounds = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
       // 건물 전체가 들어가는 구운 픽셀 범위
@@ -109,7 +110,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (const m of w.modules) {
           const ms = atlas.modules[m.type];
-          const [ax, ay] = proj([m.at[0], 0, m.at[1]]);
+          const [ax, ay] = proj([m.at[0], m.y ?? 0, m.at[1]]);
           for (const r of [ms?.floor, ms?.objects]) {
             if (!r) continue;
             x0 = Math.min(x0, ax + r.ox); y0 = Math.min(y0, ay + r.oy);
@@ -154,18 +155,18 @@ export function Stage({ agents, offices, selected, onSelect }: {
       };
       const circle = (x: number, z: number, r: number, y = 0.02): V3[] =>
         Array.from({ length: 24 }, (_, i) => [x + r * Math.cos((i / 24) * Math.PI * 2), y, z + r * Math.sin((i / 24) * Math.PI * 2)] as V3);
-      const ring = (x: number, z: number, r0: number, r1: number, color: string, alpha: number) => {
+      const ring = (x: number, z: number, r0: number, r1: number, color: string, alpha: number, y = 0.02) => {
         ctx.globalAlpha = alpha;
         ctx.fillStyle = color;
         ctx.beginPath();
-        circle(x, z, r1).forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
+        circle(x, z, r1, y).forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
         ctx.closePath();
-        circle(x, z, r0).reverse().forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
+        circle(x, z, r0, y).reverse().forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
         ctx.closePath();
         ctx.fill('evenodd');
         ctx.globalAlpha = 1;
       };
-      const moduleAt = (w: World, i: number) => proj([w.modules[i].at[0], 0, w.modules[i].at[1]]);
+      const moduleAt = (w: World, i: number) => proj([w.modules[i].at[0], w.modules[i].y ?? 0, w.modules[i].at[1]]);   // 아래층은 바닥이 낮다
       // 벽면의 기울기 — x 축(+z 를 보는 벽)과 z 축(+x 를 보는 벽)이 화면에서 기운 각도
       const slope = (p: V3) => { const [u, v] = proj(p); return (Math.atan2(v, u) * 180) / Math.PI; };
       const skewX = slope([1, 0, 0]), skewZ = slope([0, 0, 1]) + 180;
@@ -207,7 +208,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
         bctx.setTransform(1, 0, 0, 1, 0, 0);
         bctx.clearRect(0, 0, back.current.width, back.current.height);
         bctx.setTransform(k, 0, 0, k, offX, offY);
-        drawBackdrop(bctx, proj, { w: w.w, d: w.d },
+        drawBackdrop(bctx, proj, { w: w.w, d: w.top, wing: w.lower ? { w: MODULES.downstairs.size[0], d: w.d - w.top, y: w.lower.y } : undefined },
           { x0: -offX / k, y0: -offY / k, x1: (back.current.width - offX) / k, y1: (back.current.height - offY) / k }, RM ? 0 : T, day);
         ctx.imageSmoothingQuality = 'high';
         // 바닥 층 전부, 그다음 물건 층 (등각 차례)
@@ -217,7 +218,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           for (const m of w.modules) {
             const [mw, md] = MODULES[m.type].size;
             if (!MODULES[m.type].floors.length || m.type === 'terrace') continue;
-            for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.at[1] + lz]);
+            for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.y ?? 0, m.at[1] + lz]);
           }
         }
         if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; deserts = w.desert.map((d) => new Desert(d.roam, d.home, d.room)); tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
@@ -235,7 +236,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
         seated.forEach((act, d) => deskScreen(w, d, act, T));
 
         // 캐릭터의 그림 자리 (구운 픽셀) — 몸 위에 머리 층들을 겹친다
-        type Draw = { a: Actor; body: SpriteRect; head: SpriteRect[]; bx: number; by: number; hx: number; hy: number; s: number; x0: number; y0: number; x1: number; y1: number };
+        type Draw = { a: Actor; fy: number; body: SpriteRect; head: SpriteRect[]; bx: number; by: number; hx: number; hy: number; s: number; x0: number; y0: number; x1: number; y1: number };
         const draws: Draw[] = [];
         for (const a of actors) {
           const sit = sitting(a);
@@ -246,14 +247,15 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const bob = a.moving && !RM ? Math.abs(Math.sin(a.t * 10)) * 0.08 : 0;
           const lift = sit ? (a.place.lift ?? 0) : 0;
           const s = 1;   // 하위 에이전트도 사람 크기 (전에는 0.72 — 사용자: 「에이전트도 사람같이」)
-          const [bx, by] = proj([a.x, bob + lift, a.z]);
-          const [hx, hy] = proj([a.x, bob + lift + (HEAD_Y + liftOf(L.build) + (sit ? SIT_LIFT : 0)) * s, a.z]);   // 머리 층은 보통 몸집으로 구웠다
+          const fy = heightAt(w, a.x, a.z);   // 아래층·계단
+          const [bx, by] = proj([a.x, fy + bob + lift, a.z]);
+          const [hx, hy] = proj([a.x, fy + bob + lift + (HEAD_Y + liftOf(L.build) + (sit ? SIT_LIFT : 0)) * s, a.z]);   // 머리 층은 보통 몸집으로 구웠다
           let x0 = bx + body.ox * s, y0 = by + body.oy * s, x1 = bx + (body.ox + body.w) * s, y1 = by + (body.oy + body.h) * s;
           for (const h of head) {
             x0 = Math.min(x0, hx + h.ox * s); y0 = Math.min(y0, hy + h.oy * s);
             x1 = Math.max(x1, hx + (h.ox + h.w) * s); y1 = Math.max(y1, hy + (h.oy + h.h) * s);
           }
-          draws.push({ a, body, head, bx, by, hx, hy, s, x0, y0, x1, y1 });
+          draws.push({ a, fy, body, head, bx, by, hx, hy, s, x0, y0, x1, y1 });
         }
         // 공룡 — 먹이 주는 사람(울타리 앞에 도착한 사람)이 있으면 그 앞으로 온다
         if (pen && w.pen) {
@@ -268,15 +270,15 @@ export function Stage({ agents, offices, selected, onSelect }: {
         }
         // 그릴 것 — 캐릭터와 공룡을 x+z 차례로, 사이사이에 그들을 가리는 가구를 끼운다
         // inside — 그 가구(수조) 속에 든 것. 그 가구는 이 그림을 덮지 않고 옅게만 비친다(아래 covers)
-        type Figure = { x: number; z: number; sit: boolean; on?: string; inside?: string; x0: number; y0: number; x1: number; y1: number; draw: () => void };
+        type Figure = { x: number; z: number; sit: boolean; on?: string; inside?: string; top?: string; x0: number; y0: number; x1: number; y1: number; draw: () => void };
         const figs: Figure[] = draws.map((d) => ({
           x: d.a.x, z: d.a.z, sit: sitting(d.a), on: d.a.place.on, x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1,
           draw: () => {
             const { a } = d;
-            if (!sitting(a)) poly(circle(a.x, a.z, 0.3 * d.s), '#000', 0.12);   // 발 그림자
+            if (!sitting(a)) poly(circle(a.x, a.z, 0.3 * d.s, d.fy + 0.02), '#000', 0.12);   // 발 그림자
             const waiting = a.agent.activity === 'wait' && !a.moving && !a.leaving;
-            if (waiting) ring(a.x, a.z, 0.42, 0.5, '#e24b4a', RM ? 0.8 : 0.5 + 0.4 * Math.sin(T * 5));
-            else if (sel === a.agent.id) ring(a.x, a.z, 0.42, 0.5, '#534ab7', 0.45);
+            if (waiting) ring(a.x, a.z, 0.42, 0.5, '#e24b4a', RM ? 0.8 : 0.5 + 0.4 * Math.sin(T * 5), d.fy + 0.02);
+            else if (sel === a.agent.id) ring(a.x, a.z, 0.42, 0.5, '#534ab7', 0.45, d.fy + 0.02);
             blit(d.body, d.bx, d.by, d.s);
             for (const h of d.head) blit(h, d.hx, d.hy, d.s);
           },
@@ -333,9 +335,33 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const [ax, ay] = proj([f.x, f.y, f.z]);
           figs.push({ x: f.x, z: f.z, sit: false, inside: tankItem[f.tank], x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h, draw: () => blit(r, ax, ay) });
         }
+        // 식탁 위 음식 — 먹는 자리에 앉은 사람 앞에만. 뚝배기·국수엔 김이 오른다
+        for (const a of actors) {
+          const dish = a.place.dish, food = a.place.food;
+          if (!dish || !food || !sitting(a)) continue;
+          const r = atlas.critters?.[foodKey(food, dirOf(dish.rot))];
+          if (!r) continue;
+          const [ax, ay] = proj([dish.at[0], dish.y, dish.at[1]]);
+          const table = w.items.find((it) => it.module === w.modules.findIndex((m) => m.type === 'downstairs') && dish.at[0] > it.box[0] && dish.at[0] < it.box[2] && dish.at[1] > it.box[1] && dish.at[1] < it.box[3] && it.prop?.endsWith('_table'))?.key;
+          figs.push({ x: dish.at[0], z: dish.at[1], sit: false, top: table, x0: ax + r.ox, y0: ay + r.oy - 40, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
+            draw: () => {
+              blit(r, ax, ay);
+              if (food === 'burger' || RM) return;
+              for (let k = 0; k < 3; k++) {   // 김 — 위로 오르며 옅어진다
+                const ph = (T * 0.6 + k / 3 + (dish.at[0] % 1)) % 1;
+                const [u, v] = proj([dish.at[0] + Math.sin(ph * 6 + k) * 0.03, dish.y + 0.14 + ph * 0.32, dish.at[1]]);
+                ctx.globalAlpha = 0.35 * (1 - ph);
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.ellipse(u, v, 0.035 * S * (1 + ph), 0.05 * S * (1 + ph), 0, 0, Math.PI * 2); ctx.fill();
+              }
+              ctx.globalAlpha = 1;
+            } });
+        }
         figs.sort((p, q) => (p.x + p.z) - (q.x + q.z));
         // 가구가 그림 앞인가 — 카메라가 +x·+z 쪽에서 보므로 앞면 너머에 있으면 앞이다. 앉은 가구(소파·카페 의자)는 가리지 않는다
-        const frontOf = (f: Figure, it: WorldItem) => f.x > it.box[2] || f.z > it.box[3] || (f.sit && f.on === it.key);
+        // top — 그 가구 위에 놓인 것(식탁 위 음식): 그 가구가 덮지 않는다. 계단(flight) 위를 걷는 사람도 계단이 덮지 않는다 — 더 낮은 단은 앞에 있어도 발밑이다
+        const onFlight = (f: Figure, it: WorldItem) => it.kind === 'flight' && f.x >= it.box[0] && f.x <= it.box[2] && f.z >= it.box[1] && f.z <= it.box[3];
+        const frontOf = (f: Figure, it: WorldItem) => f.x > it.box[2] || f.z > it.box[3] || (f.sit && f.on === it.key) || f.top === it.key || onFlight(f, it);
         type Cover = { at: number; box: Rect; clip: Figure[]; alpha: number; fn: () => void };
         const VEIL = 0.3;   // 수조 속 물고기 위에 그 수조를 다시 칠하는 진하기 — 물빛이 살짝 돈다
         const covers: Cover[] = [];
@@ -386,8 +412,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
           ctx.fillStyle = `rgba(8, 14, 38, ${0.55 * night})`;
           ctx.fillRect(bounds.x0 - 50, bounds.y0 - 50, bounds.x1 - bounds.x0 + 100, bounds.y1 - bounds.y0 + 100);
           ctx.globalCompositeOperation = 'lighter';
-          for (const [lx, lz] of lamps) {
-            const [u, v] = proj([lx, 0, lz]);
+          for (const [lx, ly, lz] of lamps) {
+            const [u, v] = proj([lx, ly, lz]);
             const r = 2.4 * S;
             const g = ctx.createRadialGradient(u, v, 0, u, v, r);
             g.addColorStop(0, `rgba(255, 214, 150, ${0.22 * night})`);
@@ -429,7 +455,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const top = (sitting(a) ? 1.45 + SIT_LIFT : 1.6) + (sitting(a) ? (a.place.lift ?? 0) : 0);
           label(a.agent.id, 'lbl' + (wait ? ' wait' : '') + (sel === a.agent.id ? ' sel' : ''),
             `<i style="background:${hex(a.color)}"></i>${esc(personName(a.agent))}${wait ? ` · ${STATE_TEXT.wait}${a.agent.guessed ? '?' : ''}` : ''}`,
-            [a.x, top, a.z], 'translate(-50%, -100%)');
+            [a.x, top + d.fy, a.z], 'translate(-50%, -100%)');
         }
         // 상담원이 답하는 중이면 「답하는 중…」 (질문·답은 대화창에만)
         for (const d of draws) {
@@ -439,7 +465,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           live.add(id);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);
           label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>답하는 중…`,
-            [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : 0), a.z], 'translate(-50%, -100%)');
+            [a.x, d.fy + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : 0), a.z], 'translate(-50%, -100%)');
         }
         // 휴게실 잡담 — 같은 무리(카페 탁자·소파)에 둘 이상 있으면 대화를 돌아가며, 혼자면 드문드문 혼잣말 (chatter.ts)
         const groups = new Map<string, Actor[]>();
@@ -466,7 +492,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
           members.sort((p, q) => (p.agent.id < q.agent.id ? -1 : 1));
           const said = chatter.step(name, members.map((m) => m.agent.id), T, (who) => {
             const m = members.find((p) => p.agent.id === who);
-            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '', theme: m && DESERT.has(m.agent.room) ? 'desert' : undefined };
+            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '', theme: m && DESERT.has(m.agent.room) ? 'desert' : undefined,
+              meal: mealOf(hourNow()) ?? undefined, food: m?.place.food };
           });
           if (!said) return;
           const a = members.find((m) => m.agent.id === said.who);
@@ -475,7 +502,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           live.add(id);
           labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);   // 이름표 대신 말풍선
           label(id, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(said.text)}`,
-            [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
+            [a.x, heightAt(w, a.x, a.z) + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         });
         // 전갈·선인장에 놀란 말 — 잡담 위에 덮는다
         startled.forEach((st, id) => {
@@ -487,8 +514,20 @@ export function Stage({ agents, offices, selected, onSelect }: {
           live.add(bid);
           labelEls.get(id)?.remove(); labelEls.delete(id);
           label(bid, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(st.text)}`,
-            [a.x, 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
+            [a.x, d.fy + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         });
+        // 혼자 하는 한마디 — 먹다가 불려 갈 때 불평, 다 먹고 일어날 때 (cast.ts). 걸으면서도 보인다 — 잡담·놀람 위에 덮는다
+        const clock = performance.now() / 1000;
+        for (const d of draws) {
+          const { a } = d;
+          if (!a.say || clock >= a.say.until || a.leaving) continue;
+          const bid = `bubble:${a.agent.id}`;
+          live.add(bid);
+          labelEls.get(a.agent.id)?.remove(); labelEls.delete(a.agent.id);
+          const text = fill(a.say.text, { act: a.agent.activity, room: roomName(a.agent.room), name: personName(a.agent) }, undefined);
+          label(bid, 'bubble', `<small style="color:${hex(a.color)}">${esc(personName(a.agent))}</small>${esc(text)}`,
+            [a.x, d.fy + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
+        }
         // 방 이름 명판 — 벽에 붙여, 벽면이 기운 만큼 비스듬히 (정사영이라 벽의 세로 모서리는 곧다 → skewY)
         for (const r of w.labels) {
           const id = `room:${r.name}:${r.at.join(',')}`;
