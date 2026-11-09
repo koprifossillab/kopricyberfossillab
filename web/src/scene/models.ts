@@ -522,12 +522,18 @@ function feeder(x: number, z: number): THREE.Group {
   return g;
 }
 
-function fern(x: number, z: number, seed: number): THREE.Group {
+// k: 크기 (잔디 방의 것은 덤불처럼 크게 — 안쪽에 곧게 선 새순 몇 개를 더한다)
+function fern(x: number, z: number, seed: number, k = 1): THREE.Group {
   const g = new THREE.Group();
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2 + seed;
-    const leaf = mesh(g, new THREE.ConeGeometry(0.06, 0.55, 4), k % 2 ? 0x3b6d11 : 0x639922, x + Math.sin(a) * 0.12, 0.2, z + Math.cos(a) * 0.12);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + seed;
+    const leaf = mesh(g, new THREE.ConeGeometry(0.06 * k, 0.55 * k, 4), i % 2 ? 0x3b6d11 : 0x639922, x + Math.sin(a) * 0.12 * k, 0.2 * k, z + Math.cos(a) * 0.12 * k);
     leaf.rotation.set(Math.cos(a) * 0.7, 0, -Math.sin(a) * 0.7);
+  }
+  if (k > 1) for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + seed + 0.4;
+    const leaf = mesh(g, new THREE.ConeGeometry(0.045 * k, 0.5 * k, 4), 0x7fb03a, x + Math.sin(a) * 0.05 * k, 0.25 * k, z + Math.cos(a) * 0.05 * k);
+    leaf.rotation.set(Math.cos(a) * 0.3, 0, -Math.sin(a) * 0.3);
   }
   return g;
 }
@@ -663,7 +669,7 @@ export function buildItem(it: Item): THREE.Group {
     case 'deckchair': return deckChair(x, z, it.rot ?? 0);
     case 'fence': return fence(it.box);
     case 'feeder': return feeder(x, z);
-    case 'fern': return fern(x, z, Number(it.id.slice(4)));
+    case 'fern': return fern(x, z, Number(it.id.slice(4)), it.h ?? 1);
     case 'rock': return rock(x, z, Number(it.id.slice(4)));
     case 'nest': return nest(x, z);
     case 'dinosign': return dinoSign(x, z);
@@ -691,7 +697,7 @@ export function buildFloor(type: ModuleType): THREE.Group {
     if (i === 0) bx(g, x1 - x0, 0.5, z1 - z0, f.color, (x0 + x1) / 2, -0.25, (z0 + z1) / 2, false);
     else bx(g, x1 - x0, 0.01, z1 - z0, f.color, (x0 + x1) / 2, 0.008 + i * 0.004, (z0 + z1) / 2, false);
     if (i > 0) return;   // 격자는 첫 바닥에만 (겹친 바닥 위로 비치지 않게)
-    if (def.flats?.includes('desert')) return;   // 사막은 아래에서 모래 타일 줄을 따로
+    if (def.flats?.includes('desert') || def.flats?.includes('grass')) return;   // 사막·잔디는 격자 선을 긋지 않는다
     for (let x = Math.ceil(x0); x <= x1; x++) pts.push(x, 0.005, z0, x, 0.005, z1);
     for (let z = Math.ceil(z0); z <= z1; z++) pts.push(x0, 0.005, z, x1, 0.005, z);
   });
@@ -701,6 +707,7 @@ export function buildFloor(type: ModuleType): THREE.Group {
   }
   if (def.flats?.includes('rug')) bx(g, 4.6, 0.04, 5.8, 0xfaeeda, 20.5, 0.02, 3.6, false);   // 휴게실 소파 깔개
   if (def.flats?.includes('desert')) desertFloor(g, def.size);
+  if (def.flats?.includes('grass')) grassFloor(g, def.size);
   if (def.flats?.includes('mat')) bx(g, 1.2, 0.03, 1.4, 0x5f5e5a, 0.7, 0.015, 1, false);    // 입구 깔개
   if (def.flats?.includes('diner')) dinerFloor(g);
   return g;
@@ -746,6 +753,40 @@ function desertFloor(g: THREE.Group, [w, d]: [number, number]): void {
     const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.035 + (i % 3) * 0.015, 0), new THREE.MeshLambertMaterial({ color: [0xa47a52, 0x8c6a48, 0xbf9a6c][i % 3], flatShading: true }));
     m.position.set(0.6 + ((i * 37) % 58) / 10, 0.02, 2.9 + ((i * 23) % 38) / 10);
     m.rotation.set(i, i * 2, 0);
+    g.add(m);
+  }
+}
+
+// 잔디 바닥 — 칸마다 초록 넷 중 하나(얇은 판, 이음매 없이 붙인다)와 그 위 풀 포기·흙 자국·작은 꽃. 자리로 정한 의사난수라 굽기마다 같다
+function grassFloor(g: THREE.Group, [w, d]: [number, number]): void {
+  const GREENS = [0x6f9a45, 0x76a24b, 0x68933f, 0x7ca84f];
+  for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) {
+    bx(g, 1, 0.012, 1, GREENS[(x * 5 + z * 11 + x * z) % GREENS.length], x + 0.5, 0.006, z + 0.5, false);
+  }
+  const rnd = (i: number, k: number) => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const tuft = new THREE.ConeGeometry(0.025, 0.12, 3);
+  const TUFT = [0x4f7d2c, 0x5e8c34, 0x88b35a];
+  for (let i = 0; i < 90; i++) {
+    const x = 0.2 + rnd(i, 1) * (w - 0.4), z = 0.2 + rnd(i, 2) * (d - 0.4);
+    for (let k = 0; k < 3; k++) {
+      const m = new THREE.Mesh(tuft, new THREE.MeshLambertMaterial({ color: TUFT[(i + k) % 3], flatShading: true }));
+      m.position.set(x + (k - 1) * 0.035, 0.06, z + ((k * 7) % 3 - 1) * 0.02);
+      m.rotation.set((k - 1) * 0.35, 0, (rnd(i, k + 3) - 0.5) * 0.6);
+      g.add(m);
+    }
+  }
+  // 흙 자국 — 공룡이 자주 다닌 앞쪽에 작은 둥근 맨땅 몇 군데 (네모 판으로 하니 상자처럼 보여 버렸다)
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.006, 12), mat(0x86784a));
+    m.position.set(1.4 + rnd(i, 8) * 4.2, 0.014, 3.6 + rnd(i, 9) * 2.2);
+    m.scale.set(1 + rnd(i, 7) * 0.6, 1, 0.7);
+    m.rotation.y = rnd(i, 10) * 3;
+    g.add(m);
+  }
+  // 작은 꽃 — 흰·노랑
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), new THREE.MeshLambertMaterial({ color: i % 3 ? 0xf6f1de : 0xf2cf4a, flatShading: true }));
+    m.position.set(0.4 + rnd(i, 11) * (w - 0.8), 0.04, 0.4 + rnd(i, 12) * (d - 0.8));
     g.add(m);
   }
 }

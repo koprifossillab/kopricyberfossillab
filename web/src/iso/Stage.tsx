@@ -10,12 +10,13 @@ import { daylight, hourNow } from './daylight.ts';
 import { drawBackdrop } from './backdrop.ts';
 import { DinoPen } from './dinos.ts';
 import { Desert } from './desert.ts';
-import { SCORPION_STARTLE, CACTUS_STARTLE } from './lines.ts';
+import { Garden } from './garden.ts';
+import { SCORPION_STARTLE, CACTUS_STARTLE, DINO_NEAR, DINO_FERN } from './lines.ts';
 import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
 import { SCREEN, PHOSPHOR, STATE_TEXT, HEAD_Y, SIT_LIFT, screenQuad } from '../scene/layout.ts';
-import { buildWorld, heightAt, DESERT, type World, type WorldItem } from '../scene/world.ts';
+import { buildWorld, heightAt, themeOf, type World, type WorldItem } from '../scene/world.ts';
 import { mealOf, SHOP_NAME } from '../scene/meals.ts';
 import { Chatter, draw as drawLine, fill } from './chatter.ts';
 import { personName, roomName } from '../scene/names.ts';
@@ -102,6 +103,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let order: number[] = [];
       let pen: DinoPen | null = null;
       let deserts: Desert[] = [];
+      let gardens: Garden[] = [];
       const startled = new Map<string, { text: string; until: number; calm: number }>();   // 전갈·선인장에 놀란 사람 — 말과 다시 놀랄 수 있는 때
       let tank: FishTank | null = null;
       let tankItem: (string | undefined)[] = [];   // 수조 차례 → 그 수조 가구의 WorldItem.key (물고기를 그 그림 안에 그릴 때)
@@ -225,7 +227,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
             for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.y ?? 0, m.at[1] + lz]);
           }
         }
-        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; deserts = w.desert.map((d) => new Desert(d.roam, d.home, d.room)); tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
+        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; deserts = w.desert.map((d) => new Desert(d.roam, d.home, d.room)); gardens = w.garden.map((g) => new Garden(g.roam, g.nibble, g.room)); tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
           tankItem = (w.aqua?.tanks ?? []).map(({ box: [x0, z0, x1, z1] }) => {
             const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
             return w.items.find((it) => (it.kind === 'tank' || it.kind === 'tube') && cx > it.box[0] && cx < it.box[2] && cz > it.box[1] && cz < it.box[3])?.key;
@@ -328,6 +330,28 @@ export function Stage({ agents, offices, selected, onSelect }: {
             const [ax, ay] = proj([c.x, 0, c.z]);
             figs.push({ x: c.x, z: c.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
               draw: () => { poly(circle(c.x, c.z, 0.22), '#000', 0.14); blit(r, ax, ay); } });
+          }
+        }
+        // 잔디 방 — 작은 공룡 하나가 다니고 고사리를 뜯는다 (garden.ts). 발치에 오면 그 사람이 한마디 (놀람과 같은 말풍선 자리)
+        for (const gd of gardens) {
+          const roam = w.garden.find((g) => g.room === gd.room)?.roam;
+          const near = roam ? actors.filter((a) => !a.leaving && a.x > roam[0] - 1 && a.x < roam[2] + 1 && a.z > roam[1] - 1.5 && a.z < roam[3] + 1) : [];
+          gd.step(Math.min(0.05, dt), near.filter((a) => !a.moving).map((a) => [a.x, a.z] as [number, number]));
+          const dn = gd.dino;
+          for (const a of near) {
+            const st = startled.get(a.agent.id);
+            if (st && T < st.calm) continue;
+            const dd = Math.hypot(dn.x - a.x, dn.z - a.z);
+            const fern = gd.eating && dd < 2.2 && Math.random() < dt * 0.25;   // 고사리 뜯는 걸 보면 가끔 (4초에 한 번꼴)
+            if (dd >= 1.1 && !fern) continue;
+            const text = drawLine(fern ? DINO_FERN : DINO_NEAR);
+            startled.set(a.agent.id, { text, until: T + Math.max(2.2, 1.6 + text.length * 0.12), calm: T + 40 + Math.random() * 50 });
+          }
+          const r = atlas.dinos?.[dinoKey(dn.color, dn.pose, dn.pose === 'walk' ? dn.frame : 0, dirOf(dn.rot))];
+          if (r) {
+            const [ax, ay] = proj([dn.x, 0, dn.z]);
+            figs.push({ x: dn.x, z: dn.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
+              draw: () => { poly(circle(dn.x, dn.z, 0.18), '#000', 0.12); blit(r, ax, ay); } });
           }
         }
         // 물고기·손님 — 수조 안을 헤엄치거나 모래 위를 긴다 (fish.ts). 수조 그림(뒤판·물·유리가 한 조각)은
@@ -518,7 +542,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
             const m = members.find((p) => p.agent.id === who);
             if (m?.npc) return { act: 'idle', room: '', name: '', meal: mealOf(hourNow()) ?? undefined, food: m.place.food,
               role: m.npc.role, crowd: m.npc.crowd, phase: m.npc.phase, shop: m.npc.shop };
-            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '', theme: m && DESERT.has(m.agent.room) ? 'desert' : undefined,
+            return { act: m?.agent.activity ?? 'think', room: m ? roomName(m.agent.room) : '', name: m ? personName(m.agent) : '', theme: m ? themeOf(m.agent.room) : undefined,
               meal: mealOf(hourNow()) ?? undefined, food: m?.place.food };
           });
           if (!said) return;

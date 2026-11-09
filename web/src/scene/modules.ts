@@ -64,6 +64,7 @@ export interface ModuleDef {
   aqua?: { view: typeof AQUA_VIEW; tanks: typeof TANKS };   // 수족관 관람 자리와 수조(물고기가 다니는 곳)
   breeze?: { at: [number, number]; face: number }[];   // 테라스 난간 — 바람 쐬러 서는 곳
   desert?: { roam: Rect; home: [number, number] };   // 사막 방 — 전갈이 기는 곳, 걸어다니는 선인장이 자는 자리
+  garden?: { roam: Rect; nibble: { at: [number, number]; fern: [number, number] }[] };   // 잔디 방 — 작은 공룡이 다니는 곳, 고사리를 뜯는 자리 (wetherilli 027)
   dining?: Dining[];                                // 아래층 식당 — 주문하는 곳과 먹는 자리 (wetherilli 025)
   flight?: { landing: Rect; steps: Rect; drop: number };
   lift?: [number, number];                          // 식당가 엘리베이터 앞 — 점원·바깥 손님이 나타나고 사라지는 곳 (wetherilli 026)   // 위층(테라스)과 이어지는 계단 — 높이는 world.heightAt
@@ -109,6 +110,16 @@ function door(id: string, x: number, z: number, span: number, axis: 'x' | 'z'): 
   const box: Rect = axis === 'x' ? [x - span / 2 - 0.06, z - 0.07, x + span / 2 + 0.06, z + 0.07] : [x - 0.07, z - span / 2 - 0.06, x + 0.07, z + span / 2 + 0.06];
   return { id, kind: 'door', at: [x, z], box, h: span, rot: axis === 'x' ? 0 : Math.PI / 2 };
 }
+// 잔디 방 — 고사리 자리 [id 끝 숫자, x, z]: 양옆 벽 앞, 앞 칸막이 구석(문 옆은 비운다), 왼쪽 책상 옆. 공룡이 다니는 곳(GARDEN_ROAM)은 그 사이 빈 바닥
+const FERNS: [number, number, number][] = [[0, 0.45, 4.3], [1, 6.55, 4.2], [2, 0.5, 6.45], [3, 6.5, 6.45], [4, 2.2, 6.55], [5, 0.45, 1.6]];
+const GARDEN_ROAM: Rect = [0.9, 3.2, 5.9, 6.1];
+// 고사리를 뜯는 자리 — 다니는 곳 안에서 그 고사리에 가장 가까운 점. 0.8 보다 멀면(책상 옆 것) 뜯으러 가지 않는다
+function nibbleAt(x: number, z: number): [number, number] {
+  const [x0, z0, x1, z1] = GARDEN_ROAM;
+  return [Math.min(x1, Math.max(x0, x)), Math.min(z1, Math.max(z0, z))];
+}
+const NIBBLE = FERNS.map(([, x, z]) => ({ fern: [x, z] as [number, number], at: nibbleAt(x, z) }))
+  .filter((n) => Math.hypot(n.at[0] - n.fern[0], n.at[1] - n.fern[1]) < 0.8);
 function addProps(items: Item[], blocks: Rect[], list: ReturnType<typeof prop>[]): void {
   for (const p of list) { items.push(p.item); blocks.push(p.block); }
 }
@@ -117,8 +128,9 @@ function addProps(items: Item[], blocks: Rect[], list: ReturnType<typeof prop>[]
 // s 는 전에 반 칸(3.5)이었다 — 책상 둘만 들어차 답답해서 m 만큼 넓히고 남는 앞쪽을 꾸민다 (사용자, 2026-10-26)
 export const OFFICE_WIDTH = { s: OFFICE_W, m: OFFICE_W } as const;
 // theme 'gsm': 지도 프로젝트(GSM) — 암석 표본·시추 코어·지구본·지질도 판·지도 탁자로 꾸민다
+// theme 'fern': 잔디 바닥 방 — 고사리가 자라고 작은 공룡 하나가 돌아다닌다 (world.ts 의 GARDEN, wetherilli 027)
 // theme 'desert': 모래 바닥 사막 방 — 선인장·바위·소 머리뼈, 전갈이 기고 선인장 하나가 가끔 깨어 걷는다 (world.ts 의 DESERT)
-function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert'): ModuleDef {
+function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' | 'fern'): ModuleDef {
   const OFFICE_W = OFFICE_WIDTH[size];
   const cols = [1.9, 5.1];
   const deskAt: [number, number][] = (size === 's' ? [1.4] : [1.4, 4.2]).flatMap((z) => cols.map((x) => [x, z] as [number, number]));
@@ -146,6 +158,23 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert'):
       prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
       prop('bin', 'trash_bin', R - 0.35, 3.0), prop('pear', 'prickly_pear', 0.45, 4.4), prop('barrel', 'barrel_cactus', R - 0.4, 4.1),
       prop('rocks', 'desert_rocks', R - 0.6, 6.45), prop('skull', 'cow_skull', 1.55, 6.5), prop('cooler', 'water_cooler', 0.4, 6.5),
+    ]);
+  } else if (theme === 'fern') {
+    // 책상 둘은 뒤 한 줄, 앞쪽은 비워 공룡이 다니게 — 가장자리에 고사리 덤불, 바위, 둥지. 고사리 id 끝 숫자가 잎 돌림(models fern)
+    items.push({ id: 'plant', kind: 'plant', prop: 'ficus', at: [R - 0.55, 0.5], box: box(R - 0.55, 0.5, 0.3, 0.3), h: 1.4 });
+    blocks.push(box(R - 0.55, 0.5, 0.35, 0.35));
+    for (const [i, x, z] of FERNS) {
+      items.push({ id: `fern${i}`, kind: 'fern', at: [x, z], box: box(x, z, 0.38, 0.38), h: 1.5 });   // h: 크기 — 울타리 것보다 무성하게
+      blocks.push(box(x, z, 0.3, 0.3));
+    }
+    items.push(
+      { id: 'rock0', kind: 'rock', at: [R - 0.5, 5.35], box: box(R - 0.5, 5.35, 0.3, 0.25) },
+      { id: 'nest', kind: 'nest', at: [1.55, 6.5], box: box(1.55, 6.5, 0.27, 0.27) },
+    );
+    blocks.push(box(R - 0.5, 5.35, 0.3, 0.25), box(1.55, 6.5, 0.27, 0.27));
+    addProps(items, blocks, [
+      prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
+      prop('bin', 'trash_bin', R - 0.35, 3.0), prop('cooler', 'water_cooler', 0.4, 5.35),
     ]);
   } else if (size === 's' && !rash) {
     // 책상 둘은 뒤 한 줄, 앞쪽은 쉬는 구석 — 오른쪽에 소파와 낮은 탁자, 왼쪽에 게시판·지구본·정수기. 가운데(문 → 책상)는 비운다
@@ -191,9 +220,10 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert'):
   }
   return {
     size: [OFFICE_W, OFFICE_D],
-    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: rash ? 0x8a857b : theme === 'desert' ? 0xe2c48e : 0xd3d1c7 }],
+    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: rash ? 0x8a857b : theme === 'desert' ? 0xe2c48e : theme === 'fern' ? 0x6f9a45 : 0xd3d1c7 }],
     items, blocks,
     ...(theme === 'desert' ? { flats: ['desert'], desert: { roam: [0.9, 3.2, 5.9, 6.1] as Rect, home: DESERT_HOME } } : {}),
+    ...(theme === 'fern' ? { flats: ['grass'], garden: { roam: GARDEN_ROAM, nibble: NIBBLE } } : {}),
     desks: deskAt.map((at, i) => ({ at, kind: deskKind, slot: 'project' as const, item: `desk${i}` })),
     stand: [[OFFICE_W / 2, 6.2], [OFFICE_W / 2 - 0.6, 6.2], [OFFICE_W / 2 + 0.6, 6.2]],
     tall: rash ? ['bulb'] : theme === 'desert' ? ['cobwebs'] : [],
@@ -747,6 +777,7 @@ export const MODULES = {
   'office-gsm': office(false, 'm', 'gsm'),
   'office-rash': office(true, 's'),
   'office-desert': office(false, 's', 'desert'),
+  'office-fern': office(false, 's', 'fern'),
   front: front(),
   corridor: floorOnly(PER_ROW * OFFICE_W, CORRIDOR, 0xc9c6bb),
   hall: floorOnly(HALL_W, ROW_D, 0xc9c6bb),

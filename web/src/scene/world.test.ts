@@ -12,6 +12,7 @@ const OFFICES = [
   { name: 'DiaRUGA', size: 'm' as const }, { name: 'ForGIA', size: 's' as const }, { name: 'GSM', size: 'l' as const },
   { name: 'rash-company', size: 'm' as const }, { name: 'Cropobite', size: 's' as const }, { name: 'confoinfo', size: 's' as const },
   { name: 'shkim/phyloserver', size: 's' as const },   // 사막 방
+  { name: 'paleoadmin/WegenersDream', size: 's' as const },   // 잔디 방
 ];
 
 function wallsOf(w: ReturnType<typeof buildWorld>): Rect[] {
@@ -134,6 +135,25 @@ test('사막 방 — 전갈·선인장이 다니는 곳은 그 방 안이고 가
     if (home[0] > b[0] && home[0] < b[2] && home[1] > b[1] && home[1] < b[3]) continue;   // 선인장 잠자리
     const overlap = b[0] < roam[2] && b[2] > roam[0] && b[1] < roam[3] && b[3] > roam[1];
     assert.ok(!overlap, `걸음 막기 ${b.map((v) => v.toFixed(2)).join(',')} 가 사막 길과 겹친다`);
+  }
+});
+
+test('잔디 방 — 공룡이 다니는 곳은 그 방 안이고 가구와 겹치지 않으며, 고사리 뜯는 자리마다 문에서 걸어갈 수 있다', () => {
+  const w = buildWorld(OFFICES);
+  assert.equal(w.garden.length, 1);
+  const { roam, nibble, room } = w.garden[0];
+  assert.equal(room, 'paleoadmin/WegenersDream');
+  const m = w.modules.find((x) => x.label === room)!;
+  assert.equal(m.type, 'office-fern');
+  assert.ok(roam[0] > m.at[0] && roam[2] < m.at[0] + 7 && roam[1] > m.at[1] && roam[3] < m.at[1] + 7);
+  for (const b of w.blocks) {
+    const overlap = b[0] < roam[2] && b[2] > roam[0] && b[1] < roam[3] && b[3] > roam[1];
+    assert.ok(!overlap, `걸음 막기 ${b.map((v) => v.toFixed(2)).join(',')} 가 공룡 길과 겹친다`);
+  }
+  assert.ok(nibble.length >= 4);
+  for (const n of nibble) {
+    assert.ok(n.at[0] >= roam[0] && n.at[0] <= roam[2] && n.at[1] >= roam[1] && n.at[1] <= roam[3]);
+    assert.ok(Math.hypot(n.at[0] - n.fern[0], n.at[1] - n.fern[1]) < 0.9, '고사리에 닿는 자리');
   }
 });
 

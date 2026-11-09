@@ -21,16 +21,21 @@ const ROW_W = PER_ROW * OFFICE_W;
 // 프로젝트 → 사무실 모듈. GSM 만 4인실(지도), 나머지는 모두 2인실 — 책상이 모자라면 공용실로 (사용자, 2026-10-26).
 // 서버가 보내는 크기(커밋 수)는 이제 쓰지 않는다. rash-company 는 칙칙한 2인실
 // 사막 방 — 방 열쇠(프로젝트 이름)로 정한다. 부서 이름은 사람이 고치므로 열쇠로 (shkim 「선호와 함께 춤을」, 사용자 2026-10-27)
-export const DESERT = new Set(['shkim/phyloserver']);
+// 햄부기(shkim/houdini)도 같은 꾸밈 — 사용자: 「햄부기 부서도 선호와함께춤을 부서의 특징들 그대로」(2026-11-09)
+export const DESERT = new Set(['shkim/phyloserver', 'shkim/houdini']);
+// 잔디 방 — 고사리와 작은 공룡 (paleoadmin 「고지리생태학 연구실」, 사용자 2026-11-09, wetherilli 027)
+export const GARDEN = new Set(['paleoadmin/WegenersDream']);
+export const themeOf = (room: string): 'desert' | 'fern' | undefined => DESERT.has(room) ? 'desert' : GARDEN.has(room) ? 'fern' : undefined;
 function officeModule(o: Office): ModuleType {
   if (o.name === 'GSM') return 'office-gsm';
   if (DESERT.has(o.name)) return 'office-desert';
+  if (GARDEN.has(o.name)) return 'office-fern';
   if (isRash(o.name)) return 'office-rash';
   return 'office-s';
 }
 const BACKWALL: Record<string, ModuleType> = {
   boss: 'backwall-boss', hq: 'backwall',
-  'office-s': 'backwall', 'office-desert': 'backwall-desert', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
+  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
 export interface Placed { type: ModuleType; at: [number, number]; label?: string; y?: number }   // y: 바닥 높이 (아래층은 −DOWN_DROP)
@@ -56,6 +61,7 @@ export interface World {
   aqua: { view: { at: [number, number]; face: number; pose: 'sit' | 'stand'; on?: string; lift?: number }[]; tanks: { box: Rect; y0: number; y1: number }[] } | null;
   pen: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] } | null;
   desert: { roam: Rect; home: [number, number]; room: string }[];   // 사막 방마다 — 전갈·선인장이 다니는 곳
+  garden: { roam: Rect; nibble: { at: [number, number]; fern: [number, number] }[]; room: string }[];   // 잔디 방마다 — 작은 공룡이 다니는 곳
   labels: Plaque[];
   door: [number, number];
   // 아래층 식당가 (wetherilli 025) — 자리는 세계 좌표, on 은 WorldItem.key. dishY 는 세계 높이(바닥 높이를 더했다)
@@ -118,7 +124,7 @@ export function buildWorld(offices: Office[]): World {
   const w: World = {
     w: BUILDING_W + ENTRANCE_W, d: top + DOWN_D, top, modules, rooms, dining: [], lower: null, lift: null,
     desks: [], items: [], blocks: [], lounge: [], deskRest: [], core: [], bench: [], stand: [], labels: [],
-    restroom: { male: [], female: [] }, search: [], desert: [], pen: null, aqua: null, breeze: [],
+    restroom: { male: [], female: [] }, search: [], desert: [], garden: [], pen: null, aqua: null, breeze: [],
     door: [BUILDING_W + ENTRANCE_DOOR[0], entZ + ENTRANCE_DOOR[1]],   // 엘리베이터·계단 앞
   };
   // 건물 밖은 입구 길만 걷는다
@@ -151,6 +157,7 @@ export function buildWorld(offices: Office[]): World {
         tanks: def.aqua.tanks.map((t) => ({ ...t, box: mr(t.box, o) })),
       };
     }
+    if (def.garden && m.label) w.garden.push({ roam: mr(def.garden.roam, o), nibble: def.garden.nibble.map((n) => ({ at: mv(n.at, o), fern: mv(n.fern, o) })), room: m.label });
     if (def.desert && m.label) w.desert.push({ roam: mr(def.desert.roam, o), home: mv(def.desert.home, o), room: m.label });
     if (def.pen) {
       const pn = def.pen;

@@ -46,6 +46,7 @@ function dialogFor(group: string, act: string | null, theme?: string, me?: Who):
   if (me?.role === 'guest') { const g = guestDialog(group, me); if (g) return g; }
   if (group.startsWith('order:') || group.startsWith('meal:')) return mealDialog(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.DESERT_DIALOGS);
+  if (theme === 'fern' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.FERN_DIALOGS);
   const extra: [number, string[][] | undefined][] = [[0.12, L.TIME_DIALOGS[w.time]], [0.06, w.day ? L.DAY_DIALOGS[w.day] : undefined], [0.05, L.SEASON_DIALOGS[w.season]]];
   if (group === 'work:center') return choose([[0.5, L.CENTER_WORK_DIALOGS], [0.35, L.WORK_DIALOGS], [0.15, L.DIALOGS]]);
   if (group.startsWith('work:')) {
@@ -62,6 +63,7 @@ function soloFor(group: string, act: string | null, theme?: string, me?: Who): s
   if (me?.role === 'guest') { const g = guestSolo(group, me); if (g) return [g]; }
   if (group.startsWith('order:') || group.startsWith('meal:')) return mealSolo(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.DESERT_SOLO)];
+  if (theme === 'fern' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.FERN_SOLO)];
   const extra: [number, string[] | undefined][] = [[0.1, L.TIME_SOLO[w.time]], [0.05, w.day ? L.DAY_SOLO[w.day] : undefined], [0.05, L.SEASON_SOLO[w.season]]];
   if (group.startsWith('work:')) {
     if (act && Math.random() < 0.75) return [draw(L.WORK_SOLO[act] ?? L.WORK_SOLO.think)];
@@ -135,7 +137,7 @@ function guestDialog(group: string, me: Who): string[] | null {
 }
 
 // 자리표 채우기 — {상대} 는 말 건네는 사람(다음에 말할 사람)의 이름, {방} 은 말하는 사람의 부서
-// theme: 그 사람 방의 꾸밈 (desert) · meal: 지금 끼니(scene/meals.ts mealOf) · food: 식당에서 시킨 것
+// theme: 그 사람 방의 꾸밈 (desert·fern) · meal: 지금 끼니(scene/meals.ts mealOf) · food: 식당에서 시킨 것
 export interface Who {
   act: string; room: string; name: string; theme?: string; meal?: 'breakfast' | 'lunch' | 'dinner'; food?: 'burger' | 'gukbap' | 'noodle';
   // 세션이 아닌 사람 (wetherilli 026) — 점원(가게·하는 때·붐빔)과 바깥 손님
