@@ -154,3 +154,10 @@ h1 img{width:1.1em;height:1.1em;border-radius:22%;flex:none}
 .plaque.burger{background:#2f8f5b;border-color:#ef8a2b;color:#fff6e3}
 .plaque.gukbap{background:#8a5a32;border-color:#3a3330;color:#f6ead2}
 .plaque.old{background:#6b5a3e;border-color:#a8946a;color:#f0e2bf;border-style:dashed;filter:sepia(.35)}
+/* 연구실만 보기 — 위 줄·양쪽 칸 없이 연구실만 (wetherilli 030) */
+.app.focus{padding:0;gap:0}
+.app.focus .cols{grid-template-columns:minmax(0,1fr)}
+.app.focus .view{border:0;border-radius:0}
+@media (max-width:1000px){body:has(.app.focus){height:100vh;overflow:hidden}.app.focus{height:100vh}.app.focus .view{height:100%}}
+.focus-tip{position:absolute;top:12px;left:50%;transform:translateX(-50%);margin:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:4px 14px;font-size:13px;pointer-events:none;transition:opacity .6s;opacity:.92}
+.focus-tip.gone{opacity:0}

@@ -12,6 +12,15 @@ export function savedTheme(): Theme {
   try { return (localStorage.getItem(KEY_THEME) as Theme) || 'auto'; } catch { return 'auto'; }
 }
 
+// 연구실만 보기 — 위 줄·양쪽 칸을 숨긴다. 벽에 띄워 두는 화면이라 새로고침해도 이어지게 저장 (Esc 로 끈다)
+const KEY_FOCUS = 'kopricyberfossillab.focus';
+export function savedFocus(): boolean {
+  try { return localStorage.getItem(KEY_FOCUS) === '1'; } catch { return false; }
+}
+export function saveFocus(on: boolean): void {
+  try { if (on) localStorage.setItem(KEY_FOCUS, '1'); else localStorage.removeItem(KEY_FOCUS); } catch { /* 저장이 막혀도 지금 화면엔 적용 */ }
+}
+
 interface Release { version: string; date: string; items: string[] }
 
 // CHANGELOG.md 의 「## 0.4.4 — 2026-10-23」 와 그 아래 「- …」 줄
@@ -34,7 +43,7 @@ function Inline({ text }: { text: string }) {
   return <>{text.split(/(`[^`]+`)/).map((p, i) => p.startsWith('`') ? <code key={i}>{p.slice(1, -1)}</code> : p)}</>;
 }
 
-export function Settings({ onClose }: { onClose: () => void }) {
+export function Settings({ onClose, onFocus }: { onClose: () => void; onFocus: () => void }) {
   const [tab, setTab] = useState<'releases' | 'view' | 'desk'>('releases');
   const [rel, setRel] = useState<Release[] | null>(null);
   const [theme, setTheme] = useState<Theme>(savedTheme());
@@ -81,6 +90,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
               {(['auto', 'dark', 'light'] as Theme[]).map((t) => (
                 <label key={t}><input type="radio" name="theme" checked={theme === t} onChange={() => pickTheme(t)} />{{ auto: '시스템 따라', dark: '어둡게', light: '밝게' }[t]}</label>
               ))}
+              <p className="note">연구실만 보기 — 위 줄과 양쪽 칸을 숨기고 연구실을 화면 가득. <b>Esc</b> 로 돌아온다.</p>
+              <button onClick={onFocus}>연구실만 보기</button>
             </div>
           )}
           {tab === 'desk' && (
