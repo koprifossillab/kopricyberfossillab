@@ -230,6 +230,43 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' |
   };
 }
 
+// ---- 공실 (7×7) — 줄 끝을 채우는 이름 없는 사무실. 쓰는 사람이 없으니 창고처럼: 책상 없이 뒤 벽에 선반 둘,
+// 쌓아 둔 상자·낡은 캐비닛·서류 더미·사다리·양동이, 바닥은 시멘트. 불이 꺼진 것은 화면이 그린다(Stage 의 VACANT, wetherilli 028)
+function vacant(): ModuleDef {
+  const door_: [number, number] = [OFFICE_W / 2 - 0.7, OFFICE_W / 2 + 0.7];
+  const walls: Rect[] = [
+    [0, OFFICE_D - T / 2, door_[0], OFFICE_D + T / 2],
+    [door_[1], OFFICE_D - T / 2, OFFICE_W, OFFICE_D + T / 2],
+    [OFFICE_W - T / 2, 0, OFFICE_W + T / 2, OFFICE_D - T / 2],
+  ];
+  const items: Item[] = [
+    ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as ItemKind, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
+    door('door', OFFICE_W / 2, OFFICE_D, door_[1] - door_[0], 'x'),
+    { id: 'rack0', kind: 'rack', at: [1.6, 0.55], box: [0.4, 0.25, 2.8, 0.85] },
+    { id: 'rack1', kind: 'rack', at: [4.6, 0.55], box: [3.4, 0.25, 5.8, 0.85] },
+    { id: 'cabinet', kind: 'cabinet', at: [6.45, 0.5], box: box(6.45, 0.5, 0.35, 0.35) },
+    { id: 'boxes0', kind: 'boxes', at: [0.55, 2.4], box: box(0.55, 2.4, 0.3, 0.3) },
+    { id: 'boxes1', kind: 'boxes', at: [0.55, 3.15], box: box(0.55, 3.15, 0.3, 0.3) },
+    { id: 'boxes2', kind: 'boxes', at: [2.3, 2.6], box: box(2.3, 2.6, 0.3, 0.3) },
+    { id: 'boxes3', kind: 'boxes', at: [5.0, 3.6], box: box(5.0, 3.6, 0.3, 0.3) },
+    { id: 'boxes4', kind: 'boxes', at: [5.7, 3.7], box: box(5.7, 3.7, 0.3, 0.3) },
+    { id: 'boxes5', kind: 'boxes', at: [6.4, 6.3], box: box(6.4, 6.3, 0.3, 0.3) },
+    { id: 'ladder', kind: 'ladder', at: [6.55, 2.2], box: [6.3, 1.5, 6.8, 2.9] },
+    { id: 'bucket', kind: 'bucket', at: [0.5, 6.45], box: box(0.5, 6.45, 0.22, 0.22) },
+    { id: 'deadplant', kind: 'deadplant', at: [1.25, 6.45], box: box(1.25, 6.45, 0.25, 0.25) },
+  ];
+  const blocks: Rect[] = [...walls.map((r) => pad(r)), ...items.slice(walls.length + 1).map((it) => pad(it.box, 0.05))];
+  addProps(items, blocks, [
+    prop('oldcab', 'old_cabinet', 0.4, 4.4, Math.PI / 2), prop('pile', 'paper_pile', 3.3, 3.0), prop('fan', 'old_fan', 2.6, 4.6),
+    prop('files', 'file_cabinet', 6.45, 5.0, -Math.PI / 2),
+  ]);
+  return {
+    size: [OFFICE_W, OFFICE_D],
+    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: 0xb3ada1 }],   // 창고 시멘트
+    items, blocks, desks: [],
+  };
+}
+
 // ---- 앞 블록 (31×8): 공용실 x 0..12 · 고객센터 12..17 · 휴게실 17..31. 뒤(복도 쪽) 칸막이에 방마다 출입구
 // 고객센터는 상담원 한 사람의 방 — 전에는 상담 책상 넷(8..17)이었다. 사용자: 「고객센터는 어차피 상담원 한 명이 쓰니 1명짜리로」.
 // 남는 폭은 공용실에 — 다른 세션의 지령을 받은 세션(room center)이 이제 공용실 책상에 앉는다(director)
@@ -773,6 +810,7 @@ export const MODULES = {
   service: service(),
   entrance: entrance(),
   office: office(false),
+  vacant: vacant(),
   'office-s': office(false, 's'),
   'office-gsm': office(false, 'm', 'gsm'),
   'office-rash': office(true, 's'),

@@ -147,6 +147,23 @@ export function Stage({ agents, offices, selected, onSelect }: {
       const blit = (r: SpriteRect, ax: number, ay: number, scale = 1) => {
         ctx.drawImage(sheets[r.sheet], r.sx, r.sy, r.w, r.h, ax + r.ox * scale, ay + r.oy * scale, r.w * scale, r.h * scale);
       };
+      // 불 꺼진 방(공실)의 조각 — 한 번 어둡게 칠해 두고 다시 쓴다. ctx.filter 는 안 쓴다(사파리)
+      const darkCache = new Map<SpriteRect, HTMLCanvasElement>();
+      const blitDark = (r: SpriteRect, ax: number, ay: number) => {
+        let c = darkCache.get(r);
+        if (!c) {
+          c = document.createElement('canvas');
+          c.width = r.w; c.height = r.h;
+          const g = c.getContext('2d')!;
+          g.drawImage(sheets[r.sheet], r.sx, r.sy, r.w, r.h, 0, 0, r.w, r.h);
+          g.globalCompositeOperation = 'source-atop';
+          g.fillStyle = 'rgba(18, 20, 30, 0.5)';
+          g.fillRect(0, 0, r.w, r.h);
+          darkCache.set(r, c);
+        }
+        ctx.drawImage(c, ax + r.ox, ay + r.oy);
+      };
+      const VACANT = 'vacant';   // 공실 — 창고처럼 쓰고 불은 꺼져 있다 (wetherilli 028)
       const path = (pts: V3[]) => {
         ctx.beginPath();
         pts.forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
@@ -223,7 +240,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           lamps = [];
           for (const m of w.modules) {
             const [mw, md] = MODULES[m.type].size;
-            if (!MODULES[m.type].floors.length || m.type === 'terrace') continue;
+            if (!MODULES[m.type].floors.length || m.type === 'terrace' || m.type === VACANT) continue;   // 공실은 불이 꺼져 있다
             for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.y ?? 0, m.at[1] + lz]);
           }
         }
@@ -233,8 +250,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
             return w.items.find((it) => (it.kind === 'tank' || it.kind === 'tube') && cx > it.box[0] && cx < it.box[2] && cz > it.box[1] && cz < it.box[3])?.key;
           });
         }
-        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } });
-        for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); blit(r, ax, ay); } }
+        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); (m.type === VACANT ? blitDark : blit)(r, ax, ay); } });
+        for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); (w.modules[i].type === VACANT ? blitDark : blit)(r, ax, ay); } }
 
         const actors = [...c.actors.values()].sort((a, b) => (a.x + a.z) - (b.x + b.z));
         const seated = new Map<number, Agent['activity']>();
@@ -426,7 +443,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
             clip.push(f);
           });
           const desk = w.desks.findIndex((dk) => dk.item === it.key);
-          const fn = () => { blit(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); };
+          const dark = w.modules[it.module].type === VACANT;
+          const fn = () => { (dark ? blitDark : blit)(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); };
           if (after >= 0) covers.push({ at: after + 0.5, box: it.box, clip, alpha: 1, fn });
           if (afterIn >= 0) covers.push({ at: afterIn + 0.5, box: it.box, clip: veil, alpha: VEIL, fn });
         }

@@ -35,7 +35,7 @@ function officeModule(o: Office): ModuleType {
 }
 const BACKWALL: Record<string, ModuleType> = {
   boss: 'backwall-boss', hq: 'backwall',
-  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
+  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', vacant: 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
 export interface Placed { type: ModuleType; at: [number, number]; label?: string; y?: number }   // y: 바닥 높이 (아래층은 −DOWN_DROP)
@@ -95,7 +95,7 @@ export function buildWorld(offices: Office[]): World {
   }
   for (const row of rowsOf) {
     let end = row.reduce((m, r) => Math.max(m, r.x + MODULES[r.type].size[0]), 0);
-    while (ROW_W - end >= OFFICE_WIDTH.m - 1e-6) { row.push({ type: 'office', x: end }); end += OFFICE_WIDTH.m; }
+    while (ROW_W - end >= OFFICE_WIDTH.m - 1e-6) { row.push({ type: 'vacant', x: end }); end += OFFICE_WIDTH.m; }
   }
   const rows = rowsOf.length;
   const rooms = rowsOf.flat().filter((r) => r.label && r.type !== 'boss').map((r) => r.label!);
