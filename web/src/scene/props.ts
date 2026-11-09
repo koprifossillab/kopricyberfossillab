@@ -433,6 +433,20 @@ export const PROPS: Record<string, Prop> = {
     rock(g, 0.09, 0xc79a68, -0.22, 0, 0.14, 4);
   }),
 
+  // 앵무새 횃대 — 받침·기둥·가로대(높이 1.45), 양 끝에 모이 그릇. 앵무새가 가로대 위에 앉는다(modules 의 aviary.perches)
+  parrot_perch: prop('앵무새 횃대', [0.8, 0.45], (g) => {
+    mesh(g, cyl(0.24, 0.27, 0.06, 10), 0x6b4a32, 0, 0.03, 0);
+    mesh(g, cyl(0.035, 0.04, 1.4, 6), 0x9a6b42, 0, 0.73, 0);
+    const bar = mesh(g, cyl(0.025, 0.025, 0.8, 6), 0xb07a48, 0, 1.43, 0);
+    bar.rotation.z = Math.PI / 2;
+    for (const s of [-1, 1]) {
+      mesh(g, cyl(0.07, 0.05, 0.07, 8), 0xd9d4c6, s * 0.33, 1.38, 0.07);
+      mesh(g, cyl(0.06, 0.06, 0.01, 8), 0xc9a24a, s * 0.33, 1.415, 0.07);   // 모이
+    }
+    const low = mesh(g, cyl(0.02, 0.02, 0.5, 5), 0xb07a48, 0, 0.9, 0);   // 아래 가로대
+    low.rotation.z = Math.PI / 2;
+  }),
+
   plant_bush: prop('화분(둥근)', [0.6, 0.6], (g) => {
     pot(g, 0.22, 0.35, 0x993c1d);
     bx(g, 0.5, 0.02, 0.02, 0xfaeeda, 0, 0.27, 0.205, false);                     // 화분 띠

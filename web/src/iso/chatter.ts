@@ -47,6 +47,7 @@ function dialogFor(group: string, act: string | null, theme?: string, me?: Who):
   if (group.startsWith('order:') || group.startsWith('meal:')) return mealDialog(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.DESERT_DIALOGS);
   if (theme === 'fern' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.FERN_DIALOGS);
+  if (theme === 'parrot' && Math.random() < (group.startsWith('work:') ? 0.45 : 0.1)) return draw(L.PARROT_DIALOGS);
   const extra: [number, string[][] | undefined][] = [[0.12, L.TIME_DIALOGS[w.time]], [0.06, w.day ? L.DAY_DIALOGS[w.day] : undefined], [0.05, L.SEASON_DIALOGS[w.season]]];
   if (group === 'work:center') return choose([[0.5, L.CENTER_WORK_DIALOGS], [0.35, L.WORK_DIALOGS], [0.15, L.DIALOGS]]);
   if (group.startsWith('work:')) {
@@ -64,6 +65,7 @@ function soloFor(group: string, act: string | null, theme?: string, me?: Who): s
   if (group.startsWith('order:') || group.startsWith('meal:')) return mealSolo(group, me);
   if (theme === 'desert' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.DESERT_SOLO)];
   if (theme === 'fern' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.FERN_SOLO)];
+  if (theme === 'parrot' && Math.random() < (group.startsWith('work:') ? 0.35 : 0.1)) return [draw(L.PARROT_SOLO)];
   const extra: [number, string[] | undefined][] = [[0.1, L.TIME_SOLO[w.time]], [0.05, w.day ? L.DAY_SOLO[w.day] : undefined], [0.05, L.SEASON_SOLO[w.season]]];
   if (group.startsWith('work:')) {
     if (act && Math.random() < 0.75) return [draw(L.WORK_SOLO[act] ?? L.WORK_SOLO.think)];

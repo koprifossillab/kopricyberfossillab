@@ -64,6 +64,7 @@ export interface ModuleDef {
   aqua?: { view: typeof AQUA_VIEW; tanks: typeof TANKS };   // 수족관 관람 자리와 수조(물고기가 다니는 곳)
   breeze?: { at: [number, number]; face: number }[];   // 테라스 난간 — 바람 쐬러 서는 곳
   desert?: { roam: Rect; home: [number, number] };   // 사막 방 — 전갈이 기는 곳, 걸어다니는 선인장이 자는 자리
+  aviary?: { perches: [number, number, number][]; ground: Rect; fly: Rect };   // 흙바닥 방 — 앵무새가 앉는 곳(x, 높이, z)·내려앉아 쪼는 땅·나는 범위 (wetherilli 029)
   garden?: { roam: Rect; nibble: { at: [number, number]; fern: [number, number] }[] };   // 잔디 방 — 작은 공룡이 다니는 곳, 고사리를 뜯는 자리 (wetherilli 027)
   dining?: Dining[];                                // 아래층 식당 — 주문하는 곳과 먹는 자리 (wetherilli 025)
   flight?: { landing: Rect; steps: Rect; drop: number };
@@ -110,6 +111,8 @@ function door(id: string, x: number, z: number, span: number, axis: 'x' | 'z'): 
   const box: Rect = axis === 'x' ? [x - span / 2 - 0.06, z - 0.07, x + span / 2 + 0.06, z + 0.07] : [x - 0.07, z - span / 2 - 0.06, x + 0.07, z + span / 2 + 0.06];
   return { id, kind: 'door', at: [x, z], box, h: span, rot: axis === 'x' ? 0 : Math.PI / 2 };
 }
+// 흙바닥 방 — 횃대 둘의 자리 [x, z] (가로대는 x 로 뻗는다)
+const PERCHES: [number, number][] = [[1.55, 4.9], [5.3, 5.3]];
 // 잔디 방 — 고사리 자리 [id 끝 숫자, x, z]: 양옆 벽 앞, 앞 칸막이 구석(문 옆은 비운다), 왼쪽 책상 옆. 공룡이 다니는 곳(GARDEN_ROAM)은 그 사이 빈 바닥
 const FERNS: [number, number, number][] = [[0, 0.45, 4.3], [1, 6.55, 4.2], [2, 0.5, 6.45], [3, 6.5, 6.45], [4, 2.2, 6.55], [5, 0.45, 1.6]];
 const GARDEN_ROAM: Rect = [0.9, 3.2, 5.9, 6.1];
@@ -129,8 +132,9 @@ function addProps(items: Item[], blocks: Rect[], list: ReturnType<typeof prop>[]
 export const OFFICE_WIDTH = { s: OFFICE_W, m: OFFICE_W } as const;
 // theme 'gsm': 지도 프로젝트(GSM) — 암석 표본·시추 코어·지구본·지질도 판·지도 탁자로 꾸민다
 // theme 'fern': 잔디 바닥 방 — 고사리가 자라고 작은 공룡 하나가 돌아다닌다 (world.ts 의 GARDEN, wetherilli 027)
+// theme 'parrot': 흙바닥 방 — 횃대 둘, 야자·몬스테라, 앵무새 셋이 날아다닌다 (world.ts 의 AVIARY, jschoi 계정 몫, wetherilli 029)
 // theme 'desert': 모래 바닥 사막 방 — 선인장·바위·소 머리뼈, 전갈이 기고 선인장 하나가 가끔 깨어 걷는다 (world.ts 의 DESERT)
-function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' | 'fern'): ModuleDef {
+function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' | 'fern' | 'parrot'): ModuleDef {
   const OFFICE_W = OFFICE_WIDTH[size];
   const cols = [1.9, 5.1];
   const deskAt: [number, number][] = (size === 's' ? [1.4] : [1.4, 4.2]).flatMap((z) => cols.map((x) => [x, z] as [number, number]));
@@ -158,6 +162,20 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' |
       prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
       prop('bin', 'trash_bin', R - 0.35, 3.0), prop('pear', 'prickly_pear', 0.45, 4.4), prop('barrel', 'barrel_cactus', R - 0.4, 4.1),
       prop('rocks', 'desert_rocks', R - 0.6, 6.45), prop('skull', 'cow_skull', 1.55, 6.5), prop('cooler', 'water_cooler', 0.4, 6.5),
+    ]);
+  } else if (theme === 'parrot') {
+    // 책상 둘은 뒤 한 줄, 앞쪽은 횃대 둘과 화분 — 가운데(문 → 책상)는 비운다. 앵무새는 화면이 그린다(iso/parrots.ts)
+    items.push(
+      { id: 'plant', kind: 'plant', prop: 'palm', at: [R - 0.55, 0.5], box: box(R - 0.55, 0.5, 0.3, 0.3), h: 1.6 },
+      { id: 'plant2', kind: 'plant', prop: 'monstera', at: [0.5, 6.4], box: box(0.5, 6.4, 0.3, 0.3), h: 1.2 },
+      { id: 'plant3', kind: 'plant', prop: 'palm', at: [R - 0.5, 6.4], box: box(R - 0.5, 6.4, 0.3, 0.3), h: 1.5 },
+    );
+    blocks.push(box(R - 0.55, 0.5, 0.35, 0.35), box(0.5, 6.4, 0.35, 0.35), box(R - 0.5, 6.4, 0.35, 0.35));
+    addProps(items, blocks, [
+      prop('shelf', 'bookshelf', 3.5, 0.3), prop('lamp', 'floor_lamp', 0.4, 0.45), prop('coat', 'coat_rack', 0.4, 3.0),
+      prop('bin', 'trash_bin', R - 0.35, 3.0), prop('cooler', 'water_cooler', 0.4, 4.6),
+      prop('perch0', 'parrot_perch', PERCHES[0][0], PERCHES[0][1]), prop('perch1', 'parrot_perch', PERCHES[1][0], PERCHES[1][1]),
+      prop('rocks', 'desert_rocks', R - 0.5, 4.3),
     ]);
   } else if (theme === 'fern') {
     // 책상 둘은 뒤 한 줄, 앞쪽은 비워 공룡이 다니게 — 가장자리에 고사리 덤불, 바위, 둥지. 고사리 id 끝 숫자가 잎 돌림(models fern)
@@ -220,9 +238,13 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' |
   }
   return {
     size: [OFFICE_W, OFFICE_D],
-    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: rash ? 0x8a857b : theme === 'desert' ? 0xe2c48e : theme === 'fern' ? 0x6f9a45 : 0xd3d1c7 }],
+    floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: rash ? 0x8a857b : theme === 'desert' ? 0xe2c48e : theme === 'fern' ? 0x6f9a45 : theme === 'parrot' ? 0x8f6a46 : 0xd3d1c7 }],
     items, blocks,
     ...(theme === 'desert' ? { flats: ['desert'], desert: { roam: [0.9, 3.2, 5.9, 6.1] as Rect, home: DESERT_HOME } } : {}),
+    ...(theme === 'parrot' ? { flats: ['dirt'], aviary: {
+      perches: [...PERCHES.flatMap(([x, z]) => [[x - 0.2, 1.45, z], [x + 0.2, 1.45, z]] as [number, number, number][]), [3.2, 2.02, 0.3], [3.8, 2.02, 0.3]],
+      ground: [1.0, 3.4, 5.8, 6.1] as Rect, fly: [0.5, 0.2, 6.5, 6.5] as Rect,   // 뒤쪽은 책장 위(z 0.3)까지
+    } } : {}),
     ...(theme === 'fern' ? { flats: ['grass'], garden: { roam: GARDEN_ROAM, nibble: NIBBLE } } : {}),
     desks: deskAt.map((at, i) => ({ at, kind: deskKind, slot: 'project' as const, item: `desk${i}` })),
     stand: [[OFFICE_W / 2, 6.2], [OFFICE_W / 2 - 0.6, 6.2], [OFFICE_W / 2 + 0.6, 6.2]],
@@ -848,6 +870,7 @@ export const MODULES = {
   'office-rash': office(true, 's'),
   'office-desert': office(false, 's', 'desert'),
   'office-fern': office(false, 's', 'fern'),
+  'office-parrot': office(false, 's', 'parrot'),
   front: front(),
   corridor: floorOnly(PER_ROW * OFFICE_W, CORRIDOR, 0xc9c6bb),
   // 뒤에 사무실 줄이 또 있는 복도 — 먼 가장자리(다음 줄 사무실의 등)에 칸막이. 전에는 뚫려 있어 사람들이 사무실을 가로질렀다 (사용자, 2026-11-09)

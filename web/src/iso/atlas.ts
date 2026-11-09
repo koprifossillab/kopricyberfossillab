@@ -33,6 +33,7 @@ export interface Atlas {
 export const foodKey = (kind: string, dir: number) => `food-${kind}-${dir}`;
 export const scorpionKey = (frame: number, dir: number) => `scorp-${frame}-${dir}`;
 export const cactusKey = (pose: string, frame: number, dir: number) => `cactus-${pose}-${frame}-${dir}`;
+export const parrotKey = (kind: number, pose: string, frame: number, dir: number) => `parrot-${kind}-${pose}-${frame}-${dir}`;   // 앵무새 (wetherilli 029)
 export const fishKey = (kind: number, frame: number, dir: number) => `${kind}-${frame}-${dir}`;
 
 export const dinoKey = (color: number, pose: string, frame: number, dir: number) =>

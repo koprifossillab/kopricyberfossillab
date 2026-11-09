@@ -697,7 +697,7 @@ export function buildFloor(type: ModuleType): THREE.Group {
     if (i === 0) bx(g, x1 - x0, 0.5, z1 - z0, f.color, (x0 + x1) / 2, -0.25, (z0 + z1) / 2, false);
     else bx(g, x1 - x0, 0.01, z1 - z0, f.color, (x0 + x1) / 2, 0.008 + i * 0.004, (z0 + z1) / 2, false);
     if (i > 0) return;   // 격자는 첫 바닥에만 (겹친 바닥 위로 비치지 않게)
-    if (def.flats?.includes('desert') || def.flats?.includes('grass')) return;   // 사막·잔디는 격자 선을 긋지 않는다
+    if (def.flats?.includes('desert') || def.flats?.includes('grass') || def.flats?.includes('dirt')) return;   // 사막·잔디·흙은 격자 선을 긋지 않는다
     for (let x = Math.ceil(x0); x <= x1; x++) pts.push(x, 0.005, z0, x, 0.005, z1);
     for (let z = Math.ceil(z0); z <= z1; z++) pts.push(x0, 0.005, z, x1, 0.005, z);
   });
@@ -708,6 +708,7 @@ export function buildFloor(type: ModuleType): THREE.Group {
   if (def.flats?.includes('rug')) bx(g, 4.6, 0.04, 5.8, 0xfaeeda, 20.5, 0.02, 3.6, false);   // 휴게실 소파 깔개
   if (def.flats?.includes('desert')) desertFloor(g, def.size);
   if (def.flats?.includes('grass')) grassFloor(g, def.size);
+  if (def.flats?.includes('dirt')) dirtFloor(g, def.size);
   if (def.flats?.includes('mat')) bx(g, 1.2, 0.03, 1.4, 0x5f5e5a, 0.7, 0.015, 1, false);    // 입구 깔개
   if (def.flats?.includes('diner')) dinerFloor(g);
   return g;
@@ -788,6 +789,42 @@ function grassFloor(g: THREE.Group, [w, d]: [number, number]): void {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), new THREE.MeshLambertMaterial({ color: i % 3 ? 0xf6f1de : 0xf2cf4a, flatShading: true }));
     m.position.set(0.4 + rnd(i, 11) * (w - 0.8), 0.04, 0.4 + rnd(i, 12) * (d - 0.8));
     g.add(m);
+  }
+}
+
+// 흙바닥 — 칸마다 흙색 넷(이음매 없이), 자갈·마른 잎·떨어진 깃털(빨강·파랑·초록·흰), 벽가에 풀 몇 포기. 자리로 정한 의사난수 (wetherilli 029)
+function dirtFloor(g: THREE.Group, [w, d]: [number, number]): void {
+  const SOIL = [0x8f6a46, 0x86613f, 0x96714b, 0x7f5b3b];
+  for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) {
+    bx(g, 1, 0.012, 1, SOIL[(x * 3 + z * 7 + x * z) % SOIL.length], x + 0.5, 0.006, z + 0.5, false);
+  }
+  const rnd = (i: number, k: number) => { const v = Math.sin(i * 91.17 + k * 47.3) * 24634.6345; return v - Math.floor(v); };
+  for (let i = 0; i < 40; i++) {   // 자갈
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.025 + rnd(i, 1) * 0.03, 0), mat([0x6e5a44, 0xa08a6a, 0x5c4a38][i % 3]));
+    m.position.set(0.3 + rnd(i, 2) * (w - 0.6), 0.02, 0.3 + rnd(i, 3) * (d - 0.6));
+    m.rotation.set(i, i * 2, 0);
+    m.scale.y = 0.6;
+    g.add(m);
+  }
+  for (let i = 0; i < 12; i++) {   // 마른 잎
+    const r = bx(g, 0.1, 0.006, 0.05, [0x7a5a2a, 0x9a7a3a][i % 2], 0.4 + rnd(i, 4) * (w - 0.8), 0.016, 0.4 + rnd(i, 5) * (d - 0.8), false);
+    r.rotation.y = rnd(i, 6) * 3;
+  }
+  for (let i = 0; i < 9; i++) {   // 깃털
+    const r = bx(g, 0.14, 0.006, 0.03, [0xd8262e, 0x2a5bd7, 0x3f9b3a, 0xf2f0ea, 0xf2c230][i % 5], 1 + rnd(i, 7) * (w - 2), 0.018, 3.3 + rnd(i, 8) * 2.8, false);
+    r.rotation.y = rnd(i, 9) * 3;
+  }
+  const tuft = new THREE.ConeGeometry(0.025, 0.12, 3);
+  for (let i = 0; i < 24; i++) {   // 벽가 풀
+    const side = i % 3;
+    const x = side === 0 ? 0.15 + rnd(i, 10) * 0.2 : side === 1 ? w - 0.35 + rnd(i, 10) * 0.2 : 0.3 + rnd(i, 10) * (w - 0.6);
+    const z = side === 2 ? d - 0.35 + rnd(i, 11) * 0.2 : 0.3 + rnd(i, 11) * (d - 0.6);
+    for (let k = 0; k < 3; k++) {
+      const m = new THREE.Mesh(tuft, mat([0x5e7d34, 0x6f8a3a, 0x86a24a][(i + k) % 3]));
+      m.position.set(x + (k - 1) * 0.035, 0.06, z);
+      m.rotation.set((k - 1) * 0.35, 0, (rnd(i, k + 12) - 0.5) * 0.6);
+      g.add(m);
+    }
   }
 }
 

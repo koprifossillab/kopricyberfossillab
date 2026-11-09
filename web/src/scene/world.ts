@@ -25,17 +25,22 @@ const ROW_W = PER_ROW * OFFICE_W;
 export const DESERT = new Set(['shkim/phyloserver', 'shkim/houdini']);
 // 잔디 방 — 고사리와 작은 공룡 (paleoadmin 「고지리생태학 연구실」, 사용자 2026-11-09, wetherilli 027)
 export const GARDEN = new Set(['paleoadmin/WegenersDream']);
-export const themeOf = (room: string): 'desert' | 'fern' | undefined => DESERT.has(room) ? 'desert' : GARDEN.has(room) ? 'fern' : undefined;
+// 흙바닥 앵무새 방 — 계정 몫(jschoi). 표지를 안 켜면 「@jschoi」, 켜면 「jschoi/<프로젝트>」 방들 — 어느 쪽이든 (사용자 2026-11-09, wetherilli 029)
+const AVIARY_ACCOUNTS = ['jschoi'];
+export const isAviary = (room: string) => AVIARY_ACCOUNTS.some((u) => room === `@${u}` || room.startsWith(`${u}/`));
+export const themeOf = (room: string): 'desert' | 'fern' | 'parrot' | undefined =>
+  DESERT.has(room) ? 'desert' : GARDEN.has(room) ? 'fern' : isAviary(room) ? 'parrot' : undefined;
 function officeModule(o: Office): ModuleType {
   if (o.name === 'GSM') return 'office-gsm';
   if (DESERT.has(o.name)) return 'office-desert';
   if (GARDEN.has(o.name)) return 'office-fern';
+  if (isAviary(o.name)) return 'office-parrot';
   if (isRash(o.name)) return 'office-rash';
   return 'office-s';
 }
 const BACKWALL: Record<string, ModuleType> = {
   boss: 'backwall-boss', hq: 'backwall',
-  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', 'vacant-0': 'backwall', 'vacant-1': 'backwall', 'vacant-2': 'backwall', 'vacant-3': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
+  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', 'office-parrot': 'backwall', 'vacant-0': 'backwall', 'vacant-1': 'backwall', 'vacant-2': 'backwall', 'vacant-3': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
 export interface Placed { type: ModuleType; at: [number, number]; label?: string; y?: number }   // y: 바닥 높이 (아래층은 −DOWN_DROP)
@@ -61,6 +66,7 @@ export interface World {
   aqua: { view: { at: [number, number]; face: number; pose: 'sit' | 'stand'; on?: string; lift?: number }[]; tanks: { box: Rect; y0: number; y1: number }[] } | null;
   pen: { rect: Rect; feed: { at: [number, number]; face: number; dino: [number, number] }[]; feeder: [number, number] } | null;
   desert: { roam: Rect; home: [number, number]; room: string }[];   // 사막 방마다 — 전갈·선인장이 다니는 곳
+  aviary: { perches: [number, number, number][]; ground: Rect; fly: Rect; room: string }[];   // 흙바닥 방마다 — 앵무새가 앉고 나는 곳
   garden: { roam: Rect; nibble: { at: [number, number]; fern: [number, number] }[]; room: string }[];   // 잔디 방마다 — 작은 공룡이 다니는 곳
   labels: Plaque[];
   door: [number, number];
@@ -129,7 +135,7 @@ export function buildWorld(offices: Office[]): World {
   const w: World = {
     w: BUILDING_W + ENTRANCE_W, d: top + DOWN_D, top, modules, rooms, dining: [], lower: null, lift: null,
     desks: [], items: [], blocks: [], lounge: [], deskRest: [], core: [], bench: [], stand: [], labels: [],
-    restroom: { male: [], female: [] }, search: [], desert: [], garden: [], pen: null, aqua: null, breeze: [],
+    restroom: { male: [], female: [] }, search: [], desert: [], garden: [], aviary: [], pen: null, aqua: null, breeze: [],
     door: [BUILDING_W + ENTRANCE_DOOR[0], entZ + ENTRANCE_DOOR[1]],   // 엘리베이터·계단 앞
   };
   // 건물 밖은 입구 길만 걷는다
@@ -162,6 +168,7 @@ export function buildWorld(offices: Office[]): World {
         tanks: def.aqua.tanks.map((t) => ({ ...t, box: mr(t.box, o) })),
       };
     }
+    if (def.aviary && m.label) w.aviary.push({ perches: def.aviary.perches.map(([x, y, z]) => [x + o[0], y, z + o[1]]), ground: mr(def.aviary.ground, o), fly: mr(def.aviary.fly, o), room: m.label });
     if (def.garden && m.label) w.garden.push({ roam: mr(def.garden.roam, o), nibble: def.garden.nibble.map((n) => ({ at: mv(n.at, o), fern: mv(n.fern, o) })), room: m.label });
     if (def.desert && m.label) w.desert.push({ roam: mr(def.desert.roam, o), home: mv(def.desert.home, o), room: m.label });
     if (def.pen) {

@@ -3,7 +3,7 @@
 //            → [캐릭터 + 그 앞을 가리는 가구] 깊이 차례 → 이름표·말풍선(HTML)
 import { useEffect, useMemo, useRef } from 'react';
 import type { Agent, Office } from '../types.ts';
-import { bodyKey, headLayers, dinoKey, fishKey, scorpionKey, cactusKey, foodKey, loadAtlas, type SpriteRect } from './atlas.ts';
+import { bodyKey, headLayers, dinoKey, fishKey, scorpionKey, cactusKey, parrotKey, foodKey, loadAtlas, type SpriteRect } from './atlas.ts';
 import { appearanceOf, liftOf, shapeOf } from '../scene/appearance.ts';
 import { FishTank } from './fish.ts';
 import { daylight, hourNow } from './daylight.ts';
@@ -11,7 +11,8 @@ import { drawBackdrop } from './backdrop.ts';
 import { DinoPen } from './dinos.ts';
 import { Desert } from './desert.ts';
 import { Garden } from './garden.ts';
-import { SCORPION_STARTLE, CACTUS_STARTLE, DINO_NEAR, DINO_FERN } from './lines.ts';
+import { Aviary } from './parrots.ts';
+import { SCORPION_STARTLE, CACTUS_STARTLE, DINO_NEAR, DINO_FERN, PARROT_SWOOP, PARROT_TALK, PARROT_REPLY } from './lines.ts';
 import { MODULES } from '../scene/modules.ts';
 import type { Rect } from '../scene/layout.ts';
 import { Cast, sitting, dirOf, type Actor } from './cast.ts';
@@ -104,6 +105,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
       let pen: DinoPen | null = null;
       let deserts: Desert[] = [];
       let gardens: Garden[] = [];
+      let aviaries: Aviary[] = [];
+      const parrotSays = new Map<string, { text: string; until: number; at: V3 }>();   // 앵무새 말풍선 — 열쇠 「방:차례」
       const startled = new Map<string, { text: string; until: number; calm: number }>();   // 전갈·선인장에 놀란 사람 — 말과 다시 놀랄 수 있는 때
       let tank: FishTank | null = null;
       let tankItem: (string | undefined)[] = [];   // 수조 차례 → 그 수조 가구의 WorldItem.key (물고기를 그 그림 안에 그릴 때)
@@ -244,7 +247,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
             for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.y ?? 0, m.at[1] + lz]);
           }
         }
-        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; deserts = w.desert.map((d) => new Desert(d.roam, d.home, d.room)); gardens = w.garden.map((g) => new Garden(g.roam, g.nibble, g.room)); tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
+        if (orderFor !== w) { orderFor = w; order = isoOrder([...w.modules.keys()], (i) => moduleRect(w.modules[i])); pen = w.pen ? new DinoPen(w.pen.rect, w.pen.feeder) : null; deserts = w.desert.map((d) => new Desert(d.roam, d.home, d.room)); gardens = w.garden.map((g) => new Garden(g.roam, g.nibble, g.room)); aviaries = w.aviary.map((a) => new Aviary(a.perches, a.ground, a.fly, a.room)); parrotSays.clear(); tank = w.aqua ? new FishTank(w.aqua.tanks) : null;
           tankItem = (w.aqua?.tanks ?? []).map(({ box: [x0, z0, x1, z1] }) => {
             const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
             return w.items.find((it) => (it.kind === 'tank' || it.kind === 'tube') && cx > it.box[0] && cx < it.box[2] && cz > it.box[1] && cz < it.box[3])?.key;
@@ -370,6 +373,44 @@ export function Stage({ agents, offices, selected, onSelect }: {
             figs.push({ x: dn.x, z: dn.z, sit: false, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
               draw: () => { poly(circle(dn.x, dn.z, 0.18), '#000', 0.12); blit(r, ax, ay); } });
           }
+        }
+        // 흙바닥 방 — 앵무새가 날고 앉고 쫀다 (parrots.ts). 머리 위를 스치면 그 사람이 한마디, 앉은 앵무새는 가끔 사람 말을 흉내 내고
+        // 그 방 사람이 받아친다. 앵무새는 높이(y)가 있어 그림자는 땅에, 그림은 그 높이에
+        for (const av of aviaries) {
+          const fly = w.aviary.find((a) => a.room === av.room)?.fly;
+          const near = fly ? actors.filter((a) => !a.leaving && !a.npc && a.x > fly[0] - 0.8 && a.x < fly[2] + 0.8 && a.z > fly[1] - 0.8 && a.z < fly[3] + 1) : [];
+          av.step(Math.min(0.05, dt));
+          for (const a of near) {
+            const st = startled.get(a.agent.id);
+            if (st && T < st.calm) continue;
+            if (!av.swoops(a.x, a.z)) continue;
+            const text = drawLine(PARROT_SWOOP);
+            startled.set(a.agent.id, { text, until: T + Math.max(2.2, 1.6 + text.length * 0.12), calm: T + 35 + Math.random() * 45 });
+          }
+          for (const p of av.talkers()) {
+            av.talked(p);
+            const who = near.length ? personName(near[Math.floor(Math.random() * near.length)].agent) : '';
+            const text = drawLine(PARROT_TALK).replace(/\{상대\}/g, who ? (who.length === 3 ? who.slice(1) : who) : '안녕');
+            parrotSays.set(`${av.room}:${av.parrots.indexOf(p)}`, { text, until: T + Math.max(2.4, 1.6 + text.length * 0.12), at: [p.x, p.y, p.z] });
+            // 그 방 사람 하나가 받아친다 (반쯤)
+            const r = near.find((a) => { const st = startled.get(a.agent.id); return !st || T >= st.calm; });
+            if (r && Math.random() < 0.5) {
+              const reply = drawLine(PARROT_REPLY);
+              startled.set(r.agent.id, { text: reply, until: T + 2.2 + Math.max(2.2, 1.6 + reply.length * 0.12), calm: T + 30 + Math.random() * 30 });
+            }
+          }
+          av.parrots.forEach((p, i) => {
+            const said = parrotSays.get(`${av.room}:${i}`);
+            if (said && T < said.until) said.at = [p.x, p.y, p.z];
+            const r = atlas.critters?.[parrotKey(p.kind, p.pose, p.pose === 'fly' ? p.frame : 0, dirOf(p.rot))];
+            if (!r) return;
+            const [ax, ay] = proj([p.x, p.y, p.z]);
+            const sh = Math.max(0.05, 0.14 - p.y * 0.03);
+            // 횃대·책장 위에 앉았거나 그 위를 날면 그 가구가 앵무새를 덮지 않는다 (top)
+            const under = p.y > 0.3 ? w.items.find((it) => it.kind !== 'partition' && p.x >= it.box[0] && p.x <= it.box[2] && p.z >= it.box[1] && p.z <= it.box[3])?.key : undefined;
+            figs.push({ x: p.x, z: p.z, sit: false, top: under, x0: ax + r.ox, y0: ay + r.oy, x1: ax + r.ox + r.w, y1: ay + r.oy + r.h,
+              draw: () => { poly(circle(p.x, p.z, sh), '#000', p.state === 'fly' || p.state === 'circle' ? 0.07 : 0.12); blit(r, ax, ay); } });
+          });
         }
         // 물고기·손님 — 수조 안을 헤엄치거나 모래 위를 긴다 (fish.ts). 수조 그림(뒤판·물·유리가 한 조각)은
         // 물건 층에 먼저 깔리고, 물고기는 그 위에 — 그 수조가 다시 덮으면 짙은 뒤판까지 물고기 위에 칠해져 안 보인다(wetherilli 017 전까지의 탈).
@@ -573,6 +614,12 @@ export function Stage({ agents, offices, selected, onSelect }: {
             [a.x, heightAt(w, a.x, a.z) + 1.75 + (sitting(a) ? SIT_LIFT + (a.place.lift ?? 0) : -0.1), a.z], 'translate(-50%, -100%)');
         });
         // 전갈·선인장에 놀란 말 — 잡담 위에 덮는다
+        parrotSays.forEach((ps, key) => {
+          if (T >= ps.until) return;
+          const bid = `bubble:parrot:${key}`;
+          live.add(bid);
+          label(bid, 'bubble', `<small style="color:#2a5bd7">앵무새</small>${esc(ps.text)}`, [ps.at[0], ps.at[1] + 0.55, ps.at[2]], 'translate(-50%, -100%)');
+        });
         startled.forEach((st, id) => {
           if (T >= st.until) return;
           const d = draws.find((dr) => dr.a.agent.id === id);

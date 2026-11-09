@@ -13,6 +13,7 @@ const OFFICES = [
   { name: 'rash-company', size: 'm' as const }, { name: 'Cropobite', size: 's' as const }, { name: 'confoinfo', size: 's' as const },
   { name: 'shkim/phyloserver', size: 's' as const },   // 사막 방
   { name: 'paleoadmin/WegenersDream', size: 's' as const },   // 잔디 방
+  { name: '@jschoi', size: 's' as const },   // 흙바닥 앵무새 방
 ];
 
 function wallsOf(w: ReturnType<typeof buildWorld>): Rect[] {
@@ -190,6 +191,21 @@ test('아래층 식당가 — 문에서 식당 자리까지 계단으로만 오�
     }
     if (!stairs) bad.push(`${a} → ${b}: 계단을 지나지 않았다`);
   }
+});
+
+test('흙바닥 앵무새 방 — jschoi 계정 몫(표지 전 「@jschoi」·표지 뒤 「jschoi/…」), 앉을 곳·땅·나는 범위는 그 방 안', () => {
+  const w = buildWorld(OFFICES);
+  assert.equal(w.aviary.length, 1);
+  const { perches, ground, fly, room } = w.aviary[0];
+  assert.equal(room, '@jschoi');
+  const m = w.modules.find((x) => x.label === room)!;
+  assert.equal(m.type, 'office-parrot');
+  const inRoom = (x: number, z: number) => x > m.at[0] && x < m.at[0] + 7 && z > m.at[1] && z < m.at[1] + 7;
+  for (const [x, , z] of perches) assert.ok(inRoom(x, z));
+  assert.ok(inRoom(ground[0], ground[1]) && inRoom(ground[2], ground[3]) && inRoom(fly[0], fly[1]) && inRoom(fly[2], fly[3]));
+  const w2 = buildWorld([{ name: 'jschoi/somewhere', size: 's' }]);
+  assert.equal(w2.aviary.length, 1);
+  assert.equal(w2.modules.find((x) => x.label === 'jschoi/somewhere')!.type, 'office-parrot');
 });
 
 test('공실 — 옆 칸·앞뒤 줄로 붙은 공실은 창고 갈래가 다르다, 뒤에 줄이 있는 복도는 그 줄의 등을 막는다', () => {
