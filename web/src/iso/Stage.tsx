@@ -157,13 +157,13 @@ export function Stage({ agents, offices, selected, onSelect }: {
           const g = c.getContext('2d')!;
           g.drawImage(sheets[r.sheet], r.sx, r.sy, r.w, r.h, 0, 0, r.w, r.h);
           g.globalCompositeOperation = 'source-atop';
-          g.fillStyle = 'rgba(18, 20, 30, 0.5)';
+          g.fillStyle = 'rgba(18, 20, 30, 0.32)';   // 0.5 는 너무 어두웠다 (사용자)
           g.fillRect(0, 0, r.w, r.h);
           darkCache.set(r, c);
         }
         ctx.drawImage(c, ax + r.ox, ay + r.oy);
       };
-      const VACANT = 'vacant';   // 공실 — 창고처럼 쓰고 불은 꺼져 있다 (wetherilli 028)
+      const dim = (t: string) => t.startsWith('vacant');   // 공실 — 창고처럼 쓰고 불은 꺼져 있다 (wetherilli 028)
       const path = (pts: V3[]) => {
         ctx.beginPath();
         pts.forEach((p, i) => { const [u, v] = proj(p); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); });
@@ -240,7 +240,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
           lamps = [];
           for (const m of w.modules) {
             const [mw, md] = MODULES[m.type].size;
-            if (!MODULES[m.type].floors.length || m.type === 'terrace' || m.type === VACANT) continue;   // 공실은 불이 꺼져 있다
+            if (!MODULES[m.type].floors.length || m.type === 'terrace' || dim(m.type)) continue;   // 공실은 불이 꺼져 있다
             for (let lx = 1.75; lx < mw; lx += 3.5) for (let lz = 1.75; lz < md; lz += 3.5) lamps.push([m.at[0] + lx, m.y ?? 0, m.at[1] + lz]);
           }
         }
@@ -250,8 +250,8 @@ export function Stage({ agents, offices, selected, onSelect }: {
             return w.items.find((it) => (it.kind === 'tank' || it.kind === 'tube') && cx > it.box[0] && cx < it.box[2] && cz > it.box[1] && cz < it.box[3])?.key;
           });
         }
-        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); (m.type === VACANT ? blitDark : blit)(r, ax, ay); } });
-        for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); (w.modules[i].type === VACANT ? blitDark : blit)(r, ax, ay); } }
+        w.modules.forEach((m, i) => { const r = atlas.modules[m.type]?.floor; if (r) { const [ax, ay] = moduleAt(w, i); (dim(m.type) ? blitDark : blit)(r, ax, ay); } });
+        for (const i of order) { const r = atlas.modules[w.modules[i].type]?.objects; if (r) { const [ax, ay] = moduleAt(w, i); (dim(w.modules[i].type) ? blitDark : blit)(r, ax, ay); } }
 
         const actors = [...c.actors.values()].sort((a, b) => (a.x + a.z) - (b.x + b.z));
         const seated = new Map<number, Agent['activity']>();
@@ -443,7 +443,7 @@ export function Stage({ agents, offices, selected, onSelect }: {
             clip.push(f);
           });
           const desk = w.desks.findIndex((dk) => dk.item === it.key);
-          const dark = w.modules[it.module].type === VACANT;
+          const dark = dim(w.modules[it.module].type);
           const fn = () => { (dark ? blitDark : blit)(r, ax, ay); if (desk >= 0) deskScreen(w, desk, seated.get(desk), T); };
           if (after >= 0) covers.push({ at: after + 0.5, box: it.box, clip, alpha: 1, fn });
           if (afterIn >= 0) covers.push({ at: afterIn + 0.5, box: it.box, clip: veil, alpha: VEIL, fn });

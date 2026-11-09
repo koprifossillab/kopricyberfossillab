@@ -191,3 +191,18 @@ test('아래층 식당가 — 문에서 식당 자리까지 계단으로만 오�
     if (!stairs) bad.push(`${a} → ${b}: 계단을 지나지 않았다`);
   }
 });
+
+test('공실 — 옆 칸·앞뒤 줄로 붙은 공실은 창고 갈래가 다르다, 뒤에 줄이 있는 복도는 그 줄의 등을 막는다', () => {
+  const w = buildWorld(['a', 'b', 'c', 'd', 'e'].map((name) => ({ name, size: 's' as const })));   // 둘째 줄에 공실이 나란히
+  const vac = w.modules.filter((m) => m.type.startsWith('vacant'));
+  assert.ok(vac.length >= 2);
+  for (const a of vac) for (const b of vac) {
+    if (a === b) continue;
+    const side = Math.abs(a.at[1] - b.at[1]) < 1e-6 && Math.abs(Math.abs(a.at[0] - b.at[0]) - 7) < 1e-6;
+    const stack = Math.abs(a.at[0] - b.at[0]) < 1e-6 && Math.abs(Math.abs(a.at[1] - b.at[1]) - 9) < 1e-6;
+    if (side || stack) assert.notEqual(a.type, b.type, `${a.at} · ${b.at}`);
+  }
+  const corr = w.modules.filter((m) => m.type.startsWith('corridor'));
+  assert.equal(corr.at(-1)!.type, 'corridor');
+  for (const c of corr.slice(0, -1)) assert.equal(c.type, 'corridor-walled');
+});

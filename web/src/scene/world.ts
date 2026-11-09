@@ -11,7 +11,7 @@ import type { Rect } from './layout.ts';
 import type { Office } from '../types.ts';
 import {
   MODULES, TERRACE_D, DOOR_TOP, OFFICE_WIDTH, CHAIR_DZ, ENTRANCE_W, ENTRANCE_DOOR, CORRIDOR, OFFICE_W, OFFICE_D, ROW_D, PER_ROW, BUILDING_W, FRONT_D,
-  DOWN_D, DOWN_DROP,
+  DOWN_D, DOWN_DROP, VACANT_KINDS,
   type DeskKind, type ModuleType, type Plaque, type Seat, type Item, type Dining,
 } from './modules.ts';
 
@@ -35,7 +35,7 @@ function officeModule(o: Office): ModuleType {
 }
 const BACKWALL: Record<string, ModuleType> = {
   boss: 'backwall-boss', hq: 'backwall',
-  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', vacant: 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
+  'office-s': 'backwall', 'office-desert': 'backwall-desert', 'office-fern': 'backwall', 'vacant-0': 'backwall', 'vacant-1': 'backwall', 'vacant-2': 'backwall', 'vacant-3': 'backwall', office: 'backwall', 'office-gsm': 'backwall', 'office-rash': 'backwall-rash',
 };
 
 export interface Placed { type: ModuleType; at: [number, number]; label?: string; y?: number }   // y: 바닥 높이 (아래층은 −DOWN_DROP)
@@ -93,10 +93,15 @@ export function buildWorld(offices: Office[]): World {
     if (withBoss) rowsOf[rowsOf.length - 1].push({ type: 'boss', x: x + MODULES[type].size[0], label: o.name });
     x += w;
   }
-  for (const row of rowsOf) {
+  // 공실은 창고 갈래 넷 가운데 — 자리(줄·칸)로 고른다. 옆 칸·앞뒤 줄이 같은 갈래가 되지 않게 (사용자: 「붙어 있는 게 똑같이 나와 아쉽다」)
+  rowsOf.forEach((row, ri) => {
     let end = row.reduce((m, r) => Math.max(m, r.x + MODULES[r.type].size[0]), 0);
-    while (ROW_W - end >= OFFICE_WIDTH.m - 1e-6) { row.push({ type: 'vacant', x: end }); end += OFFICE_WIDTH.m; }
-  }
+    while (ROW_W - end >= OFFICE_WIDTH.m - 1e-6) {
+      const col = Math.round(end / OFFICE_WIDTH.m);
+      row.push({ type: `vacant-${(col + ri * 2) % VACANT_KINDS}` as ModuleType, x: end });
+      end += OFFICE_WIDTH.m;
+    }
+  });
   const rows = rowsOf.length;
   const rooms = rowsOf.flat().filter((r) => r.label && r.type !== 'boss').map((r) => r.label!);
   const modules: Placed[] = [];
@@ -109,7 +114,7 @@ export function buildWorld(offices: Office[]): World {
     const z0 = r * ROW_D;
     for (const o of row) modules.push({ type: o.type, at: [o.x, z0], label: o.label });
     modules.push({ type: 'hall', at: [ROW_W, z0] });
-    modules.push({ type: 'corridor', at: [0, z0 + OFFICE_D] });
+    modules.push({ type: r < rows - 1 ? 'corridor-walled' : 'corridor', at: [0, z0 + OFFICE_D] });   // 뒤에 줄이 더 있으면 그 줄의 등을 막는다
   });
   const frontZ = rows * ROW_D;
   modules.push({ type: 'front', at: [0, frontZ] });

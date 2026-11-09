@@ -230,9 +230,14 @@ function office(rash: boolean, size: 's' | 'm' = 'm', theme?: 'gsm' | 'desert' |
   };
 }
 
-// ---- 공실 (7×7) — 줄 끝을 채우는 이름 없는 사무실. 쓰는 사람이 없으니 창고처럼: 책상 없이 뒤 벽에 선반 둘,
-// 쌓아 둔 상자·낡은 캐비닛·서류 더미·사다리·양동이, 바닥은 시멘트. 불이 꺼진 것은 화면이 그린다(Stage 의 VACANT, wetherilli 028)
-function vacant(): ModuleDef {
+// ---- 공실 (7×7) — 줄 끝을 채우는 이름 없는 사무실. 쓰는 사람이 없으니 창고처럼: 책상 없이 선반·쌓은 상자·캐비닛·서류 더미·사다리…,
+// 바닥은 시멘트. 불이 꺼진 것은 화면이 그린다(Stage 의 blitDark, wetherilli 028).
+// 갈래 넷(seed) — 씨앗 난수로 뒤 벽 꾸밈과 바닥의 잡동사니를 흩는다(굽기마다 같다). world 가 붙은 공실끼리 다른 갈래를 고른다
+export const VACANT_KINDS = 4;
+function vacant(seed: number): ModuleDef {
+  let st = 0x9e3779b9 ^ (seed * 0x85ebca6b);
+  const rnd = () => { st = (st + 0x6d2b79f5) | 0; let t = Math.imul(st ^ (st >>> 15), 1 | st); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const pick = <V,>(xs: V[]): V => xs[Math.floor(rnd() * xs.length)];
   const door_: [number, number] = [OFFICE_W / 2 - 0.7, OFFICE_W / 2 + 0.7];
   const walls: Rect[] = [
     [0, OFFICE_D - T / 2, door_[0], OFFICE_D + T / 2],
@@ -242,24 +247,43 @@ function vacant(): ModuleDef {
   const items: Item[] = [
     ...walls.map((r, i) => ({ id: `wall${i}`, kind: 'partition' as ItemKind, at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] as [number, number], box: r })),
     door('door', OFFICE_W / 2, OFFICE_D, door_[1] - door_[0], 'x'),
-    { id: 'rack0', kind: 'rack', at: [1.6, 0.55], box: [0.4, 0.25, 2.8, 0.85] },
-    { id: 'rack1', kind: 'rack', at: [4.6, 0.55], box: [3.4, 0.25, 5.8, 0.85] },
-    { id: 'cabinet', kind: 'cabinet', at: [6.45, 0.5], box: box(6.45, 0.5, 0.35, 0.35) },
-    { id: 'boxes0', kind: 'boxes', at: [0.55, 2.4], box: box(0.55, 2.4, 0.3, 0.3) },
-    { id: 'boxes1', kind: 'boxes', at: [0.55, 3.15], box: box(0.55, 3.15, 0.3, 0.3) },
-    { id: 'boxes2', kind: 'boxes', at: [2.3, 2.6], box: box(2.3, 2.6, 0.3, 0.3) },
-    { id: 'boxes3', kind: 'boxes', at: [5.0, 3.6], box: box(5.0, 3.6, 0.3, 0.3) },
-    { id: 'boxes4', kind: 'boxes', at: [5.7, 3.7], box: box(5.7, 3.7, 0.3, 0.3) },
-    { id: 'boxes5', kind: 'boxes', at: [6.4, 6.3], box: box(6.4, 6.3, 0.3, 0.3) },
-    { id: 'ladder', kind: 'ladder', at: [6.55, 2.2], box: [6.3, 1.5, 6.8, 2.9] },
-    { id: 'bucket', kind: 'bucket', at: [0.5, 6.45], box: box(0.5, 6.45, 0.22, 0.22) },
-    { id: 'deadplant', kind: 'deadplant', at: [1.25, 6.45], box: box(1.25, 6.45, 0.25, 0.25) },
   ];
-  const blocks: Rect[] = [...walls.map((r) => pad(r)), ...items.slice(walls.length + 1).map((it) => pad(it.box, 0.05))];
-  addProps(items, blocks, [
-    prop('oldcab', 'old_cabinet', 0.4, 4.4, Math.PI / 2), prop('pile', 'paper_pile', 3.3, 3.0), prop('fan', 'old_fan', 2.6, 4.6),
-    prop('files', 'file_cabinet', 6.45, 5.0, -Math.PI / 2),
-  ]);
+  const blocks: Rect[] = walls.map((r) => pad(r));
+  const taken: Rect[] = [[door_[0] - 0.2, 5.6, door_[1] + 0.2, OFFICE_D]];   // 출입구 앞은 비운다
+  const free = (r: Rect) => r[0] > 0.1 && r[2] < OFFICE_W - 0.15 && r[1] > 0.1 && r[3] < OFFICE_D - 0.15
+    && taken.every((q) => r[0] >= q[2] + 0.08 || r[2] <= q[0] - 0.08 || r[1] >= q[3] + 0.08 || r[3] <= q[1] - 0.08);
+  const put = (it: Item) => { items.push(it); blocks.push(pad(it.box, 0.05)); taken.push(it.box); };
+  const putProp = (p: ReturnType<typeof prop>) => { if (!free(p.item.box)) return false; items.push(p.item); blocks.push(p.block); taken.push(p.item.box); return true; };
+  // 뒤 벽 — 선반 하나나 둘, 남는 자리엔 캐비닛·서류 캐비닛·복사기
+  const back = pick([['rack', 'rack'], ['rack', 'cabinet'], ['cabinet', 'rack'], ['rack', 'copier']]);
+  back.forEach((k, i) => {
+    const x0 = i === 0 ? 0.4 : 3.6;
+    if (k === 'rack') put({ id: `rack${i}`, kind: 'rack', at: [x0 + 1.2, 0.55], box: [x0, 0.25, x0 + 2.4, 0.85] });
+    else if (k === 'cabinet') { put({ id: 'cabinet', kind: 'cabinet', at: [x0 + 0.5, 0.5], box: box(x0 + 0.5, 0.5, 0.35, 0.35) }); putProp(prop('files', 'file_cabinet', x0 + 1.5, 0.45)); }
+    else putProp(prop('copier', 'copier', x0 + 1.0, 0.5));
+  });
+  // 바닥의 잡동사니 — 상자 무더기 4~7, 그리고 몇 가지를 흩는다 (자리가 안 나면 거른다)
+  const spot = (): [number, number] => [0.5 + rnd() * 6.0, 1.3 + rnd() * 5.2];
+  let nb = 0;
+  for (let tries = 0, want = 4 + Math.floor(rnd() * 4); nb < want && tries < 60; tries++) {
+    const [x, z] = spot();
+    const r = box(x, z, 0.3, 0.3);
+    if (!free(r)) continue;
+    put({ id: `boxes${nb++}`, kind: 'boxes', at: [x, z], box: r });
+  }
+  const extras: [string, keyof typeof PROPS | 'ladder' | 'bucket' | 'deadplant'][] = [
+    ['oldcab', 'old_cabinet'], ['pile', 'paper_pile'], ['fan', 'old_fan'], ['ladder', 'ladder'], ['bucket', 'bucket'], ['deadplant', 'deadplant'], ['pile2', 'paper_pile'],
+  ];
+  for (const [id, name] of extras) {
+    if (rnd() < 0.3) continue;   // 몇은 없는 방도
+    for (let tries = 0; tries < 30; tries++) {
+      const [x, z] = spot();
+      if (name === 'ladder') { const r: Rect = [x - 0.25, z - 0.7, x + 0.25, z + 0.7]; if (free(r)) { put({ id, kind: 'ladder', at: [x, z], box: r }); break; } continue; }
+      if (name === 'bucket') { const r = box(x, z, 0.22, 0.22); if (free(r)) { put({ id, kind: 'bucket', at: [x, z], box: r }); break; } continue; }
+      if (name === 'deadplant') { const r = box(x, z, 0.25, 0.25); if (free(r)) { put({ id, kind: 'deadplant', at: [x, z], box: r }); break; } continue; }
+      if (putProp(prop(id, name, x, z, pick([0, Math.PI / 2, -Math.PI / 2, Math.PI])))) break;
+    }
+  }
   return {
     size: [OFFICE_W, OFFICE_D],
     floors: [{ rect: [0, 0, OFFICE_W, OFFICE_D], color: 0xb3ada1 }],   // 창고 시멘트
@@ -403,6 +427,14 @@ function front(): ModuleDef {
 
 const floorOnly = (w: number, d: number, color: number): ModuleDef =>
   ({ size: [w, d], floors: [{ rect: [0, 0, w, d], color }], items: [], blocks: [], desks: [] });
+
+function walledCorridor(): ModuleDef {
+  const def = floorOnly(PER_ROW * OFFICE_W, CORRIDOR, 0xc9c6bb);
+  const r: Rect = [0, CORRIDOR - T, PER_ROW * OFFICE_W, CORRIDOR];   // 복도 안쪽에 — 다음 줄 사무실의 뒤 벽 가구(책장 z 0.1~)와 겹치지 않게
+  def.items.push({ id: 'wall0', kind: 'partition', at: [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], box: r });
+  def.blocks.push(pad(r));
+  return def;
+}
 
 // 자료실 (4×7) — 자료 검색(WebSearch·WebFetch)을 하러 다녀오는 방. 통로 오른쪽, 입구 위. 통로 쪽 벽에 문
 export const LIBRARY_W = 4;
@@ -810,7 +842,7 @@ export const MODULES = {
   service: service(),
   entrance: entrance(),
   office: office(false),
-  vacant: vacant(),
+  'vacant-0': vacant(0), 'vacant-1': vacant(1), 'vacant-2': vacant(2), 'vacant-3': vacant(3),
   'office-s': office(false, 's'),
   'office-gsm': office(false, 'm', 'gsm'),
   'office-rash': office(true, 's'),
@@ -818,6 +850,8 @@ export const MODULES = {
   'office-fern': office(false, 's', 'fern'),
   front: front(),
   corridor: floorOnly(PER_ROW * OFFICE_W, CORRIDOR, 0xc9c6bb),
+  // 뒤에 사무실 줄이 또 있는 복도 — 먼 가장자리(다음 줄 사무실의 등)에 칸막이. 전에는 뚫려 있어 사람들이 사무실을 가로질렀다 (사용자, 2026-11-09)
+  'corridor-walled': walledCorridor(),
   hall: floorOnly(HALL_W, ROW_D, 0xc9c6bb),
   // 바깥 벽 — 바닥 없이 벽만
   leftwall: { size: [0, ROW_D], floors: [], items: [], blocks: [], desks: [], tall: ['leftwall'] } as ModuleDef,
